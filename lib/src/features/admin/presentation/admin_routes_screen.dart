@@ -248,6 +248,17 @@ class _AdminRouteDetailScreenState
                   double.tryParse('${stop['longitude'] ?? ''}') != null,
             )
             .toList();
+        final completedCount = stops
+            .where((stop) => stop['document_status'] == 'completed')
+            .length;
+        final missedCount = stops
+            .where((stop) => stop['document_status'] == 'missed_closed')
+            .length;
+        final pendingCount = stops.length - completedCount - missedCount;
+        final mapHeight = (MediaQuery.sizeOf(context).width * 0.72).clamp(
+          300.0,
+          520.0,
+        );
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -261,10 +272,48 @@ class _AdminRouteDetailScreenState
                 context,
               ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
             ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _RouteStat(
+                    label: 'Wszystkie',
+                    value: stops.length,
+                    color: WntColors.brand,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _RouteStat(
+                    label: 'Obsłużone',
+                    value: completedCount,
+                    color: WntColors.success,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _RouteStat(
+                    label: 'Pozostałe',
+                    value: pendingCount,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+                if (missedCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _RouteStat(
+                      label: 'Nie zastano',
+                      value: missedCount,
+                      color: WntColors.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 16),
             if (mappedStops.isNotEmpty) ...[
               SizedBox(
-                height: 320,
+                height: mapHeight,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: _AdminRouteMap(stops: mappedStops),
@@ -272,46 +321,147 @@ class _AdminRouteDetailScreenState
               ),
               const SizedBox(height: 16),
             ],
-            Card(
-              child: Column(
-                children: [
-                  for (var index = 0; index < stops.length; index++) ...[
-                    ListTile(
-                      leading: CircleAvatar(
-                        child: Text('${stops[index]['sequence']}'),
-                      ),
-                      title: Text(
-                        '${stops[index]['client_name']} - ${stops[index]['location_name']}',
-                      ),
-                      subtitle: Text(
-                        '${stops[index]['address'] ?? ''}\n${_status(stops[index]['document_status'])}',
-                      ),
-                      isThreeLine: true,
-                      trailing: _int(stops[index]['document_id']) > 0
-                          ? IconButton(
-                              tooltip:
-                                  stops[index]['document_status'] == 'completed'
-                                  ? 'Edytuj obsługę klienta'
-                                  : 'Obsłuż klienta',
-                              onPressed: () => _serviceStop(stops[index]),
-                              icon: Icon(
-                                stops[index]['document_status'] == 'completed'
-                                    ? Icons.edit_note_outlined
-                                    : Icons.assignment_turned_in_outlined,
-                              ),
-                            )
-                          : null,
-                    ),
-                    if (index < stops.length - 1) const Divider(),
-                  ],
-                ],
-              ),
-            ),
+            Text('Punkty trasy', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 10),
+            for (final stop in stops) ...[
+              _RouteStopCard(stop: stop, onService: () => _serviceStop(stop)),
+              const SizedBox(height: 10),
+            ],
           ],
         );
       },
     ),
   );
+}
+
+class _RouteStat extends StatelessWidget {
+  const _RouteStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Column(
+      children: [
+        Text(
+          '$value',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, maxLines: 1, style: const TextStyle(fontSize: 12)),
+        ),
+      ],
+    ),
+  );
+}
+
+class _RouteStopCard extends StatelessWidget {
+  const _RouteStopCard({required this.stop, required this.onService});
+
+  final Map<String, dynamic> stop;
+  final VoidCallback onService;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = stop['document_status']?.toString();
+    final color = status == 'completed'
+        ? WntColors.success
+        : status == 'missed_closed'
+        ? WntColors.error
+        : Colors.orange.shade700;
+    final canService = _int(stop['document_id']) > 0;
+    final summary = stop['products_summary']?.toString().trim() ?? '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: status == 'completed' ? 0.13 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                child: Text('${stop['sequence']}'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stop['client_name']?.toString() ?? 'Klient',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(stop['location_name']?.toString() ?? 'Lokalizacja'),
+                    const SizedBox(height: 3),
+                    Text(
+                      stop['address']?.toString() ?? '',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _status(status),
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+          ),
+          if (summary.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(summary, style: Theme.of(context).textTheme.bodySmall),
+          ],
+          if (canService) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onService,
+                icon: Icon(
+                  status == 'completed'
+                      ? Icons.edit_note_outlined
+                      : Icons.assignment_turned_in_outlined,
+                ),
+                label: Text(
+                  status == 'completed'
+                      ? 'Edytuj obsługę klienta'
+                      : 'Obsłuż klienta',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _AdminRouteMap extends StatelessWidget {

@@ -275,31 +275,9 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SegmentedButton<String>(
-                        showSelectedIcon: false,
-                        style: const ButtonStyle(
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        segments: const [
-                          ButtonSegment(
-                            value: 'all',
-                            label: Text('Wszystkie', maxLines: 1),
-                          ),
-                          ButtonSegment(
-                            value: 'wz',
-                            label: Text('WZ', maxLines: 1),
-                          ),
-                          ButtonSegment(
-                            value: 'invoice',
-                            label: Text('Faktury VAT', maxLines: 1),
-                          ),
-                        ],
-                        selected: {_filter},
-                        onSelectionChanged: (value) =>
-                            setState(() => _filter = value.first),
-                      ),
+                    _DocumentFilters(
+                      selected: _filter,
+                      onChanged: (value) => setState(() => _filter = value),
                     ),
                   ],
                 );
@@ -378,6 +356,62 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           );
         },
       );
+}
+
+class _DocumentFilters extends StatelessWidget {
+  const _DocumentFilters({required this.selected, required this.onChanged});
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const filters = [
+      ('all', 'Wszystkie'),
+      ('wz', 'WZ'),
+      ('invoice', 'Faktury VAT'),
+    ];
+    return Container(
+      width: double.infinity,
+      height: 46,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: WntColors.brandSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: WntColors.line),
+      ),
+      child: Row(
+        children: [
+          for (final filter in filters)
+            Expanded(
+              child: Material(
+                color: selected == filter.$1 ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: () => onChanged(filter.$1),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        filter.$2,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: selected == filter.$1
+                              ? WntColors.brand
+                              : WntColors.muted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
