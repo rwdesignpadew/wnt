@@ -109,10 +109,13 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     final session = state.session;
-    if (session != null) {
-      await _push.unregister(session.token);
-      await _repository.logout(session);
+    try {
+      if (session != null) {
+        await _push.unregister(session.token);
+        await _repository.logout(session);
+      }
+    } finally {
+      state = const AuthState.signedOut();
     }
-    state = const AuthState.signedOut();
   }
 }
