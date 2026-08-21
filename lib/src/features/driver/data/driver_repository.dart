@@ -97,6 +97,14 @@ class DriverRepository {
     );
   }
 
+  Future<Map<String, dynamic>> serviceDocument(
+    String token,
+    int documentId,
+  ) => _api.get(
+    '/mobile/driver/documents/$documentId',
+    token: token,
+  );
+
   Future<ApiDownload> documentPdf(String token, int documentId) async {
     try {
       return await _api.download(

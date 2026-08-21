@@ -2,16 +2,6 @@ name: iOS
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "lib/**"
-      - "assets/**"
-      - "ios/**"
-      - "vendor/google_navigation_flutter/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - ".github/workflows/ios.yml"
 
 jobs:
   build-ios:

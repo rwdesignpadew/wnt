@@ -5,6 +5,8 @@ import 'package:google_navigation_flutter/google_navigation_flutter.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../driver/application/driver_providers.dart';
+import '../../driver/presentation/driver_service_screen.dart';
 import '../application/admin_providers.dart';
 import 'admin_route_edit_screen.dart';
 
@@ -184,6 +186,32 @@ class _AdminRouteDetailScreenState
     _future = ref.read(adminRepositoryProvider).route(session.token, widget.id);
   }
 
+  Future<void> _serviceStop(Map<String, dynamic> stop) async {
+    final documentId = _int(stop['document_id']);
+    if (documentId < 1) return;
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(driverRepositoryProvider)
+          .serviceDocument(token, documentId);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DriverServiceScreen(
+            document: _map(response['document']) ?? const {},
+            products: _list(response['products']),
+          ),
+        ),
+      );
+      if (mounted) setState(_load);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Podgląd trasy')),
@@ -255,8 +283,24 @@ class _AdminRouteDetailScreenState
                       title: Text(
                         '${stops[index]['client_name']} - ${stops[index]['location_name']}',
                       ),
-                      subtitle: Text(stops[index]['address']?.toString() ?? ''),
-                      trailing: Text(_status(stops[index]['document_status'])),
+                      subtitle: Text(
+                        '${stops[index]['address'] ?? ''}\n${_status(stops[index]['document_status'])}',
+                      ),
+                      isThreeLine: true,
+                      trailing: _int(stops[index]['document_id']) > 0
+                          ? IconButton(
+                              tooltip:
+                                  stops[index]['document_status'] == 'completed'
+                                  ? 'Edytuj obsługę klienta'
+                                  : 'Obsłuż klienta',
+                              onPressed: () => _serviceStop(stops[index]),
+                              icon: Icon(
+                                stops[index]['document_status'] == 'completed'
+                                    ? Icons.edit_note_outlined
+                                    : Icons.assignment_turned_in_outlined,
+                              ),
+                            )
+                          : null,
                     ),
                     if (index < stops.length - 1) const Divider(),
                   ],
