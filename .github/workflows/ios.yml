@@ -37,7 +37,9 @@ jobs:
         run: echo "GMS_API_KEY=${GMS_API_KEY}" > ios/Flutter/Secrets.xcconfig
 
       - name: Include private iOS settings
-        run: echo '#include? "Secrets.xcconfig"' >> ios/Flutter/Release.xcconfig
+        run: |
+          echo '#include? "Secrets.xcconfig"' >> ios/Flutter/Release.xcconfig
+          echo '#include? "Secrets.xcconfig"' >> ios/Flutter/Debug.xcconfig
 
       - name: Build iOS without signing
         run: flutter build ios --release --no-codesign
@@ -47,4 +49,46 @@ jobs:
         with:
           name: Woda-na-telefon-iOS-unsigned
           path: build/ios/iphoneos/Runner.app
+          if-no-files-found: error
+
+  simulator-smoke-test:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Configure Google Maps key
+        env:
+          GMS_API_KEY: ${{ secrets.IOS_GOOGLE_MAPS_API_KEY }}
+        run: |
+          echo "GMS_API_KEY=${GMS_API_KEY}" > ios/Flutter/Secrets.xcconfig
+          echo '#include? "Secrets.xcconfig"' >> ios/Flutter/Debug.xcconfig
+
+      - name: Build for iPhone Simulator
+        run: flutter build ios --simulator --debug
+
+      - name: Boot simulator and launch application
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in d.values() for x in runtime if "iPhone" in x["name"] and x["isAvailable"]))')
+          echo "DEVICE_ID=${DEVICE_ID}" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "$DEVICE_ID" pl.wnt.wntDriver
+          sleep 12
+          xcrun simctl io "$DEVICE_ID" screenshot ios-simulator.png
+
+      - name: Upload simulator screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Woda-na-telefon-iOS-simulator-smoke-test
+          path: ios-simulator.png
           if-no-files-found: error

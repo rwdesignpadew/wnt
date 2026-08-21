@@ -32,6 +32,8 @@
 	<string>Aplikacja używa lokalizacji do prowadzenia kierowcy po trasie.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Aplikacja raportuje pozycję kierowcy podczas realizacji trasy.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Aplikacja korzysta z czujników ruchu podczas prowadzenia kierowcy po trasie.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
