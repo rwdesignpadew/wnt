@@ -22,6 +22,7 @@ class DriverNavigationScreen extends StatefulWidget {
 
 class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   String _status = 'Uruchamianie nawigacji...';
+  bool _sessionReady = false;
   bool _ready = false;
   bool _arrived = false;
   Timer? _fallbackTimer;
@@ -44,11 +45,11 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         }
       }
     });
+    unawaited(_prepareSession());
   }
 
-  Future<void> _start(GoogleNavigationViewController controller) async {
+  Future<void> _prepareSession() async {
     try {
-      _controller = controller;
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw Exception('Włącz lokalizację GPS w telefonie.');
       }
@@ -74,11 +75,24 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       await GoogleMapsNavigator.initializeNavigationSession().timeout(
         const Duration(seconds: 12),
       );
-      await controller.setNavigationUIEnabled(true);
       await _arrivalSubscription?.cancel();
       _arrivalSubscription = GoogleMapsNavigator.setOnArrivalListener((_) {
         if (mounted) setState(() => _arrived = true);
       });
+      if (mounted) setState(() => _sessionReady = true);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _status = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    }
+  }
+
+  Future<void> _start(GoogleNavigationViewController controller) async {
+    try {
+      _controller = controller;
+      await controller.setNavigationUIEnabled(true);
       final status = await GoogleMapsNavigator.setDestinations(
         Destinations(
           waypoints: widget.destinations
@@ -162,13 +176,16 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
               ),
         body: Stack(
           children: [
-            Positioned.fill(
-              child: GoogleMapsNavigationView(
-                onViewCreated: _start,
-                initialNavigationUIEnabledPreference:
-                    NavigationUIEnabledPreference.automatic,
-              ),
-            ),
+            if (_sessionReady)
+              Positioned.fill(
+                child: GoogleMapsNavigationView(
+                  onViewCreated: _start,
+                  initialNavigationUIEnabledPreference:
+                      NavigationUIEnabledPreference.automatic,
+                ),
+              )
+            else
+              const Positioned.fill(child: ColoredBox(color: Colors.black12)),
             if (!_ready)
               Positioned(
                 top: 12,

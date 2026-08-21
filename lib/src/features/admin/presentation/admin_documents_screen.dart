@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
+import '../../documents/presentation/html_document_screen.dart';
 import '../application/admin_providers.dart';
 
 class AdminDocumentsScreen extends ConsumerStatefulWidget {
@@ -19,6 +21,7 @@ class AdminDocumentsScreen extends ConsumerStatefulWidget {
 
 class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
   int? _busy;
+  String _filter = 'all';
   Future<void> _delete(Map<String, dynamic> document) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -123,6 +126,18 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final pdf = document['source'] == 'fakturownia'
           ? await repository.externalDocumentPdf(token, id)
           : await repository.documentPdf(token, id);
+      if (pdf.contentType.contains('text/html')) {
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HtmlDocumentScreen(
+              html: utf8.decode(pdf.bytes),
+              title: document['title']?.toString() ?? 'Dokument',
+            ),
+          ),
+        );
+        return;
+      }
       final directory = await getTemporaryDirectory();
       final file = File(
         '${directory.path}${Platform.pathSeparator}dokument-$id.pdf',
@@ -229,23 +244,51 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           error: error,
           onRetry: () => ref.invalidate(adminDocumentsProvider),
         ),
-        data: (items) => RefreshIndicator(
-          onRefresh: () async => ref.refresh(adminDocumentsProvider.future),
-          child: ListView.separated(
+        data: (items) {
+          final sorted = [...items]..sort(
+            (a, b) => _int(b['sort_at']).compareTo(_int(a['sort_at'])),
+          );
+          final documents = sorted.where((document) {
+            if (_filter == 'wz') return document['type'] == 'wz';
+            if (_filter == 'invoice') return document['type'] == 'invoice';
+            return true;
+          }).toList();
+          return RefreshIndicator(
+            onRefresh: () async => ref.refresh(adminDocumentsProvider.future),
+            child: ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: items.length + 1,
+            itemCount: documents.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               if (index == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    'Dokumenty',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dokumenty',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'all', label: Text('Wszystkie')),
+                          ButtonSegment(value: 'wz', label: Text('WZ')),
+                          ButtonSegment(
+                            value: 'invoice',
+                            label: Text('Faktury VAT'),
+                          ),
+                        ],
+                        selected: {_filter},
+                        onSelectionChanged: (value) =>
+                            setState(() => _filter = value.first),
+                      ),
+                    ),
+                  ],
                 );
               }
-              final document = items[index - 1];
+              final document = documents[index - 1];
               return Card(
                 child: ListTile(
                   leading: const Icon(
@@ -315,8 +358,9 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                 ),
               );
             },
-          ),
-        ),
+            ),
+          );
+        },
       );
 }
 

@@ -107,13 +107,17 @@ class ApiClient {
           response.statusCode,
         );
       }
-      if (contentType.contains('text/html')) {
-        throw const ApiException(
-          'Serwer zwrócił stronę internetową zamiast dokumentu. Dokument nie został otwarty.',
-        );
-      }
-      if (!contentType.contains('pdf')) {
+      final isPdf = contentType.contains('pdf');
+      final isHtml = contentType.contains('text/html');
+      if (!isPdf && !isHtml) {
         throw const ApiException('Serwer nie zwrócił prawidłowego pliku PDF.');
+      }
+      if (isHtml) {
+        return ApiDownload(
+          bytes: response.bodyBytes,
+          contentType: contentType,
+          filename: _filename(response.headers['content-disposition']),
+        );
       }
       const pdfSignature = [0x25, 0x50, 0x44, 0x46];
       if (response.bodyBytes.length < pdfSignature.length ||
