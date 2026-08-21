@@ -5,11 +5,18 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../application/driver_providers.dart';
 
-class DriverLoadScreen extends ConsumerWidget {
+class DriverLoadScreen extends ConsumerStatefulWidget {
   const DriverLoadScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DriverLoadScreen> createState() => _DriverLoadScreenState();
+}
+
+class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
+  String _selection = 'all';
+
+  @override
+  Widget build(BuildContext context) {
     return ref
         .watch(driverRouteProvider)
         .when(
@@ -20,15 +27,34 @@ class DriverLoadScreen extends ConsumerWidget {
           ),
           data: (data) {
             final totals = <String, int>{};
-            for (final document in _list(data['documents'])) {
-              if (document['status'] == 'completed') continue;
-              for (final item in _list(document['items'])) {
-                final name = item['product_name']?.toString() ?? 'Produkt';
-                totals.update(
-                  name,
-                  (value) => value + _int(item['quantity']),
-                  ifAbsent: () => _int(item['quantity']),
-                );
+            final loadRoutes = _list(data['load_routes']);
+            final selectedRoutes = _selection == 'all'
+                ? loadRoutes
+                : loadRoutes
+                      .where((route) => '${route['id']}' == _selection)
+                      .toList();
+            if (loadRoutes.isNotEmpty) {
+              for (final route in selectedRoutes) {
+                for (final item in _list(route['items'])) {
+                  final name = item['product_name']?.toString() ?? 'Produkt';
+                  totals.update(
+                    name,
+                    (value) => value + _int(item['quantity']),
+                    ifAbsent: () => _int(item['quantity']),
+                  );
+                }
+              }
+            } else {
+              for (final document in _list(data['documents'])) {
+                if (document['status'] == 'completed') continue;
+                for (final item in _list(document['items'])) {
+                  final name = item['product_name']?.toString() ?? 'Produkt';
+                  totals.update(
+                    name,
+                    (value) => value + _int(item['quantity']),
+                    ifAbsent: () => _int(item['quantity']),
+                  );
+                }
               }
             }
             final entries =
@@ -45,12 +71,40 @@ class DriverLoadScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Suma produktów zaplanowanych dla nieobsłużonych punktów.',
+                    _selection == 'all'
+                        ? 'Suma produktów ze wszystkich tras bez powrotu do bazy.'
+                        : 'Suma produktów dla wybranej trasy.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
                   ),
                   const SizedBox(height: 16),
+                  if (loadRoutes.isNotEmpty) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selection,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Załadunek dla trasy',
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'all',
+                          child: Text('Wszystko — wszystkie trasy'),
+                        ),
+                        for (final route in loadRoutes)
+                          DropdownMenuItem(
+                            value: '${route['id']}',
+                            child: Text(
+                              '${route['scheduled_date']} — ${route['name']}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _selection = value ?? 'all'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (entries.isEmpty)
                     const EmptyState(
                       icon: Icons.inventory_2_outlined,
