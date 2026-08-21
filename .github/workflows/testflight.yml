@@ -2,6 +2,11 @@ name: TestFlight
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/testflight-trigger
 
 jobs:
   build-and-upload:
