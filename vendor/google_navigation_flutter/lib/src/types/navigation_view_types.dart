@@ -1,0 +1,761 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:ui';
+
+import 'package:flutter/foundation.dart';
+
+import '../../google_navigation_flutter.dart';
+
+/// Navigation view recenter clicked event.
+/// {@category Navigation View}
+class NavigationViewRecenterButtonClickedEvent {}
+
+/// Map type.
+/// {@category Navigation View}
+/// {@category Map View}
+/// {@category Android Auto}
+/// {@category Carplay}
+enum MapType {
+  /// No type set.
+  none,
+
+  /// Normal map.
+  normal,
+
+  /// Satellite map.
+  satellite,
+
+  /// Terrain map. (Does not work during navigation)
+  terrain,
+
+  /// Hybrid map.
+  hybrid,
+}
+
+/// Map color scheme mode.
+/// {@category Navigation View}
+/// {@category Map View}
+enum MapColorScheme {
+  /// Follow system or SDK default (automatic).
+  followSystem,
+
+  /// Force light color scheme.
+  light,
+
+  /// Force dark color scheme.
+  dark,
+}
+
+/// Navigation night mode.
+///
+/// Controls the navigation UI lighting mode for Navigation views.
+/// This affects the color scheme and visibility of navigation UI elements.
+///
+/// Android ref: https://developers.google.com/maps/documentation/navigation/android-sdk/reference/com/google/android/libraries/navigation/ForceNightMode
+/// iOS ref: https://developers.google.com/maps/documentation/navigation/ios-sdk/reference/objc/Enums/GMSNavigationLightingMode
+/// {@category Navigation View}
+enum NavigationForceNightMode {
+  /// Let the SDK automatically determine day or night mode based on time and location.
+  auto,
+
+  /// Force day mode regardless of time or location.
+  forceDay,
+
+  /// Force night mode regardless of time or location.
+  forceNight,
+}
+
+/// Represents the camera position in a Google Maps view.
+/// {@category Navigation View}
+/// {@category Map View}
+/// {@category Android Auto}
+/// {@category Carplay}
+class CameraPosition {
+  /// Creates a [CameraPosition] object with map centered
+  /// to the [target] with the given [bearing], [tilt] and [zoom] level.
+  ///
+  /// By default, the camera centers on the geographical coordinates (0,0) with
+  /// no tilt (0 degrees), camera zoomed out (3.0) and the bearing heading north
+  /// (0 degrees).
+  const CameraPosition({
+    this.bearing = 0,
+    this.target = const LatLng(latitude: 0, longitude: 0),
+    this.tilt = 0,
+    this.zoom = 3.0,
+  }) : assert(
+         0 <= bearing && bearing < 360,
+         'Bearing must be between 0 and 360 degrees.',
+       ),
+       assert(
+         0 <= tilt && tilt <= 90,
+         'Tilt must be between 0 and 90 degrees.',
+       );
+
+  /// Bearing of the camera, in degrees clockwise from true north.
+  final double bearing;
+
+  /// The location that the camera is pointing at.
+  final LatLng target;
+
+  /// The angle, in degrees, of the camera angle from the nadir (directly facing the Earth).
+  final double tilt;
+
+  /// Zoom level near the center of the screen.
+  final double zoom;
+
+  @override
+  String toString() =>
+      'CameraPosition('
+      'bearing: $bearing, '
+      'target: $target, '
+      'tilt: $tilt, '
+      'zoom: $zoom'
+      ')';
+}
+
+/// Parameter given to parameter given to the [GoogleNavigationViewController.followMyLocation]
+/// to specify the orientation of the camera.
+/// {@category Navigation View}
+/// {@category Map View}
+/// {@category Android Auto}
+/// {@category Carplay}
+enum CameraPerspective {
+  /// A tilted perspective facing in the same direction as the user.
+  tilted,
+
+  /// A heading-facing top-down perspective of the camera's target.
+  topDownHeadingUp,
+
+  /// A north-facing top-down perspective of the camera's target.
+  topDownNorthUp,
+}
+
+/// {@category Navigation}
+/// {@category Android Auto}
+/// {@category Carplay}
+class CustomNavigationAutoEvent {
+  final String? event;
+  final Object? data;
+
+  CustomNavigationAutoEvent({required this.event, required this.data});
+
+  @override
+  String toString() => 'CustomNavigationAutoEvent(event: $event, data: $data)';
+}
+
+/// {@category Navigation}
+/// {@category Android Auto}
+/// {@category Carplay}
+class AutoScreenAvailabilityChangedEvent {
+  final bool isAvailable;
+
+  AutoScreenAvailabilityChangedEvent({required this.isAvailable});
+
+  @override
+  String toString() =>
+      'AutoScreenAvailabilityChangedEvent(isAvailable: $isAvailable)';
+}
+
+/// Represents the click position in a Google Maps view.
+/// {@category Navigation View}
+/// {@category Map View}
+class MapClickEvent {
+  /// Creates a [MapClickEvent] object.
+  const MapClickEvent(this.target);
+
+  /// The location where the click happened.
+  final LatLng target;
+
+  @override
+  String toString() => 'MapClickEvent(target: $target)';
+}
+
+/// Represents navigation UI changed event in a view.
+/// {@category Navigation View}
+class NavigationUIEnabledChangedEvent {
+  /// Creates a [NavigationUIEnabledChangedEvent] object.
+  const NavigationUIEnabledChangedEvent(this.navigationUIEnabled);
+
+  /// Value representing whether UI changed or not.
+  final bool navigationUIEnabled;
+
+  @override
+  String toString() =>
+      'NavigationUIEnabledChangedEvent('
+      'navigationUIEnabled: $navigationUIEnabled'
+      ')';
+}
+
+/// Represents prompt visibility changed event in a view.
+/// {@category Navigation View}
+/// {@category Android Auto}
+/// {@category Carplay}
+class PromptVisibilityChangedEvent {
+  /// Creates a [PromptVisibilityChangedEvent] object.
+  const PromptVisibilityChangedEvent(this.promptVisible);
+
+  /// Value representing whether prompts are visible or not.
+  final bool promptVisible;
+
+  @override
+  String toString() =>
+      'PromptVisibilityChangedEvent(promptVisible: $promptVisible)';
+}
+
+/// Represents the long click position in a Google Maps view.
+/// {@category Navigation View}
+/// {@category Map View}
+class MapLongClickEvent {
+  /// Creates a [MapLongClickEvent] object.
+  const MapLongClickEvent(this.target);
+
+  /// The location where the long click happened.
+  final LatLng target;
+
+  @override
+  String toString() => 'MapLongClickEvent(target: $target)';
+}
+
+/// Represents a point of interest (POI) on the map.
+/// POIs include parks, schools, government buildings, and businesses.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class PointOfInterest {
+  /// Creates a [PointOfInterest] object.
+  const PointOfInterest({
+    required this.placeID,
+    required this.name,
+    required this.latLng,
+  });
+
+  /// The Place ID of this POI, as defined in the Places SDK.
+  /// This identifier can be used to retrieve additional information about the place
+  /// using the Places API.
+  final String placeID;
+
+  /// The name of the POI (e.g., "Central Park", "City Hall").
+  final String name;
+
+  /// The geographical coordinates of the POI.
+  final LatLng latLng;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other.runtimeType != runtimeType) {
+      return false;
+    }
+    return other is PointOfInterest &&
+        placeID == other.placeID &&
+        name == other.name &&
+        latLng == other.latLng;
+  }
+
+  @override
+  int get hashCode => Object.hash(placeID, name, latLng);
+
+  @override
+  String toString() =>
+      'PointOfInterest(placeId: $placeID, name: $name, latLng: $latLng)';
+}
+
+/// Represents a POI click event in a Google Maps view.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class PoiClickedEvent {
+  /// Creates a [PoiClickedEvent] object.
+  const PoiClickedEvent({required this.pointOfInterest});
+
+  /// The point of interest that was clicked.
+  final PointOfInterest pointOfInterest;
+
+  @override
+  String toString() => 'PoiClickedEvent(pointOfInterest: $pointOfInterest)';
+}
+
+/// Represents one indoor level in a focused indoor building.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class IndoorLevel {
+  /// Creates an [IndoorLevel] object.
+  const IndoorLevel({
+    required this.levelIndex,
+    required this.name,
+    required this.shortName,
+  });
+
+  /// Stable index of this level within the containing focused building levels list.
+  final int levelIndex;
+
+  /// Full display name of the level.
+  final String? name;
+
+  /// Short display name of the level.
+  final String? shortName;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other.runtimeType != runtimeType) {
+      return false;
+    }
+    return other is IndoorLevel &&
+        levelIndex == other.levelIndex &&
+        name == other.name &&
+        shortName == other.shortName;
+  }
+
+  @override
+  int get hashCode => Object.hash(levelIndex, name, shortName);
+
+  @override
+  String toString() =>
+      'IndoorLevel(levelIndex: $levelIndex, name: $name, shortName: $shortName)';
+}
+
+/// Represents focused indoor building metadata.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class IndoorBuilding {
+  /// Creates an [IndoorBuilding] object.
+  const IndoorBuilding({
+    required this.levels,
+    this.activeLevelIndex,
+    this.defaultLevelIndex,
+    this.isUnderground,
+  });
+
+  /// All levels available in the focused building.
+  final List<IndoorLevel> levels;
+
+  /// Currently active level index in [levels], if known.
+  final int? activeLevelIndex;
+
+  /// Default level index in [levels], if known.
+  final int? defaultLevelIndex;
+
+  /// Whether the building is underground, if known.
+  final bool? isUnderground;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) {
+      return true;
+    }
+    if (other.runtimeType != runtimeType) {
+      return false;
+    }
+    return other is IndoorBuilding &&
+        listEquals(levels, other.levels) &&
+        activeLevelIndex == other.activeLevelIndex &&
+        defaultLevelIndex == other.defaultLevelIndex &&
+        isUnderground == other.isUnderground;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(levels),
+    activeLevelIndex,
+    defaultLevelIndex,
+    isUnderground,
+  );
+
+  @override
+  String toString() =>
+      'IndoorBuilding(levels: $levels, activeLevelIndex: $activeLevelIndex, '
+      'defaultLevelIndex: $defaultLevelIndex, isUnderground: $isUnderground)';
+}
+
+/// Event emitted when focused indoor building changes.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class IndoorFocusedBuildingChangedEvent {
+  const IndoorFocusedBuildingChangedEvent(this.building);
+
+  final IndoorBuilding? building;
+}
+
+/// Event emitted when active indoor level changes.
+/// {@category Navigation View}
+/// {@category Map View}
+@immutable
+class IndoorActiveLevelChangedEvent {
+  const IndoorActiveLevelChangedEvent(this.building);
+
+  final IndoorBuilding? building;
+}
+
+/// Traffic data statuses
+/// {@category Navigation View}
+enum RouteSegmentTrafficDataStatus {
+  /// OK
+  ok,
+
+  /// UNAVAILABLE
+  unavailable,
+}
+
+/// Route segment traffic data road strech rendering data type.
+/// {@category Navigation View}
+class RouteSegmentTrafficDataRoadStretchRenderingData {
+  /// Initialize with style, length and offset.
+  RouteSegmentTrafficDataRoadStretchRenderingData({
+    required this.style,
+    required this.lengthMeters,
+    required this.offsetMeters,
+  });
+
+  /// Rendering data style.
+  final RouteSegmentTrafficDataRoadStretchRenderingDataStyle style;
+
+  /// Length in meters.
+  final int lengthMeters;
+
+  /// Offset in meters.
+  final int offsetMeters;
+
+  @override
+  String toString() =>
+      'RouteSegmentTrafficDataRoadStretchRenderingData('
+      'style: $style, '
+      'lengthMeters: $lengthMeters, '
+      'offsetMeters: $offsetMeters'
+      ')';
+}
+
+/// Route segment traffic data road strech rendering style.
+/// {@category Navigation View}
+enum RouteSegmentTrafficDataRoadStretchRenderingDataStyle {
+  /// UNKNOWN.
+  unknown,
+
+  /// SLOWER TRAFFIC.
+  slowerTraffic,
+
+  /// TRAFFIC JAM.
+  trafficJam,
+}
+
+/// Route segment traffic data.
+/// {@category Navigation View}
+class RouteSegmentTrafficData {
+  /// Initialize with status, and rendering data list.
+  RouteSegmentTrafficData({
+    required this.status,
+    required this.roadStretchRenderingDataList,
+  });
+
+  /// Status.
+  final RouteSegmentTrafficDataStatus status;
+
+  /// Rendering data list.
+  final List<RouteSegmentTrafficDataRoadStretchRenderingData?>
+  roadStretchRenderingDataList;
+
+  @override
+  String toString() =>
+      'RouteSegmentTrafficData('
+      'status: $status, '
+      'roadStretchRenderingDataList: $roadStretchRenderingDataList'
+      ')';
+}
+
+/// Navigation route segment
+/// {@category Navigation View}
+class RouteSegment {
+  /// Initialize with traffic data (Android only),
+  /// destination coordinate, traveled route and destination waypoint.
+  RouteSegment({
+    this.trafficData,
+    required this.destinationLatLng,
+    required this.latLngs,
+    required this.destinationWaypoint,
+  });
+
+  /// Traffic data (Android only).
+  final RouteSegmentTrafficData? trafficData;
+
+  /// Destination coordinate.
+  final LatLng destinationLatLng;
+
+  /// Traveled route.
+  final List<LatLng?>? latLngs;
+
+  /// Destination waypoint.
+  final NavigationWaypoint? destinationWaypoint;
+
+  @override
+  String toString() =>
+      'RouteSegment('
+      'trafficData: $trafficData, '
+      'destinationLatLng: $destinationLatLng, '
+      'latLngs: $latLngs, '
+      'destinationWaypoint: $destinationWaypoint'
+      ')';
+}
+
+/// Internal camera update type.
+/// {@category Navigation View}
+/// {@category Map View}
+enum CameraUpdateType {
+  /// Camera update to a camera position.
+  cameraPosition,
+
+  /// Camera update to a co-ordinate.
+  latLng,
+
+  /// Camera update to bounded box on the Earth's surface.
+  latLngBounds,
+
+  /// Camera update to a co-ordinate and an absolute zoom value.
+  latLngZoom,
+
+  /// Camera update by scrolling the map.
+  scrollBy,
+
+  /// Camera update by zooming a specific amount.
+  zoomBy,
+
+  /// Camera update to an absolute zoom value.
+  zoomTo,
+}
+
+/// Defines a camera move, supporting absolute moves as well as moves relative
+/// the current position.
+/// {@category Navigation View}
+/// {@category Map View}
+/// {@category Android Auto}
+/// {@category Carplay}
+class CameraUpdate {
+  CameraUpdate._(this.type);
+
+  /// Returns a camera update that moves the camera to the specified position.
+  static CameraUpdate newCameraPosition(CameraPosition cameraPosition) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.cameraPosition);
+    update.cameraPosition = cameraPosition;
+    return update;
+  }
+
+  /// Returns a camera update that moves the camera target to the specified
+  /// geographical location.
+  static CameraUpdate newLatLng(LatLng latLng) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.latLng);
+    update.latLng = latLng;
+    return update;
+  }
+
+  /// Returns a camera update that transforms the camera so that the specified
+  /// geographical bounding box is centered in the map view at the greatest
+  /// possible zoom level. A non-zero [padding] insets the bounding box in
+  /// logical pixels from the map view's edges.
+  ///
+  /// The camera's new tilt and bearing will both be 0.0.
+  static CameraUpdate newLatLngBounds(
+    LatLngBounds bounds, {
+    double padding = 0.0,
+  }) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.latLngBounds);
+    update.bounds = bounds;
+
+    update.padding = padding;
+    return update;
+  }
+
+  /// Returns a camera update that moves the camera target to the specified
+  /// geographical location and zoom level.
+  ///
+  /// Zoom level is bound to minimum and maximum zoom preference. See
+  /// [GoogleNavigationViewController.setMinZoomPreference] and
+  /// [GoogleNavigationViewController.setMaxZoomPreference].
+  static CameraUpdate newLatLngZoom(LatLng latLng, double zoom) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.latLngZoom);
+    update.latLng = latLng;
+    update.zoom = zoom;
+    return update;
+  }
+
+  /// Returns a camera update that moves the camera target the specified screen
+  /// distance.
+  ///
+  /// For a camera with bearing 0.0 (pointing north), scrolling by 50,75 moves
+  /// the camera's target to a geographical location that is 50 to the east and
+  /// 75 to the south of the current location, measured in screen coordinates.
+  static CameraUpdate scrollBy(double dx, double dy) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.scrollBy);
+    update.scrollByDx = dx;
+    update.scrollByDy = dy;
+    return update;
+  }
+
+  /// Returns a camera update that modifies the camera zoom level by the
+  /// specified amount. The optional [focus] is a screen point whose underlying
+  /// geographical location should be invariant, if possible, by the movement.
+  ///
+  /// Zoom level is bound to minimum and maximum zoom preference. See
+  /// [GoogleNavigationViewController.setMinZoomPreference] and
+  /// [GoogleNavigationViewController.setMaxZoomPreference].
+  static CameraUpdate zoomBy(double amount, {Offset? focus}) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.zoomBy);
+    update.zoomByAmount = amount;
+
+    update.focus = focus;
+    return update;
+  }
+
+  /// Returns a camera update that zooms the camera in, bringing the camera
+  /// closer to the surface of the Earth.
+  ///
+  /// Equivalent to the result of calling `zoomBy(1.0)`.
+  ///
+  /// Zoom level is bound to minimum and maximum zoom preference. See
+  /// [GoogleNavigationViewController.setMinZoomPreference] and
+  /// [GoogleNavigationViewController.setMaxZoomPreference].
+  static CameraUpdate zoomIn() {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.zoomBy);
+    update.zoomByAmount = 1.0;
+    return update;
+  }
+
+  /// Returns a camera update that zooms the camera out, bringing the camera
+  /// further away from the surface of the Earth.
+  ///
+  /// Equivalent to the result of calling `zoomBy(-1.0)`.
+  ///
+  /// Zoom level is bound to minimum and maximum zoom preference. See
+  /// [GoogleNavigationViewController.setMinZoomPreference] and
+  /// [GoogleNavigationViewController.setMaxZoomPreference].
+  static CameraUpdate zoomOut() {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.zoomBy);
+    update.zoomByAmount = -1.0;
+    return update;
+  }
+
+  /// Returns a camera update that sets the camera zoom level.
+  ///
+  /// Zoom level is bound to minimum and maximum zoom preference. See
+  /// [GoogleNavigationViewController.setMinZoomPreference] and
+  /// [GoogleNavigationViewController.setMaxZoomPreference].
+  static CameraUpdate zoomTo(double zoom) {
+    final CameraUpdate update = CameraUpdate._(CameraUpdateType.zoomTo);
+    update.zoom = zoom;
+    return update;
+  }
+
+  /// Internal camera update type.
+  final CameraUpdateType type;
+
+  /// Camera update to a camera position.
+  CameraPosition? cameraPosition;
+
+  /// Camera update to a co-ordinate.
+  LatLng? latLng;
+
+  /// Camera update to bounded box on the Earth's surface.
+  LatLngBounds? bounds;
+
+  /// The padding added to the bounding box camera.
+  double? padding;
+
+  /// Camera update to an absolute zoom value.
+  double? zoom;
+
+  /// Camera update by zooming a specific amount.
+  double? zoomByAmount;
+
+  /// Camera update by scrolling longitude.
+  double? scrollByDx;
+
+  /// Camera update by scrolling latitude.
+  double? scrollByDy;
+
+  /// The screen position co-ordinates for the zoom-by camera.
+  Offset? focus;
+
+  @override
+  String toString() =>
+      'CameraUpdate('
+      'type: $type, '
+      'cameraPosition: $cameraPosition, '
+      'latLng: $latLng, '
+      'bounds: $bounds, '
+      'padding: $padding, '
+      'zoom: $zoom, '
+      'zoomByAmount: $zoomByAmount, '
+      'scrollByDx: $scrollByDx, '
+      'scrollByDy: $scrollByDy, '
+      'focus: $focus'
+      ')';
+}
+
+/// My location clicked event.
+/// {@category Navigation View}
+/// {@category Map View}
+class MyLocationClickedEvent {}
+
+/// My location button clicked event.
+/// {@category Navigation View}
+/// {@category Map View}
+class MyLocationButtonClickedEvent {}
+
+/// Represents the event type for [CameraChangedEvent].
+/// {@category Navigation View}
+/// {@category Map View}
+enum CameraEventType {
+  /// Camera move initiated by developer or in response to user action.
+  /// For example: zoom buttons, my location button, or marker clicks.
+  moveStartedByApi,
+
+  /// Camera move initiated in response to user gestures on the map.
+  moveStartedByGesture,
+
+  /// Called repeatedly as the camera continues to move.
+  onCameraMove,
+
+  /// Called when camera movement has ended.
+  onCameraIdle,
+
+  /// Called when camera starts following location (Android only).
+  onCameraStartedFollowingLocation,
+
+  /// Called when camera stops following location (Android only).
+  onCameraStoppedFollowingLocation,
+}
+
+/// Represents camera changed events in a Google Maps view.
+/// {@category Navigation View}
+/// {@category Map View}
+class CameraChangedEvent {
+  /// Creates a [CameraChangedEvent] object.
+  const CameraChangedEvent({required this.eventType, required this.position});
+
+  /// Event type that happened.
+  final CameraEventType eventType;
+
+  /// Current position of the camera.
+  final CameraPosition position;
+
+  @override
+  String toString() =>
+      'CameraChangedEvent(eventType: $eventType, position: $position)';
+}

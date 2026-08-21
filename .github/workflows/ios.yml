@@ -1,0 +1,50 @@
+name: iOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "assets/**"
+      - "ios/**"
+      - "vendor/google_navigation_flutter/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/ios.yml"
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze shared Android/iOS code
+        run: flutter analyze
+
+      - name: Configure Google Maps key
+        env:
+          GMS_API_KEY: ${{ secrets.IOS_GOOGLE_MAPS_API_KEY }}
+        run: echo "GMS_API_KEY=${GMS_API_KEY}" > ios/Flutter/Secrets.xcconfig
+
+      - name: Include private iOS settings
+        run: echo '#include? "Secrets.xcconfig"' >> ios/Flutter/Release.xcconfig
+
+      - name: Build iOS without signing
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload unsigned application
+        uses: actions/upload-artifact@v4
+        with:
+          name: Woda-na-telefon-iOS-unsigned
+          path: build/ios/iphoneos/Runner.app
+          if-no-files-found: error
