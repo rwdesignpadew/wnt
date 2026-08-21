@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
@@ -224,62 +225,116 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   Future<void> _captureSignature() async {
     final key = GlobalKey();
     final points = <Offset?>[];
-    final signature = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Podpis klienta'),
-          content: SizedBox(
-            width: 520,
-            child: RepaintBoundary(
-              key: key,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanStart: (details) =>
-                    setDialogState(() => points.add(details.localPosition)),
-                onPanUpdate: (details) =>
-                    setDialogState(() => points.add(details.localPosition)),
-                onPanEnd: (_) => setDialogState(() => points.add(null)),
-                child: CustomPaint(
-                  painter: _SignaturePainter(points),
-                  child: const SizedBox(height: 230, width: double.infinity),
-                ),
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    String? signature;
+    try {
+      if (!mounted) return;
+      signature = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        useSafeArea: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => Dialog.fullscreen(
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Podpis klienta',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: RepaintBoundary(
+                              key: key,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onPanStart: (details) => setDialogState(
+                                  () => points.add(details.localPosition),
+                                ),
+                                onPanUpdate: (details) => setDialogState(
+                                  () => points.add(details.localPosition),
+                                ),
+                                onPanEnd: (_) =>
+                                    setDialogState(() => points.add(null)),
+                                child: CustomPaint(
+                                  painter: _SignaturePainter(points),
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 72,
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton.filled(
+                          tooltip: 'Zatwierdź podpis',
+                          iconSize: 30,
+                          onPressed: points.whereType<Offset>().length < 2
+                              ? null
+                              : () async {
+                                  final boundary =
+                                      key.currentContext!.findRenderObject()!
+                                          as RenderRepaintBoundary;
+                                  final image = await boundary.toImage(
+                                    pixelRatio: 2,
+                                  );
+                                  final bytes = await image.toByteData(
+                                    format: ui.ImageByteFormat.png,
+                                  );
+                                  if (!dialogContext.mounted) return;
+                                  Navigator.pop(
+                                    dialogContext,
+                                    'data:image/png;base64,${base64Encode(bytes!.buffer.asUint8List())}',
+                                  );
+                                },
+                          icon: const Icon(Icons.check),
+                        ),
+                        const SizedBox(height: 18),
+                        IconButton.outlined(
+                          tooltip: 'Wyczyść podpis',
+                          iconSize: 28,
+                          onPressed: () => setDialogState(points.clear),
+                          icon: const Icon(Icons.ink_eraser_outlined),
+                        ),
+                        const SizedBox(height: 18),
+                        IconButton.outlined(
+                          tooltip: 'Anuluj',
+                          iconSize: 28,
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => setDialogState(points.clear),
-              child: const Text('Wyczyść'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Anuluj'),
-            ),
-            FilledButton(
-              onPressed: points.whereType<Offset>().length < 2
-                  ? null
-                  : () async {
-                      final boundary =
-                          key.currentContext!.findRenderObject()!
-                              as RenderRepaintBoundary;
-                      final image = await boundary.toImage(pixelRatio: 2);
-                      final bytes = await image.toByteData(
-                        format: ui.ImageByteFormat.png,
-                      );
-                      if (!dialogContext.mounted) return;
-                      Navigator.pop(
-                        dialogContext,
-                        'data:image/png;base64,${base64Encode(bytes!.buffer.asUint8List())}',
-                      );
-                    },
-              child: const Text('Zatwierdź podpis'),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } finally {
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
     if (signature != null && mounted) {
       setState(() => _signatureData = signature);
     }
