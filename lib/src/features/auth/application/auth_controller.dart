@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../../core/notifications/push_notification_service.dart';
 import '../data/auth_repository.dart';
 import '../domain/app_session.dart';
 
@@ -42,27 +43,29 @@ final authRepositoryProvider = Provider<AuthRepository>(
 );
 
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
-  (ref) => AuthController(ref.watch(authRepositoryProvider))..restore(),
+  (ref) => AuthController(ref.watch(authRepositoryProvider), ref.watch(pushNotificationServiceProvider))..restore(),
 );
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repository) : super(const AuthState.checking());
+  AuthController(this._repository, this._push) : super(const AuthState.checking());
 
   final AuthRepository _repository;
+  final PushNotificationService _push;
 
   Future<void> restore() async {
     final session = await _repository.restore();
     state = session == null
         ? const AuthState.signedOut()
         : AuthState.signedIn(session);
+    if (session != null) await _push.register(session.token);
   }
 
   Future<bool> login(String email, String password) async {
     state = state.copyWith(busy: true, clearError: true);
     try {
-      state = AuthState.signedIn(
-        await _repository.login(email: email, password: password),
-      );
+      final session = await _repository.login(email: email, password: password);
+      state = AuthState.signedIn(session);
+      await _push.register(session.token);
       return true;
     } catch (error) {
       state = AuthState.signedOut(
@@ -82,16 +85,16 @@ class AuthController extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(busy: true, clearError: true);
     try {
-      state = AuthState.signedIn(
-        await _repository.register(
+      final session = await _repository.register(
           name: name,
           email: email,
           password: password,
           address: address,
           phone: phone,
           nip: nip,
-        ),
-      );
+        );
+      state = AuthState.signedIn(session);
+      await _push.register(session.token);
       return true;
     } catch (error) {
       state = AuthState.signedOut(
@@ -106,7 +109,10 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     final session = state.session;
-    if (session != null) await _repository.logout(session);
+    if (session != null) {
+      await _push.unregister(session.token);
+      await _repository.logout(session);
+    }
     state = const AuthState.signedOut();
   }
 }
