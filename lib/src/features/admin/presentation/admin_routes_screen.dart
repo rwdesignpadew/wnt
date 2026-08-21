@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_navigation_flutter/google_navigation_flutter.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
@@ -212,6 +213,13 @@ class _AdminRouteDetailScreenState
         }
         final route = _map(snapshot.data?['route']) ?? const {};
         final stops = _list(route['stops']);
+        final mappedStops = stops
+            .where(
+              (stop) =>
+                  double.tryParse('${stop['latitude'] ?? ''}') != null &&
+                  double.tryParse('${stop['longitude'] ?? ''}') != null,
+            )
+            .toList();
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -226,6 +234,16 @@ class _AdminRouteDetailScreenState
               ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
             ),
             const SizedBox(height: 16),
+            if (mappedStops.isNotEmpty) ...[
+              SizedBox(
+                height: 320,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: _AdminRouteMap(stops: mappedStops),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Card(
               child: Column(
                 children: [
@@ -250,6 +268,59 @@ class _AdminRouteDetailScreenState
       },
     ),
   );
+}
+
+class _AdminRouteMap extends StatelessWidget {
+  const _AdminRouteMap({required this.stops});
+
+  final List<Map<String, dynamic>> stops;
+
+  Future<void> _onCreated(GoogleMapViewController controller) async {
+    final points = stops
+        .map(
+          (stop) => LatLng(
+            latitude: double.parse('${stop['latitude']}'),
+            longitude: double.parse('${stop['longitude']}'),
+          ),
+        )
+        .toList();
+    await controller.addMarkers([
+      for (var index = 0; index < stops.length; index++)
+        MarkerOptions(
+          position: points[index],
+          infoWindow: InfoWindow(
+            title: '${stops[index]['sequence']}. ${stops[index]['client_name']}',
+            snippet: stops[index]['address']?.toString(),
+          ),
+        ),
+    ]);
+    if (points.length > 1) {
+      await controller.addPolylines([
+        PolylineOptions(points: points, strokeWidth: 6),
+      ]);
+      await controller.moveCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds.createBoundsFromPoints(points),
+          padding: 55,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final first = stops.first;
+    return GoogleMapsMapView(
+      initialCameraPosition: CameraPosition(
+        target: LatLng(
+          latitude: double.parse('${first['latitude']}'),
+          longitude: double.parse('${first['longitude']}'),
+        ),
+        zoom: 11,
+      ),
+      onViewCreated: _onCreated,
+    );
+  }
 }
 
 String _status(dynamic status) => switch ('$status') {
