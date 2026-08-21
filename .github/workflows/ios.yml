@@ -80,7 +80,12 @@ jobs:
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in d.values() for x in runtime if "iPhone" in x["name"] and x["isAvailable"]))')
           echo "DEVICE_ID=${DEVICE_ID}" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE_ID" || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          for attempt in {1..45}; do
+            STATE=$(xcrun simctl list devices -j | DEVICE_ID="$DEVICE_ID" python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next((x["state"] for runtime in d.values() for x in runtime if x["udid"] == os.environ["DEVICE_ID"]), "Missing"))')
+            [ "$STATE" = "Booted" ] && break
+            sleep 2
+          done
+          [ "$STATE" = "Booted" ] || { echo "Simulator did not boot: $STATE"; exit 1; }
           xcrun simctl install "$DEVICE_ID" build/ios/iphonesimulator/Runner.app
           xcrun simctl launch "$DEVICE_ID" pl.wnt.wntDriver
           sleep 12
