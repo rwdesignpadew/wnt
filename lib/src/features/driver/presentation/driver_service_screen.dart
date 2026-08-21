@@ -442,7 +442,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         : clientName;
     final total = widget.products.fold<double>(0, (sum, product) {
       return sum +
-          (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
+          (_quantities[_int(product['id'])] ?? 0) *
+              _productGrossPrice(product);
     });
     final received = double.tryParse(_cash.text.replaceAll(',', '.')) ?? 0;
     final difference = received - total;
@@ -548,6 +549,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 setState(() {
                   final id = _int(product['id']);
                   _returnQuantities[id] = value;
+                  if (_returnKind(product) == _ReturnKind.damagedGallon) {
+                    _quantities[id] = value;
+                  }
                   if (_returnKind(product) == _ReturnKind.transporter) {
                     _quantities[id] = value;
                     Map<String, dynamic>? bottles;
@@ -734,6 +738,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           '${prices?['${product['id']}'] ?? product['default_price'] ?? 0}',
         ) ??
         0;
+  }
+
+  double _productGrossPrice(Map<String, dynamic> product) {
+    final vatRate = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
+    return _productPrice(product) * (1 + vatRate / 100);
   }
 
   void _message(String message, {bool error = false}) {
