@@ -20,13 +20,6 @@ class _HtmlDocumentScreenState extends State<HtmlDocumentScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xffeef1f6))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) => request.isMainFrame
-              ? NavigationDecision.prevent
-              : NavigationDecision.navigate,
-        ),
-      )
       ..loadHtmlString(widget.html);
   }
 

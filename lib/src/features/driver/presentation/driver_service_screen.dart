@@ -167,7 +167,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       );
       await file.writeAsBytes(pdf.bytes, flush: true);
       if (!mounted) return;
-      final send = await Navigator.of(context).push<bool>(
+      final reviewAction = await Navigator.of(context).push<String>(
         MaterialPageRoute(
           builder: (reviewContext) => PdfDocumentScreen(
             path: file.path,
@@ -179,8 +179,17 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(reviewContext).pop('cancel'),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Anuluj WZ'),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     OutlinedButton.icon(
-                      onPressed: () => Navigator.of(reviewContext).pop(false),
+                      onPressed: () => Navigator.of(reviewContext).pop('edit'),
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Cofnij i popraw'),
                       style: OutlinedButton.styleFrom(
@@ -189,7 +198,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     ),
                     const SizedBox(height: 8),
                     FilledButton.icon(
-                      onPressed: () => Navigator.of(reviewContext).pop(true),
+                      onPressed: () => Navigator.of(reviewContext).pop('send'),
                       icon: const Icon(Icons.send_outlined),
                       label: const Text('Wyślij do klienta'),
                       style: FilledButton.styleFrom(
@@ -205,13 +214,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       );
       await PdfDocumentScreen.removeTemporary(file.path);
       if (!mounted) return;
-      if (send == true) {
+      if (reviewAction == 'send') {
         final message = await ref
             .read(driverRepositoryProvider)
             .emailDocument(token, documentId);
         if (!mounted) return;
         _message(message);
         Navigator.of(context).pop(true);
+      } else if (reviewAction == 'cancel') {
+        Navigator.of(context).pop(false);
       } else {
         _message('Wrócono do edycji WZ. Popraw dane i wygeneruj ponownie.');
       }

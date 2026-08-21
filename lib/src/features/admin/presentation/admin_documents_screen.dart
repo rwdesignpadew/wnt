@@ -302,7 +302,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                   ),
                   subtitle: Text(
                     '${document['type'] == 'invoice' ? 'Faktura VAT' : document['type'] == 'pz' ? 'PZ' : 'WZ'} · '
-                    '${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
+                    '${document['display_date'] ?? ''} · ${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
                   ),
                   trailing: _busy == _int(document['id'])
                       ? const SizedBox.square(
