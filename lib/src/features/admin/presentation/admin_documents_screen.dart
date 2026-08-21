@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
@@ -117,22 +116,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
 
   Future<void> _open(Map<String, dynamic> document) async {
     final id = _int(document['id']);
-    final previewUrl = document['preview_url']?.toString() ?? '';
-    if (document['type'] == 'invoice' && previewUrl.isNotEmpty) {
-      final opened = await launchUrl(
-        Uri.parse(previewUrl),
-        mode: LaunchMode.inAppBrowserView,
-      );
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nie udało się otworzyć podglądu faktury.'),
-            backgroundColor: WntColors.error,
-          ),
-        );
-      }
-      return;
-    }
     setState(() => _busy = id);
     try {
       final token = ref.read(authControllerProvider).session!.token;
