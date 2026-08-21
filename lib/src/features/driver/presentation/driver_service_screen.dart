@@ -321,7 +321,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                           tooltip: 'Wyczyść podpis',
                           iconSize: 28,
                           onPressed: () => setDialogState(points.clear),
-                          icon: const Icon(Icons.ink_eraser_outlined),
+                          icon: const Icon(Icons.cleaning_services_outlined),
                         ),
                         const SizedBox(height: 18),
                         IconButton.outlined(
