@@ -245,9 +245,15 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           onRetry: () => ref.invalidate(adminDocumentsProvider),
         ),
         data: (items) {
-          final sorted = [...items]..sort(
-            (a, b) => _int(b['sort_at']).compareTo(_int(a['sort_at'])),
-          );
+          final sorted = [...items]..sort((a, b) {
+            final byDate = _documentSortAt(
+              b,
+            ).compareTo(_documentSortAt(a));
+            if (byDate != 0) return byDate;
+            if (a['type'] == 'invoice' && b['type'] != 'invoice') return -1;
+            if (b['type'] == 'invoice' && a['type'] != 'invoice') return 1;
+            return _int(b['id']).compareTo(_int(a['id']));
+          });
           final documents = sorted.where((document) {
             if (_filter == 'wz') return document['type'] == 'wz';
             if (_filter == 'invoice') return document['type'] == 'invoice';
@@ -269,15 +275,25 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       child: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        style: const ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                        ),
                         segments: const [
-                          ButtonSegment(value: 'all', label: Text('Wszystkie')),
-                          ButtonSegment(value: 'wz', label: Text('WZ')),
+                          ButtonSegment(
+                            value: 'all',
+                            label: Text('Wszystkie', maxLines: 1),
+                          ),
+                          ButtonSegment(
+                            value: 'wz',
+                            label: Text('WZ', maxLines: 1),
+                          ),
                           ButtonSegment(
                             value: 'invoice',
-                            label: Text('Faktury VAT'),
+                            label: Text('Faktury VAT', maxLines: 1),
                           ),
                         ],
                         selected: {_filter},
@@ -365,3 +381,20 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
 }
 
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+
+int _documentSortAt(Map<String, dynamic> document) {
+  final serverValue = int.tryParse('${document['sort_at'] ?? ''}');
+  if (serverValue != null && serverValue > 0) return serverValue;
+  final value = document['display_date']?.toString().trim() ?? '';
+  final match = RegExp(
+    r'^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?',
+  ).firstMatch(value);
+  if (match == null) return 0;
+  return DateTime(
+    int.parse(match.group(3)!),
+    int.parse(match.group(2)!),
+    int.parse(match.group(1)!),
+    int.tryParse(match.group(4) ?? '') ?? 0,
+    int.tryParse(match.group(5) ?? '') ?? 0,
+  ).millisecondsSinceEpoch;
+}

@@ -4,5 +4,5 @@ abstract final class AppConfig {
     defaultValue: 'https://kacper.host831247.xce.pl/api',
   );
 
-  static const requestTimeout = Duration(seconds: 25);
+  static const requestTimeout = Duration(seconds: 60);
 }
