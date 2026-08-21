@@ -248,6 +248,8 @@ class _AdminRouteDetailScreenState
                   double.tryParse('${stop['longitude'] ?? ''}') != null,
             )
             .toList();
+        final roadPath = _list(route['road_path']);
+        final routeBase = _map(route['base']);
         final completedCount = stops
             .where((stop) => stop['document_status'] == 'completed')
             .length;
@@ -316,7 +318,11 @@ class _AdminRouteDetailScreenState
                 height: mapHeight,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: _AdminRouteMap(stops: mappedStops),
+                  child: _AdminRouteMap(
+                    stops: mappedStops,
+                    roadPath: roadPath,
+                    base: routeBase,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -465,9 +471,15 @@ class _RouteStopCard extends StatelessWidget {
 }
 
 class _AdminRouteMap extends StatelessWidget {
-  const _AdminRouteMap({required this.stops});
+  const _AdminRouteMap({
+    required this.stops,
+    required this.roadPath,
+    required this.base,
+  });
 
   final List<Map<String, dynamic>> stops;
+  final List<Map<String, dynamic>> roadPath;
+  final Map<String, dynamic>? base;
 
   Future<void> _onCreated(GoogleMapViewController controller) async {
     final points = stops
@@ -478,7 +490,21 @@ class _AdminRouteMap extends StatelessWidget {
           ),
         )
         .toList();
+    final baseLatitude = double.tryParse('${base?['lat'] ?? ''}');
+    final baseLongitude = double.tryParse('${base?['lng'] ?? ''}');
+    final basePoint = baseLatitude != null && baseLongitude != null
+        ? LatLng(latitude: baseLatitude, longitude: baseLongitude)
+        : null;
     await controller.addMarkers([
+      if (basePoint != null)
+        MarkerOptions(
+          position: basePoint,
+          infoWindow: InfoWindow(
+            title: base?['name']?.toString() ?? 'Baza WNT',
+            snippet: base?['address']?.toString(),
+          ),
+          zIndex: 2,
+        ),
       for (var index = 0; index < stops.length; index++)
         MarkerOptions(
           position: points[index],
@@ -488,13 +514,29 @@ class _AdminRouteMap extends StatelessWidget {
           ),
         ),
     ]);
-    if (points.length > 1) {
+    final routePoints = roadPath
+        .where(
+          (point) =>
+              double.tryParse('${point['latitude'] ?? ''}') != null &&
+              double.tryParse('${point['longitude'] ?? ''}') != null,
+        )
+        .map(
+          (point) => LatLng(
+            latitude: double.parse('${point['latitude']}'),
+            longitude: double.parse('${point['longitude']}'),
+          ),
+        )
+        .toList();
+    final boundsPoints = [if (basePoint != null) basePoint, ...points];
+    if (routePoints.length > 1) {
       await controller.addPolylines([
-        PolylineOptions(points: points, strokeWidth: 6),
+        PolylineOptions(points: routePoints, strokeWidth: 7),
       ]);
+    }
+    if (boundsPoints.length > 1) {
       await controller.moveCamera(
         CameraUpdate.newLatLngBounds(
-          LatLngBounds.createBoundsFromPoints(points),
+          LatLngBounds.createBoundsFromPoints(boundsPoints),
           padding: 55,
         ),
       );
