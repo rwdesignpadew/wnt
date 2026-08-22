@@ -43,11 +43,15 @@ final authRepositoryProvider = Provider<AuthRepository>(
 );
 
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
-  (ref) => AuthController(ref.watch(authRepositoryProvider), ref.watch(pushNotificationServiceProvider))..restore(),
+  (ref) => AuthController(
+    ref.watch(authRepositoryProvider),
+    ref.watch(pushNotificationServiceProvider),
+  )..restore(),
 );
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repository, this._push) : super(const AuthState.checking());
+  AuthController(this._repository, this._push)
+    : super(const AuthState.checking());
 
   final AuthRepository _repository;
   final PushNotificationService _push;
@@ -86,13 +90,13 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(busy: true, clearError: true);
     try {
       final session = await _repository.register(
-          name: name,
-          email: email,
-          password: password,
-          address: address,
-          phone: phone,
-          nip: nip,
-        );
+        name: name,
+        email: email,
+        password: password,
+        address: address,
+        phone: phone,
+        nip: nip,
+      );
       state = AuthState.signedIn(session);
       await _push.register(session.token);
       return true;
@@ -111,8 +115,11 @@ class AuthController extends StateNotifier<AuthState> {
     final session = state.session;
     try {
       if (session != null) {
-        await _push.unregister(session.token);
-        await _repository.logout(session);
+        try {
+          await _push.unregister(session.token);
+        } finally {
+          await _repository.logout(session);
+        }
       }
     } finally {
       state = const AuthState.signedOut();

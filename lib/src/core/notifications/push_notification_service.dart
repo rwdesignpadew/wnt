@@ -106,9 +106,11 @@ class PushNotificationService {
   }
 
   Future<void> unregister(String apiToken) async {
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token == null) return;
+    _registrationRetry?.cancel();
+    _apiToken = null;
     try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
       await _api.send(
         'DELETE',
         '/mobile/device-token',
