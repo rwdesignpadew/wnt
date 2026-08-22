@@ -320,13 +320,43 @@ class _AdminRouteDetailScreenState
             if (mappedStops.isNotEmpty) ...[
               SizedBox(
                 height: mapHeight,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: _AdminRouteMap(
-                    stops: mappedStops,
-                    roadPath: roadPath,
-                    base: routeBase,
-                  ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: _AdminRouteMap(
+                          stops: mappedStops,
+                          roadPath: roadPath,
+                          base: routeBase,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        borderRadius: BorderRadius.circular(12),
+                        child: IconButton(
+                          tooltip: 'Mapa na pełnym ekranie',
+                          icon: const Icon(Icons.fullscreen),
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => _AdminRouteFullscreenMap(
+                                routeName:
+                                    route['name']?.toString() ?? 'Trasa',
+                                stops: mappedStops,
+                                roadPath: roadPath,
+                                base: routeBase,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -582,7 +612,12 @@ class _AdminRouteMap extends StatelessWidget {
     final boundsPoints = [?basePoint, ...points];
     if (routePoints.length > 1) {
       await controller.addPolylines([
-        PolylineOptions(points: routePoints, strokeWidth: 7),
+        PolylineOptions(
+          points: routePoints,
+          strokeColor: WntColors.brand,
+          strokeWidth: 9,
+          zIndex: 1,
+        ),
       ]);
     }
     if (boundsPoints.length > 1) {
@@ -616,6 +651,57 @@ class _AdminRouteMap extends StatelessWidget {
       onViewCreated: _onCreated,
     );
   }
+}
+
+class _AdminRouteFullscreenMap extends StatelessWidget {
+  const _AdminRouteFullscreenMap({
+    required this.routeName,
+    required this.stops,
+    required this.roadPath,
+    required this.base,
+  });
+
+  final String routeName;
+  final List<Map<String, dynamic>> stops;
+  final List<Map<String, dynamic>> roadPath;
+  final Map<String, dynamic>? base;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(routeName)),
+    body: Stack(
+      children: [
+        Positioned.fill(
+          child: _AdminRouteMap(
+            stops: stops,
+            roadPath: roadPath,
+            base: base,
+          ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 12 + MediaQuery.paddingOf(context).bottom,
+          child: IgnorePointer(
+            child: Card(
+              color: Colors.white.withValues(alpha: 0.94),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Text(
+                  '${stops.length} punktów · numery pokazują kolejność przejazdu',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 String _status(dynamic status) => switch ('$status') {
