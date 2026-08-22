@@ -20,8 +20,70 @@ class AdminDocumentsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
+  final _scrollController = ScrollController();
+  final List<Map<String, dynamic>> _additionalDocuments = [];
   int? _busy;
   String _filter = 'all';
+  int _page = 1;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 500) _loadMore();
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final nextPage = _page + 1;
+      final items = await ref
+          .read(adminRepositoryProvider)
+          .documents(token, page: nextPage);
+      if (!mounted) return;
+      setState(() {
+        _page = nextPage;
+        _hasMore = items.length == 30;
+        final keys = _additionalDocuments
+            .map((item) => '${item['source']}:${item['id']}')
+            .toSet();
+        _additionalDocuments.addAll(
+          items.where((item) => keys.add('${item['source']}:${item['id']}')),
+        );
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _refreshDocuments() async {
+    setState(() {
+      _page = 1;
+      _hasMore = true;
+      _additionalDocuments.clear();
+    });
+    await ref.refresh(adminDocumentsProvider.future);
+  }
+
   Future<void> _delete(Map<String, dynamic> document) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -245,7 +307,11 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           onRetry: () => ref.invalidate(adminDocumentsProvider),
         ),
         data: (items) {
-          final sorted = [...items]..sort((a, b) {
+          final allByKey = <String, Map<String, dynamic>>{
+            for (final item in [...items, ..._additionalDocuments])
+              '${item['source']}:${item['id']}': item,
+          };
+          final sorted = allByKey.values.toList()..sort((a, b) {
             final byDate = _documentSortAt(
               b,
             ).compareTo(_documentSortAt(a));
@@ -260,10 +326,11 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
             return true;
           }).toList();
           return RefreshIndicator(
-            onRefresh: () async => ref.refresh(adminDocumentsProvider.future),
+            onRefresh: _refreshDocuments,
             child: ListView.separated(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
-            itemCount: documents.length + 1,
+            itemCount: documents.length + 1 + (_loadingMore ? 1 : 0),
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               if (index == 0) {
@@ -280,6 +347,12 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       onChanged: (value) => setState(() => _filter = value),
                     ),
                   ],
+                );
+              }
+              if (_loadingMore && index == documents.length + 1) {
+                return const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
                 );
               }
               final document = documents[index - 1];

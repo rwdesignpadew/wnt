@@ -113,8 +113,15 @@ class AdminRepository {
     token: token,
     body: {'delivery_route_id': routeId},
   );
-  Future<List<Map<String, dynamic>>> documents(String token) async =>
-      _items(await _api.get('/mobile/admin/documents', token: token));
+  Future<List<Map<String, dynamic>>> documents(
+    String token, {
+    int page = 1,
+  }) async => _items(
+    await _api.get(
+      '/mobile/admin/documents?page=$page&per_page=30',
+      token: token,
+    ),
+  );
   Future<Map<String, dynamic>> createFinalInvoice(String token, int id) =>
       _api.post('/mobile/admin/documents/$id/final-invoice', token: token);
   Future<Map<String, dynamic>> deleteDocument(String token, int id) =>

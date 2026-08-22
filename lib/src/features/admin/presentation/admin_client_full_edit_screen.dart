@@ -85,19 +85,24 @@ class _AdminClientFullEditScreenState
       _locations = _maps(_client['locations']);
       _rentals = _maps(_client['rental_items']);
       _visibleProducts = _ints(_client['visible_product_ids']).toSet();
+      _recurringRentalInvoice = _bool(
+        _client['dispenser_recurring_invoice_enabled'],
+      );
       final prices = _map(_client['prices']);
       for (final product in _products) {
         final id = _int(product['id']);
+        final net = double.tryParse('${prices['$id'] ?? ''}');
         _priceControllers[id] = TextEditingController(
-          text: prices['$id']?.toString() ?? '',
+          text: net == null
+              ? ''
+              : _priceText(
+                  _recurringRentalInvoice ? net * _vatFactor(product) : net,
+                ),
         );
       }
       _active = _bool(_client['is_active']);
       _recipient = _bool(_client['invoice_recipient_enabled']);
       _jst = _bool(_client['invoice_jst_enabled']);
-      _recurringRentalInvoice = _bool(
-        _client['dispenser_recurring_invoice_enabled'],
-      );
       _payment = _client['payment_method']?.toString() == 'cash'
           ? 'cash'
           : 'transfer';
@@ -122,7 +127,20 @@ class _AdminClientFullEditScreenState
       final prices = <String, dynamic>{};
       for (final entry in _priceControllers.entries) {
         final value = entry.value.text.trim().replaceAll(',', '.');
-        if (value.isNotEmpty) prices['${entry.key}'] = value;
+        if (value.isNotEmpty) {
+          final entered = double.tryParse(value);
+          final product = _products.firstWhere(
+            (item) => _int(item['id']) == entry.key,
+            orElse: () => const <String, dynamic>{},
+          );
+          prices['${entry.key}'] = entered == null
+              ? value
+              : _priceText(
+                  _recurringRentalInvoice
+                      ? entered / _vatFactor(product)
+                      : entered,
+                );
+        }
       }
       final payload = {
         for (final key in [
@@ -522,8 +540,15 @@ class _AdminClientFullEditScreenState
                           _visibleProducts.add(id);
                           final price = _priceControllers[id];
                           if (price != null && price.text.trim().isEmpty) {
-                            price.text =
-                                product['default_price']?.toString() ?? '0';
+                            final net = double.tryParse(
+                                  '${product['default_price'] ?? 0}',
+                                ) ??
+                                0;
+                            price.text = _priceText(
+                              _recurringRentalInvoice
+                                  ? net * _vatFactor(product)
+                                  : net,
+                            );
                           }
                         } else {
                           _visibleProducts.remove(id);
@@ -543,16 +568,29 @@ class _AdminClientFullEditScreenState
                       ),
                     ),
                     SizedBox(
-                      width: 104,
-                      child: TextField(
-                        controller: _priceControllers[id],
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'cena',
-                          suffixText: 'zł',
-                        ),
+                      width: 126,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          TextField(
+                            controller: _priceControllers[id],
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              labelText: _recurringRentalInvoice
+                                  ? 'Cena brutto'
+                                  : 'Cena netto',
+                              suffixText: 'zł',
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _secondaryPrice(product, id),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -564,6 +602,42 @@ class _AdminClientFullEditScreenState
       ],
     );
   }
+
+  void _changeRecurringInvoiceMode(bool enabled) {
+    if (enabled == _recurringRentalInvoice) return;
+    for (final product in _products) {
+      final id = _int(product['id']);
+      final controller = _priceControllers[id];
+      final current = double.tryParse(
+        controller?.text.trim().replaceAll(',', '.') ?? '',
+      );
+      if (controller == null || current == null) continue;
+      controller.text = _priceText(
+        enabled ? current * _vatFactor(product) : current / _vatFactor(product),
+      );
+    }
+    setState(() => _recurringRentalInvoice = enabled);
+  }
+
+  String _secondaryPrice(Map<String, dynamic> product, int id) {
+    final current = double.tryParse(
+      _priceControllers[id]?.text.trim().replaceAll(',', '.') ?? '',
+    );
+    if (current == null) {
+      return _recurringRentalInvoice ? 'netto: —' : 'brutto: —';
+    }
+    final other = _recurringRentalInvoice
+        ? current / _vatFactor(product)
+        : current * _vatFactor(product);
+    return '${_recurringRentalInvoice ? 'netto' : 'brutto'}: ${_priceText(other)} zł';
+  }
+
+  double _vatFactor(Map<String, dynamic> product) {
+    final vat = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
+    return 1 + (vat / 100);
+  }
+
+  String _priceText(double value) => value.toStringAsFixed(2);
 
   Widget _rentalsTab() => ListView.separated(
     padding: const EdgeInsets.all(16),
@@ -586,8 +660,7 @@ class _AdminClientFullEditScreenState
             contentPadding: EdgeInsets.zero,
             title: const Text('Faktura cykliczna co miesiąc'),
             value: _recurringRentalInvoice,
-            onChanged: (value) =>
-                setState(() => _recurringRentalInvoice = value),
+            onChanged: _changeRecurringInvoiceMode,
           ),
         ]);
       }
