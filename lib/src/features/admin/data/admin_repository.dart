@@ -91,6 +91,16 @@ class AdminRepository {
       _items(await _api.get('/mobile/admin/clients', token: token));
   Future<Map<String, dynamic>> client(String token, int id) =>
       _api.get('/mobile/admin/clients/$id', token: token);
+  Future<Map<String, dynamic>> clientStats(
+    String token,
+    int id, {
+    String range = 'last_12_months',
+    int? locationId,
+  }) => _api.get(
+    '/mobile/admin/clients/$id/stats?range=$range'
+    '${locationId == null ? '' : '&location=$locationId'}',
+    token: token,
+  );
   Future<Map<String, dynamic>> clientOptions(String token) =>
       _api.get('/mobile/admin/client-options', token: token);
   Future<Map<String, dynamic>> gus(String token, String nip) =>

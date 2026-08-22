@@ -6,6 +6,7 @@ import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_client_full_edit_screen.dart';
+import 'admin_client_stats_screen.dart';
 import 'admin_route_edit_screen.dart';
 
 class AdminClientsScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,12 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
       ),
     );
     ref.invalidate(adminClientsProvider);
+  }
+
+  Future<void> _openStats(int id) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => AdminClientStatsScreen(clientId: id)),
+    );
   }
 
   Future<void> _addToRoute(Map<String, dynamic> client) async {
@@ -225,7 +232,7 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        onTap: () => _openClient(id),
+                        onTap: () => _openStats(id),
                       ),
                       const Divider(height: 1),
                       Padding(
