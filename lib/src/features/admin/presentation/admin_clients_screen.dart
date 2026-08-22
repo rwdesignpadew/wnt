@@ -17,7 +17,6 @@ class AdminClientsScreen extends ConsumerStatefulWidget {
 class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
   String _query = '';
   bool _active = true;
-  int? _busyClientId;
 
   Future<void> _openClient(int id, {int tab = 0}) async {
     await Navigator.of(context).push(
@@ -92,28 +91,15 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
       ref.invalidate(adminRoutesProvider);
       return;
     }
-    final id = _int(client['id']);
-    setState(() => _busyClientId = id);
-    try {
-      final token = ref.read(authControllerProvider).session!.token;
-      final response = await ref
-          .read(adminRepositoryProvider)
-          .addClientToRoute(token, id, _int(route['id']));
-      ref.invalidate(adminRoutesProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message']?.toString() ?? 'Dodano.')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busyClientId = null);
-    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminRouteEditScreen(
+          id: _int(route['id']),
+          initialClientId: _int(client['id']),
+        ),
+      ),
+    );
+    ref.invalidate(adminRoutesProvider);
   }
 
   @override
@@ -257,21 +243,11 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                               label: const Text('Produkty'),
                             ),
                             const Spacer(),
-                            _busyClientId == id
-                                ? const Padding(
-                                    padding: EdgeInsets.all(10),
-                                    child: SizedBox.square(
-                                      dimension: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  )
-                                : IconButton(
-                                    tooltip: 'Dodaj do trasy',
-                                    onPressed: () => _addToRoute(client),
-                                    icon: const Icon(Icons.add_road_outlined),
-                                  ),
+                            IconButton(
+                              tooltip: 'Dodaj do trasy',
+                              onPressed: () => _addToRoute(client),
+                              icon: const Icon(Icons.add_road_outlined),
+                            ),
                           ],
                         ),
                       ),

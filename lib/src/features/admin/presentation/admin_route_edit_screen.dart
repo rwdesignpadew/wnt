@@ -33,6 +33,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
   bool _loading = true;
   bool _saving = false;
   bool _optimizing = false;
+  int? _initialProductsStopIndex;
 
   @override
   void initState() {
@@ -63,23 +64,6 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       _regions = _maps(options['regions']);
       if (widget.id == null) {
         _name.text = 'Nowa trasa';
-        if (widget.initialClientId != null) {
-          final client = _clients.firstWhere(
-            (item) => _int(item['id']) == widget.initialClientId,
-            orElse: () => <String, dynamic>{},
-          );
-          if (client.isNotEmpty) {
-            final locations = _maps(client['locations']);
-            final location = locations.isEmpty ? null : locations.first;
-            _stops = [
-              {
-                'client_id': widget.initialClientId,
-                'location_id': location == null ? 0 : _int(location['id']),
-                'products': <int, int>{},
-              },
-            ];
-          }
-        }
       } else {
         final route = _map(responses[1]['route']);
         _name.text = '${route['name'] ?? ''}';
@@ -100,11 +84,51 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
             )
             .toList();
       }
+      _prepareInitialClient();
     } catch (error) {
       if (mounted) _message('$error', error: true);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        final stopIndex = _initialProductsStopIndex;
+        if (stopIndex != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _editProducts(stopIndex);
+          });
+        }
+      }
     }
+  }
+
+  void _prepareInitialClient() {
+    final initialClientId = widget.initialClientId;
+    if (initialClientId == null) return;
+
+    final existingIndex = _stops.indexWhere(
+      (stop) => _int(stop['client_id']) == initialClientId,
+    );
+    if (existingIndex >= 0) {
+      _initialProductsStopIndex = existingIndex;
+      return;
+    }
+
+    final client = _clients.firstWhere(
+      (item) => _int(item['id']) == initialClientId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (client.isEmpty) return;
+    final locations = _maps(client['locations']);
+    if (locations.isEmpty) return;
+    final location = locations.firstWhere(
+      (item) => item['is_default'] == true,
+      orElse: () => locations.first,
+    );
+    _stops.add({
+      'client_id': initialClientId,
+      'location_id': _int(location['id']),
+      'products': <String, int>{},
+    });
+    _initialProductsStopIndex = _stops.length - 1;
   }
 
   Future<void> _save() async {
@@ -649,17 +673,27 @@ class _ProductPickerState extends State<_ProductPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final products = widget.products.where((product) {
-      final matches = '${product['name']}'.toLowerCase().contains(
-        query.toLowerCase(),
-      );
-      return matches &&
-          (showAll ||
-              query.isNotEmpty ||
-              widget.visibleIds.isEmpty ||
-              widget.visibleIds.contains(_int(product['id'])) ||
-              (quantities['${product['id']}'] ?? 0) > 0);
-    }).toList();
+    final matching = widget.products
+        .where(
+          (product) => '${product['name']}'.toLowerCase().contains(
+            query.toLowerCase(),
+          ),
+        )
+        .toList();
+    bool isAssigned(Map<String, dynamic> product) =>
+        widget.visibleIds.contains(_int(product['id'])) ||
+        (quantities['${product['id']}'] ?? 0) > 0;
+    final assigned = matching.where(isAssigned).toList();
+    final remaining = matching.where((product) => !isAssigned(product)).toList();
+    final products = query.isNotEmpty || showAll
+        ? [...assigned, ...remaining]
+        : widget.visibleIds.isEmpty
+        ? matching
+        : assigned;
+    final canShowMore = query.isEmpty &&
+        !showAll &&
+        widget.visibleIds.isNotEmpty &&
+        remaining.isNotEmpty;
     return FractionallySizedBox(
       heightFactor: .92,
       child: Column(
@@ -694,10 +728,10 @@ class _ProductPickerState extends State<_ProductPicker> {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: products.length + (showAll ? 0 : 1),
+              itemCount: products.length + (canShowMore ? 1 : 0),
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                if (!showAll && index == products.length) {
+                if (canShowMore && index == products.length) {
                   return TextButton.icon(
                     onPressed: () => setState(() => showAll = true),
                     icon: const Icon(Icons.expand_more),
