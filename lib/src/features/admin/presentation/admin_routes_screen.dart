@@ -527,7 +527,7 @@ class _AdminRouteMap extends StatelessWidget {
           ),
         )
         .toList();
-    final boundsPoints = [if (basePoint != null) basePoint, ...points];
+    final boundsPoints = [?basePoint, ...points];
     if (routePoints.length > 1) {
       await controller.addPolylines([
         PolylineOptions(points: routePoints, strokeWidth: 7),

@@ -12,6 +12,8 @@ class PushNotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _tokenRefreshListening = false;
+  String? _apiToken;
 
   Future<void> _initialize() async {
     if (_initialized) return;
@@ -50,6 +52,7 @@ class PushNotificationService {
   }
 
   Future<void> register(String apiToken) async {
+    _apiToken = apiToken;
     await _initialize();
     final messaging = FirebaseMessaging.instance;
     final settings = await messaging.requestPermission(
@@ -58,9 +61,22 @@ class PushNotificationService {
       sound: true,
     );
     if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+    if (Platform.isIOS) {
+      for (var attempt = 0; attempt < 15; attempt++) {
+        if (await messaging.getAPNSToken() != null) break;
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+      if (await messaging.getAPNSToken() == null) return;
+    }
     final token = await messaging.getToken();
     if (token != null) await _save(apiToken, token);
-    messaging.onTokenRefresh.listen((token) => _save(apiToken, token));
+    if (!_tokenRefreshListening) {
+      _tokenRefreshListening = true;
+      messaging.onTokenRefresh.listen((token) {
+        final currentApiToken = _apiToken;
+        if (currentApiToken != null) _save(currentApiToken, token);
+      });
+    }
   }
 
   Future<void> unregister(String apiToken) async {

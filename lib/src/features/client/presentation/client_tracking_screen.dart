@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -169,10 +170,7 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
 }
 
 class _TrackingMap extends StatefulWidget {
-  const _TrackingMap({
-    required this.driver,
-    required this.destination,
-  });
+  const _TrackingMap({required this.driver, required this.destination});
 
   final Map<String, dynamic> driver;
   final Map<String, dynamic> destination;
@@ -183,6 +181,7 @@ class _TrackingMap extends StatefulWidget {
 
 class _TrackingMapState extends State<_TrackingMap> {
   GoogleMapViewController? _controller;
+  ImageDescriptor? _vehicleIcon;
 
   LatLng get _driverPosition => LatLng(
     latitude: (widget.driver['lat'] as num).toDouble(),
@@ -194,11 +193,51 @@ class _TrackingMapState extends State<_TrackingMap> {
     longitude: (widget.destination['lng'] as num).toDouble(),
   );
 
+  double get _heading =>
+      double.tryParse('${widget.driver['heading'] ?? 0}') ?? 0;
+
+  Future<ImageDescriptor> _createVehicleArrow() async {
+    const size = 96.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final shadow = Paint()
+      ..color = const Color(0x33000000)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5);
+    final background = Paint()..color = const Color(0xFF1769E0);
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5;
+    final arrow = Paint()..color = Colors.white;
+    canvas.drawCircle(const Offset(50, 50), 37, shadow);
+    canvas.drawCircle(const Offset(48, 48), 36, background);
+    canvas.drawCircle(const Offset(48, 48), 36, border);
+    final path = Path()
+      ..moveTo(48, 16)
+      ..lineTo(70, 67)
+      ..lineTo(48, 57)
+      ..lineTo(26, 67)
+      ..close();
+    canvas.drawPath(path, arrow);
+    final image = await recorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (bytes == null) return ImageDescriptor.defaultImage;
+    return registerBitmapImage(bitmap: bytes, width: 48, height: 48);
+  }
+
   Future<void> _drawMarkers(GoogleMapViewController controller) async {
+    _vehicleIcon ??= await _createVehicleArrow();
     await controller.clearMarkers();
     await controller.addMarkers([
       MarkerOptions(
         position: _driverPosition,
+        icon: _vehicleIcon!,
+        anchor: const MarkerAnchor(u: 0.5, v: 0.5),
+        flat: true,
+        rotation: _heading,
         infoWindow: const InfoWindow(title: 'Samochód dostawczy'),
         zIndex: 2,
       ),
