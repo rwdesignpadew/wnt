@@ -63,6 +63,14 @@ class PushNotificationService {
 
   Future<void> register(String apiToken) async {
     _apiToken = apiToken;
+    try {
+      await _registerDevice(apiToken);
+    } catch (_) {
+      _scheduleRetry(apiToken);
+    }
+  }
+
+  Future<void> _registerDevice(String apiToken) async {
     await _initialize();
     final messaging = FirebaseMessaging.instance;
     final settings = await messaging.requestPermission(
