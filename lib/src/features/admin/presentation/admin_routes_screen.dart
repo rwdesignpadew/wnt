@@ -1,3 +1,7 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_navigation_flutter/google_navigation_flutter.dart';
@@ -481,6 +485,48 @@ class _AdminRouteMap extends StatelessWidget {
   final List<Map<String, dynamic>> roadPath;
   final Map<String, dynamic>? base;
 
+  Future<ImageDescriptor> _numberedMarker(int sequence) async {
+    const size = 104.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final shadow = Paint()
+      ..color = const Color(0x33000000)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5);
+    final fill = Paint()..color = WntColors.brand;
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6;
+
+    canvas.drawCircle(const Offset(54, 54), 39, shadow);
+    canvas.drawCircle(const Offset(52, 52), 38, fill);
+    canvas.drawCircle(const Offset(52, 52), 38, border);
+
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '$sequence',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: sequence > 99 ? 28 : 34,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset((size - painter.width) / 2, (size - painter.height) / 2),
+    );
+
+    final image = await recorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (bytes == null) return ImageDescriptor.defaultImage;
+    return registerBitmapImage(bitmap: bytes, width: 52, height: 52);
+  }
+
   Future<void> _onCreated(GoogleMapViewController controller) async {
     final points = stops
         .map(
@@ -495,6 +541,11 @@ class _AdminRouteMap extends StatelessWidget {
     final basePoint = baseLatitude != null && baseLongitude != null
         ? LatLng(latitude: baseLatitude, longitude: baseLongitude)
         : null;
+    final numberedIcons = <int, ImageDescriptor>{};
+    for (final stop in stops) {
+      final sequence = _int(stop['sequence']);
+      numberedIcons[sequence] ??= await _numberedMarker(sequence);
+    }
     await controller.addMarkers([
       if (basePoint != null)
         MarkerOptions(
@@ -508,6 +559,7 @@ class _AdminRouteMap extends StatelessWidget {
       for (var index = 0; index < stops.length; index++)
         MarkerOptions(
           position: points[index],
+          icon: numberedIcons[_int(stops[index]['sequence'])]!,
           infoWindow: InfoWindow(
             title: '${stops[index]['sequence']}. ${stops[index]['client_name']}',
             snippet: stops[index]['address']?.toString(),
@@ -547,6 +599,13 @@ class _AdminRouteMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = stops.first;
     return GoogleMapsMapView(
+      gestureRecognizers: {
+        Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+      },
+      initialScrollGesturesEnabled: true,
+      initialZoomGesturesEnabled: true,
+      initialRotateGesturesEnabled: true,
+      initialTiltGesturesEnabled: true,
       initialCameraPosition: CameraPosition(
         target: LatLng(
           latitude: double.parse('${first['latitude']}'),
