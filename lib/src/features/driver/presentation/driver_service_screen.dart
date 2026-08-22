@@ -400,6 +400,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   @override
   Widget build(BuildContext context) {
     final client = _map(widget.document['client']) ?? const {};
+    final recurringInvoice = client['recurring_invoice_enabled'] == true;
     final location = _map(widget.document['location']);
     final assignedIds = _intSet(widget.document['available_product_ids']);
     final itemsIds = _list(
@@ -440,6 +441,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final title = locationName?.isNotEmpty == true
         ? '$clientName - $locationName'
         : clientName;
+    final totalNet = widget.products.fold<double>(0, (sum, product) {
+      return sum +
+          (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
+    });
     final total = widget.products.fold<double>(0, (sum, product) {
       return sum +
           (_quantities[_int(product['id'])] ?? 0) *
@@ -523,6 +528,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   _ProductRow(
                     product: visible[index],
                     value: _quantities[_int(visible[index]['id'])] ?? 0,
+                    netUnitPrice: _productPrice(visible[index]),
+                    recurringInvoice: recurringInvoice,
                     onChanged: (value) => setState(
                       () => _quantities[_int(visible[index]['id'])] = value,
                     ),
@@ -648,11 +655,25 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Całkowita wartość WZ: ${total.toStringAsFixed(2)} zł',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Całkowita wartość WZ: '
+                        '${(recurringInvoice ? total : totalNet).toStringAsFixed(2)} zł '
+                        '${recurringInvoice ? 'brutto' : 'netto'}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        '${(recurringInvoice ? totalNet : total).toStringAsFixed(2)} zł '
+                        '${recurringInvoice ? 'netto' : 'brutto'}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: WntColors.muted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (_paymentMethod == 'cash') ...[
@@ -939,31 +960,62 @@ class _ProductRow extends StatelessWidget {
   const _ProductRow({
     required this.product,
     required this.value,
+    required this.netUnitPrice,
+    required this.recurringInvoice,
     required this.onChanged,
   });
   final Map<String, dynamic> product;
   final int value;
+  final double netUnitPrice;
+  final bool recurringInvoice;
   final ValueChanged<int> onChanged;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+  Widget build(BuildContext context) {
+    final vat = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
+    final grossUnitPrice = netUnitPrice * (1 + vat / 100);
+    final primaryUnitPrice = recurringInvoice ? grossUnitPrice : netUnitPrice;
+    final secondaryUnitPrice = recurringInvoice ? netUnitPrice : grossUnitPrice;
+    final primaryLabel = recurringInvoice ? 'brutto' : 'netto';
+    final secondaryLabel = recurringInvoice ? 'netto' : 'brutto';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 product['name']?.toString() ?? 'Produkt',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-            ],
+              const SizedBox(height: 3),
+              Text(
+                '${primaryUnitPrice.toStringAsFixed(2)} zł $primaryLabel',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '${secondaryUnitPrice.toStringAsFixed(2)} zł $secondaryLabel',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WntColors.muted,
+                ),
+              ),
+              if (value > 0)
+                Text(
+                  'Razem: ${(primaryUnitPrice * value).toStringAsFixed(2)} zł $primaryLabel'
+                  '  ·  ${(secondaryUnitPrice * value).toStringAsFixed(2)} zł $secondaryLabel',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
-        ),
-        QuantityStepper(value: value, onChanged: onChanged, compact: true),
-      ],
-    ),
-  );
+          QuantityStepper(value: value, onChanged: onChanged, compact: true),
+        ],
+      ),
+    );
+  }
 }
 
 class _RentalReturnRow extends StatelessWidget {
