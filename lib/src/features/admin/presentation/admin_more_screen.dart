@@ -318,7 +318,6 @@ class AdminOperationsScreen extends ConsumerWidget {
                                             : const [],
                                       ),
                                     );
-                                    ref.invalidate(adminOperationsProvider);
                                   }
                                 : ['drivers', 'regions'].contains(dataKey)
                                 ? () async {
@@ -429,7 +428,9 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
           resultingStatus,
         );
       }
-      if (mounted) Navigator.pop(context);
+      ref.invalidate(adminOperationsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -449,6 +450,9 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
               .map((item) => item.cast<String, dynamic>())
               .toList()
         : <Map<String, dynamic>>[];
+    final hasSelectedRoute =
+        routeId == 0 ||
+        widget.routes.any((route) => _int(route['id']) == routeId);
     return FractionallySizedBox(
       heightFactor: .88,
       child: Column(
@@ -518,6 +522,7 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int>(
+                  isExpanded: true,
                   initialValue: routeId,
                   decoration: const InputDecoration(labelText: 'Trasa'),
                   items: [
@@ -525,6 +530,14 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                       value: 0,
                       child: Text('Nieprzypisane'),
                     ),
+                    if (!hasSelectedRoute)
+                      DropdownMenuItem(
+                        value: routeId,
+                        child: Text(
+                          'Obecnie przypisana trasa',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ...widget.routes.map(
                       (route) => DropdownMenuItem(
                         value: _int(route['id']),
@@ -546,6 +559,7 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: status,
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: const [

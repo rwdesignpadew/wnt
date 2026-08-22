@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_navigation_flutter/google_navigation_flutter.dart';
@@ -100,7 +102,6 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
                   child: SizedBox(
                     height: 300,
                     child: _TrackingMap(
-                      key: ValueKey(driver['recorded_at']),
                       driver: driver,
                       destination: destination,
                     ),
@@ -169,7 +170,6 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
 
 class _TrackingMap extends StatefulWidget {
   const _TrackingMap({
-    super.key,
     required this.driver,
     required this.destination,
   });
@@ -182,29 +182,48 @@ class _TrackingMap extends StatefulWidget {
 }
 
 class _TrackingMapState extends State<_TrackingMap> {
-  Future<void> _onCreated(GoogleMapViewController controller) async {
-    final driverPosition = LatLng(
-      latitude: (widget.driver['lat'] as num).toDouble(),
-      longitude: (widget.driver['lng'] as num).toDouble(),
-    );
-    final destinationPosition = LatLng(
-      latitude: (widget.destination['lat'] as num).toDouble(),
-      longitude: (widget.destination['lng'] as num).toDouble(),
-    );
+  GoogleMapViewController? _controller;
+
+  LatLng get _driverPosition => LatLng(
+    latitude: (widget.driver['lat'] as num).toDouble(),
+    longitude: (widget.driver['lng'] as num).toDouble(),
+  );
+
+  LatLng get _destinationPosition => LatLng(
+    latitude: (widget.destination['lat'] as num).toDouble(),
+    longitude: (widget.destination['lng'] as num).toDouble(),
+  );
+
+  Future<void> _drawMarkers(GoogleMapViewController controller) async {
+    await controller.clearMarkers();
     await controller.addMarkers([
       MarkerOptions(
-        position: driverPosition,
+        position: _driverPosition,
         infoWindow: const InfoWindow(title: 'Samochód dostawczy'),
         zIndex: 2,
       ),
       MarkerOptions(
-        position: destinationPosition,
+        position: _destinationPosition,
         infoWindow: InfoWindow(
           title: 'Miejsce dostawy',
           snippet: widget.destination['address']?.toString(),
         ),
       ),
     ]);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TrackingMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final controller = _controller;
+    if (controller != null) _drawMarkers(controller);
+  }
+
+  Future<void> _onCreated(GoogleMapViewController controller) async {
+    _controller = controller;
+    final driverPosition = _driverPosition;
+    final destinationPosition = _destinationPosition;
+    await _drawMarkers(controller);
     await controller.moveCamera(
       CameraUpdate.newLatLngBounds(
         LatLngBounds(
@@ -233,6 +252,13 @@ class _TrackingMapState extends State<_TrackingMap> {
   @override
   Widget build(BuildContext context) {
     return GoogleMapsMapView(
+      gestureRecognizers: {
+        Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+      },
+      initialScrollGesturesEnabled: true,
+      initialZoomGesturesEnabled: true,
+      initialRotateGesturesEnabled: true,
+      initialTiltGesturesEnabled: true,
       initialCameraPosition: CameraPosition(
         target: LatLng(
           latitude: (widget.driver['lat'] as num).toDouble(),
