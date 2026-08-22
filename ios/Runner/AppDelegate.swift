@@ -15,7 +15,11 @@ import UIKit
       fatalError("Missing Google Maps API key (GMSApiKey).")
     }
     GMSServices.provideAPIKey(apiKey)
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let launched = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    DispatchQueue.main.async {
+      application.registerForRemoteNotifications()
+    }
+    return launched
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

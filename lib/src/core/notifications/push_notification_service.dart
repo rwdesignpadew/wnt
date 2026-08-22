@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -14,6 +15,15 @@ class PushNotificationService {
   bool _initialized = false;
   bool _tokenRefreshListening = false;
   String? _apiToken;
+  Timer? _registrationRetry;
+
+  void _scheduleRetry(String apiToken) {
+    _registrationRetry?.cancel();
+    _registrationRetry = Timer(
+      const Duration(seconds: 30),
+      () => register(apiToken),
+    );
+  }
 
   Future<void> _initialize() async {
     if (_initialized) return;
@@ -66,10 +76,18 @@ class PushNotificationService {
         if (await messaging.getAPNSToken() != null) break;
         await Future<void>.delayed(const Duration(seconds: 1));
       }
-      if (await messaging.getAPNSToken() == null) return;
+      if (await messaging.getAPNSToken() == null) {
+        _scheduleRetry(apiToken);
+        return;
+      }
     }
     final token = await messaging.getToken();
-    if (token != null) await _save(apiToken, token);
+    if (token == null) {
+      _scheduleRetry(apiToken);
+      return;
+    }
+    await _save(apiToken, token);
+    _registrationRetry?.cancel();
     if (!_tokenRefreshListening) {
       _tokenRefreshListening = true;
       messaging.onTokenRefresh.listen((token) {
