@@ -30,13 +30,44 @@ class AdminRepository {
     String token,
     int id, {
     int intervalDays = 180,
+    String? resultNotes,
   }) => _api.post(
     '/mobile/admin/sanitizations/$id/complete',
     token: token,
-    body: {'next_interval_days': intervalDays},
+    body: {'next_interval_days': intervalDays, 'result_notes': resultNotes},
   );
-  Future<Map<String, dynamic>> cancelSanitization(String token, int id) =>
-      _api.post('/mobile/admin/sanitizations/$id/cancel', token: token);
+  Future<Map<String, dynamic>> saveSanitization(
+    String token,
+    int? id,
+    Map<String, dynamic> body,
+  ) => _api.post(
+    id == null
+        ? '/mobile/admin/sanitizations'
+        : '/mobile/admin/sanitizations/$id',
+    token: token,
+    body: body,
+  );
+  Future<Map<String, dynamic>> rescheduleSanitization(
+    String token,
+    int id,
+    String date, {
+    String? resultNotes,
+  }) => _api.post(
+    '/mobile/admin/sanitizations/$id/reschedule',
+    token: token,
+    body: {'rescheduled_date': date, 'result_notes': resultNotes},
+  );
+  Future<Map<String, dynamic>> cancelSanitization(
+    String token,
+    int id, {
+    String? resultNotes,
+  }) => _api.post(
+    '/mobile/admin/sanitizations/$id/cancel',
+    token: token,
+    body: {'result_notes': resultNotes},
+  );
+  Future<Map<String, dynamic>> deleteSanitization(String token, int id) =>
+      _api.delete('/mobile/admin/sanitizations/$id', token: token);
   Future<Map<String, dynamic>> saveDriver(
     String token,
     int? id,

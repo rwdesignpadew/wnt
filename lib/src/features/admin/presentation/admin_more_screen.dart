@@ -193,15 +193,25 @@ class AdminOperationsScreen extends ConsumerWidget {
     bottomNavigationBar: embedded ? null : _adminNestedNavigation(context, ref),
     floatingActionButton: embedded
         ? null
-        : ['drivers', 'regions'].contains(dataKey)
+        : ['drivers', 'regions', 'sanitizations'].contains(dataKey)
         ? FloatingActionButton(
-            tooltip: dataKey == 'drivers' ? 'Dodaj kierowcę' : 'Dodaj region',
+            tooltip: dataKey == 'drivers'
+                ? 'Dodaj kierowcę'
+                : dataKey == 'regions'
+                ? 'Dodaj region'
+                : 'Zaplanuj sanityzację',
             onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AdminSettingsEditScreen(kind: dataKey),
-                ),
-              );
+              if (dataKey == 'sanitizations') {
+                final data = await ref.read(adminOperationsProvider.future);
+                if (!context.mounted) return;
+                await _openSanitizationEditor(context, ref, data);
+              } else {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AdminSettingsEditScreen(kind: dataKey),
+                  ),
+                );
+              }
               ref.invalidate(adminOperationsProvider);
             },
             child: const Icon(Icons.add),
@@ -284,12 +294,7 @@ class AdminOperationsScreen extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                            trailing:
-                                dataKey == 'sanitizations' &&
-                                    [
-                                      'planned',
-                                      'overdue',
-                                    ].contains(item['status']?.toString())
+                            trailing: dataKey == 'sanitizations'
                                 ? PopupMenuButton<String>(
                                     tooltip: 'Działania',
                                     onSelected: (action) => _sanitizationAction(
@@ -298,14 +303,30 @@ class AdminOperationsScreen extends ConsumerWidget {
                                       item,
                                       action,
                                     ),
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'complete',
-                                        child: Text('Oznacz jako wykonaną'),
+                                    itemBuilder: (_) => [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Szczegóły i edycja'),
                                       ),
-                                      PopupMenuItem(
-                                        value: 'cancel',
-                                        child: Text('Anuluj sanityzację'),
+                                      if (['planned', 'overdue'].contains(
+                                        item['status']?.toString(),
+                                      )) ...const [
+                                        PopupMenuItem(
+                                          value: 'complete',
+                                          child: Text('Oznacz jako wykonaną'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'reschedule',
+                                          child: Text('Nie zastano - przełóż'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'cancel',
+                                          child: Text('Anuluj sanityzację'),
+                                        ),
+                                      ],
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Usuń'),
                                       ),
                                     ],
                                   )
@@ -333,6 +354,13 @@ class AdminOperationsScreen extends ConsumerWidget {
                                       ),
                                     );
                                   }
+                                : dataKey == 'sanitizations'
+                                ? () => _openSanitizationEditor(
+                                    context,
+                                    ref,
+                                    data,
+                                    item: item,
+                                  )
                                 : ['drivers', 'regions'].contains(dataKey)
                                 ? () async {
                                     await Navigator.of(context).push(
@@ -361,35 +389,113 @@ class AdminOperationsScreen extends ConsumerWidget {
     Map<String, dynamic> item,
     String action,
   ) async {
-    final verb = action == 'complete' ? 'wykonaną' : 'anulowaną';
+    if (action == 'edit') {
+      final data = await ref.read(adminOperationsProvider.future);
+      if (context.mounted) {
+        await _openSanitizationEditor(context, ref, data, item: item);
+      }
+      return;
+    }
+    final notes = TextEditingController();
+    final interval = TextEditingController(
+      text:
+          '${_int(item['next_interval_days']) == 0 ? 180 : _int(item['next_interval_days'])}',
+    );
+    DateTime rescheduled = DateTime.now().add(const Duration(days: 1));
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Oznaczyć sanityzację jako $verb?'),
-        content: action == 'complete'
-            ? const Text(
-                'Data wykonania zostanie zapisana, a następny termin będzie wyliczony według interwału klienta.',
-              )
-            : null,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Wróć'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Potwierdź'),
-          ),
-        ],
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(switch (action) {
+            'complete' => 'Sanityzacja wykonana',
+            'reschedule' => 'Nie zastano - przełóż',
+            'delete' => 'Usunąć sanityzację?',
+            _ => 'Anulować sanityzację?',
+          }),
+          content: action == 'delete'
+              ? const Text('Tej operacji nie można cofnąć.')
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (action == 'complete')
+                      TextField(
+                        controller: interval,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Kolejna sanityzacja za ile dni',
+                        ),
+                      ),
+                    if (action == 'reschedule')
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Nowy termin'),
+                        subtitle: Text(_isoDate(rescheduled)),
+                        trailing: const Icon(Icons.calendar_month_outlined),
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: rescheduled,
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 730),
+                            ),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => rescheduled = picked);
+                          }
+                        },
+                      ),
+                    TextField(
+                      controller: notes,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: action == 'complete'
+                            ? 'Uwagi po wykonaniu'
+                            : 'Powód / uwagi',
+                      ),
+                    ),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Wróć'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Potwierdź'),
+            ),
+          ],
+        ),
       ),
     );
     if (confirmed != true || !context.mounted) return;
     try {
       final token = ref.read(authControllerProvider).session!.token;
       final repository = ref.read(adminRepositoryProvider);
-      final response = action == 'complete'
-          ? await repository.completeSanitization(token, _int(item['id']))
-          : await repository.cancelSanitization(token, _int(item['id']));
+      final response = switch (action) {
+        'complete' => await repository.completeSanitization(
+          token,
+          _int(item['id']),
+          intervalDays: _int(interval.text) == 0 ? 180 : _int(interval.text),
+          resultNotes: notes.text.trim(),
+        ),
+        'reschedule' => await repository.rescheduleSanitization(
+          token,
+          _int(item['id']),
+          _isoDate(rescheduled),
+          resultNotes: notes.text.trim(),
+        ),
+        'delete' => await repository.deleteSanitization(
+          token,
+          _int(item['id']),
+        ),
+        _ => await repository.cancelSanitization(
+          token,
+          _int(item['id']),
+          resultNotes: notes.text.trim(),
+        ),
+      };
       ref.invalidate(adminOperationsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -406,6 +512,277 @@ class AdminOperationsScreen extends ConsumerWidget {
       }
     }
   }
+}
+
+Future<void> _openSanitizationEditor(
+  BuildContext context,
+  WidgetRef ref,
+  Map<String, dynamic> data, {
+  Map<String, dynamic>? item,
+}) async {
+  final clients = (data['sanitization_clients'] as List? ?? const [])
+      .whereType<Map>()
+      .map((row) => row.cast<String, dynamic>())
+      .toList();
+  final drivers = (data['sanitization_drivers'] as List? ?? const [])
+      .whereType<Map>()
+      .map((row) => row.cast<String, dynamic>())
+      .toList();
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) =>
+        _SanitizationSheet(item: item, clients: clients, drivers: drivers),
+  );
+  ref.invalidate(adminOperationsProvider);
+}
+
+class _SanitizationSheet extends ConsumerStatefulWidget {
+  const _SanitizationSheet({
+    required this.clients,
+    required this.drivers,
+    this.item,
+  });
+  final Map<String, dynamic>? item;
+  final List<Map<String, dynamic>> clients;
+  final List<Map<String, dynamic>> drivers;
+
+  @override
+  ConsumerState<_SanitizationSheet> createState() => _SanitizationSheetState();
+}
+
+class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
+  late int clientId = _int(widget.item?['client_id']);
+  late int driverId = _int(widget.item?['driver_id']);
+  late DateTime scheduledDate =
+      DateTime.tryParse('${widget.item?['scheduled_date'] ?? ''}') ??
+      DateTime.now();
+  late String status = '${widget.item?['status'] ?? 'planned'}';
+  late final TextEditingController count = TextEditingController(
+    text:
+        '${_int(widget.item?['dispenser_count']) == 0 ? 1 : _int(widget.item?['dispenser_count'])}',
+  );
+  late final TextEditingController method = TextEditingController(
+    text: '${widget.item?['method'] ?? 'Standardowa sanityzacja dystrybutora'}',
+  );
+  late final TextEditingController notes = TextEditingController(
+    text: '${widget.item?['notes'] ?? ''}',
+  );
+  late final TextEditingController resultNotes = TextEditingController(
+    text: '${widget.item?['result_notes'] ?? ''}',
+  );
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (clientId == 0 && widget.clients.isNotEmpty) {
+      clientId = _int(widget.clients.first['id']);
+      count.text = '${_int(widget.clients.first['dispenser_count'])}';
+    }
+  }
+
+  @override
+  void dispose() {
+    count.dispose();
+    method.dispose();
+    notes.dispose();
+    resultNotes.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (clientId == 0 || _int(count.text) < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wybierz klienta i podaj liczbę dystrybutorów.'),
+        ),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref.read(adminRepositoryProvider).saveSanitization(
+        token,
+        widget.item == null ? null : _int(widget.item!['id']),
+        <String, dynamic>{
+          'client_id': clientId,
+          'driver_id': driverId == 0 ? null : driverId,
+          'scheduled_date': _isoDate(scheduledDate),
+          'status': status,
+          'dispenser_count': _int(count.text),
+          'method': method.text.trim(),
+          'notes': notes.text.trim(),
+          'result_notes': resultNotes.text.trim(),
+        },
+      );
+      ref.invalidate(adminOperationsProvider);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${response['message'] ?? 'Zapisano.'}')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      20,
+      16,
+      20,
+      20 + MediaQuery.viewInsetsOf(context).bottom,
+    ),
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.item == null
+                      ? 'Nowa sanityzacja'
+                      : 'Sanityzacja - szczegóły',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Zamknij',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: clientId == 0 ? null : clientId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Klient'),
+            items: widget.clients
+                .map(
+                  (client) => DropdownMenuItem<int>(
+                    value: _int(client['id']),
+                    child: Text(
+                      '${client['name']}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              final client = widget.clients.firstWhere(
+                (row) => _int(row['id']) == value,
+              );
+              setState(() {
+                clientId = value;
+                count.text = '${_int(client['dispenser_count'])}';
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: driverId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Kierowca'),
+            items: [
+              const DropdownMenuItem(value: 0, child: Text('Bez kierowcy')),
+              ...widget.drivers.map(
+                (driver) => DropdownMenuItem<int>(
+                  value: _int(driver['id']),
+                  child: Text(
+                    '${driver['name']}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+            onChanged: (value) => setState(() => driverId = value ?? 0),
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Termin'),
+            subtitle: Text(_isoDate(scheduledDate)),
+            trailing: const Icon(Icons.calendar_month_outlined),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: scheduledDate,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 1825)),
+              );
+              if (picked != null) setState(() => scheduledDate = picked);
+            },
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: count,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Liczba dystrybutorów',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: method,
+            decoration: const InputDecoration(labelText: 'Metoda'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: notes,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Uwagi'),
+          ),
+          if (widget.item != null) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Status'),
+              items: const [
+                DropdownMenuItem(value: 'planned', child: Text('Zaplanowana')),
+                DropdownMenuItem(value: 'overdue', child: Text('Po terminie')),
+                DropdownMenuItem(value: 'completed', child: Text('Wykonana')),
+                DropdownMenuItem(value: 'missed', child: Text('Nie zastano')),
+                DropdownMenuItem(value: 'cancelled', child: Text('Anulowana')),
+              ],
+              onChanged: (value) => setState(() => status = value ?? status),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: resultNotes,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Uwagi po realizacji',
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: saving ? null : save,
+            icon: saving
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+            label: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _OrderSheet extends ConsumerStatefulWidget {
@@ -1035,5 +1412,7 @@ class _AdminProductEditScreenState
 Map<String, dynamic>? _map(dynamic value) =>
     value is Map ? value.cast<String, dynamic>() : null;
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+String _isoDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 String _money(dynamic value) =>
     (double.tryParse('$value') ?? 0).toStringAsFixed(2).replaceFirst('.', ',');

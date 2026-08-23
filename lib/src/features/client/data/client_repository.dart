@@ -9,6 +9,16 @@ class ClientRepository {
     return _api.get('/mobile/client/home', token: token);
   }
 
+  Future<Map<String, dynamic>> requestService(
+    String token,
+    int rentalItemId,
+    String description,
+  ) => _api.post(
+    '/mobile/client/service',
+    token: token,
+    body: {'client_rental_item_id': rentalItemId, 'description': description},
+  );
+
   Future<Map<String, dynamic>> tracking(String token) {
     return _api.get('/mobile/client/tracking', token: token);
   }
