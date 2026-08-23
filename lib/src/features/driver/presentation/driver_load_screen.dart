@@ -28,6 +28,7 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
           data: (data) {
             final totals = <String, int>{};
             final loadRoutes = _list(data['load_routes']);
+            final loadDate = data['load_date']?.toString() ?? '';
             final selectedRoutes = _selection == 'all'
                 ? loadRoutes
                 : loadRoutes
@@ -72,7 +73,7 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
                   const SizedBox(height: 4),
                   Text(
                     _selection == 'all'
-                        ? 'Suma produktów ze wszystkich tras bez powrotu do bazy.'
+                        ? 'Suma produktów ze wszystkich tras na $loadDate bez powrotu do bazy.'
                         : 'Suma produktów dla wybranej trasy.',
                     style: Theme.of(
                       context,
@@ -89,7 +90,7 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
                       items: [
                         const DropdownMenuItem(
                           value: 'all',
-                          child: Text('Wszystko — wszystkie trasy'),
+                          child: Text('Wszystko — wszystkie trasy tego dnia'),
                         ),
                         for (final route in loadRoutes)
                           DropdownMenuItem(

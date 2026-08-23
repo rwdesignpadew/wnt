@@ -101,6 +101,22 @@ class AdminRepository {
     '${locationId == null ? '' : '&location=$locationId'}',
     token: token,
   );
+  Future<Map<String, dynamic>> returnClientRental(
+    String token,
+    int clientId,
+    int rentalItemId, {
+    required int quantity,
+    required bool damaged,
+    String? damageDescription,
+  }) => _api.post(
+    '/mobile/admin/clients/$clientId/rentals/$rentalItemId/return',
+    token: token,
+    body: {
+      'quantity': quantity,
+      'damaged': damaged,
+      'damage_description': damageDescription,
+    },
+  );
   Future<Map<String, dynamic>> clientOptions(String token) =>
       _api.get('/mobile/admin/client-options', token: token);
   Future<Map<String, dynamic>> gus(String token, String nip) =>

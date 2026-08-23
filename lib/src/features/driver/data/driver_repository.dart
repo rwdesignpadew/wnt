@@ -76,6 +76,7 @@ class DriverRepository {
     required String signedBy,
     String? notes,
     double? cashCollected,
+    bool customerRequestsInvoice = false,
     bool correction = false,
     List<Map<String, dynamic>> rentalReturns = const [],
   }) {
@@ -91,19 +92,15 @@ class DriverRepository {
         'signed_by': signedBy,
         'notes': notes,
         'cash_collected': cashCollected,
+        'customer_requests_invoice': customerRequestsInvoice,
         'correction': correction,
         'rental_returns': rentalReturns,
       },
     );
   }
 
-  Future<Map<String, dynamic>> serviceDocument(
-    String token,
-    int documentId,
-  ) => _api.get(
-    '/mobile/driver/documents/$documentId',
-    token: token,
-  );
+  Future<Map<String, dynamic>> serviceDocument(String token, int documentId) =>
+      _api.get('/mobile/driver/documents/$documentId', token: token);
 
   Future<ApiDownload> documentPdf(String token, int documentId) async {
     try {

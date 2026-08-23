@@ -123,7 +123,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       (item) => item['is_default'] == true,
       orElse: () => locations.first,
     );
-    _stops.add({
+    _stops.add(<String, dynamic>{
       'client_id': initialClientId,
       'location_id': _int(location['id']),
       'products': <String, int>{},
@@ -218,7 +218,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       (item) => item['is_default'] == true,
       orElse: () => locations.first,
     );
-    final stop = {
+    final stop = <String, dynamic>{
       'client_id': _int(client['id']),
       'location_id': _int(location['id']),
       'products': <String, int>{},
@@ -667,7 +667,7 @@ class _ProductPicker extends StatefulWidget {
 }
 
 class _ProductPickerState extends State<_ProductPicker> {
-  late Map<String, int> quantities = Map.from(widget.quantities);
+  late Map<String, int> quantities = Map<String, int>.from(widget.quantities);
   String query = '';
   bool showAll = false;
 
@@ -675,22 +675,24 @@ class _ProductPickerState extends State<_ProductPicker> {
   Widget build(BuildContext context) {
     final matching = widget.products
         .where(
-          (product) => '${product['name']}'.toLowerCase().contains(
-            query.toLowerCase(),
-          ),
+          (product) =>
+              '${product['name']}'.toLowerCase().contains(query.toLowerCase()),
         )
         .toList();
     bool isAssigned(Map<String, dynamic> product) =>
         widget.visibleIds.contains(_int(product['id'])) ||
         (quantities['${product['id']}'] ?? 0) > 0;
     final assigned = matching.where(isAssigned).toList();
-    final remaining = matching.where((product) => !isAssigned(product)).toList();
+    final remaining = matching
+        .where((product) => !isAssigned(product))
+        .toList();
     final products = query.isNotEmpty || showAll
         ? [...assigned, ...remaining]
         : widget.visibleIds.isEmpty
         ? matching
         : assigned;
-    final canShowMore = query.isEmpty &&
+    final canShowMore =
+        query.isEmpty &&
         !showAll &&
         widget.visibleIds.isNotEmpty &&
         remaining.isNotEmpty;
@@ -811,14 +813,27 @@ class _Counter extends StatelessWidget {
   );
 }
 
-List<Map<String, dynamic>> _maps(dynamic value) => value is List
-    ? value
-          .whereType<Map>()
-          .map((item) => item.cast<String, dynamic>())
-          .toList()
-    : [];
-Map<String, dynamic> _map(dynamic value) =>
-    value is Map ? value.cast<String, dynamic>() : {};
+List<Map<String, dynamic>> _maps(dynamic value) {
+  final items = value is List
+      ? value
+      : value is Map
+      ? value.values.toList()
+      : const <dynamic>[];
+  return items
+      .whereType<Map>()
+      .map(
+        (item) => <String, dynamic>{
+          for (final entry in item.entries) '${entry.key}': entry.value,
+        },
+      )
+      .toList();
+}
+
+Map<String, dynamic> _map(dynamic value) => value is Map
+    ? <String, dynamic>{
+        for (final entry in value.entries) '${entry.key}': entry.value,
+      }
+    : <String, dynamic>{};
 Map<String, int> _intMap(dynamic value) => value is Map
     ? value.map((key, value) => MapEntry('$key', _int(value)))
     : {};

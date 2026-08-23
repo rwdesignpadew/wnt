@@ -81,7 +81,8 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       _hasMore = true;
       _additionalDocuments.clear();
     });
-    await ref.refresh(adminDocumentsProvider.future);
+    ref.invalidate(adminDocumentsProvider);
+    await ref.read(adminDocumentsProvider.future);
   }
 
   Future<void> _delete(Map<String, dynamic> document) async {
@@ -321,7 +322,9 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
             return _int(b['id']).compareTo(_int(a['id']));
           });
           final documents = sorted.where((document) {
-            if (_filter == 'wz') return document['type'] == 'wz';
+            if (_filter == 'wz') {
+              return document['type'] == 'wz' || document['type'] == 'pz';
+            }
             if (_filter == 'invoice') return document['type'] == 'invoice';
             return true;
           }).toList();
@@ -441,7 +444,7 @@ class _DocumentFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     const filters = [
       ('all', 'Wszystkie'),
-      ('wz', 'WZ'),
+      ('wz', 'WZ / PZ'),
       ('invoice', 'Faktury VAT'),
     ];
     return Container(

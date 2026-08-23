@@ -169,12 +169,22 @@ void main() {
     final driver = File(
       '../../remote_live/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
     ).readAsStringSync();
+    final webDriver = File(
+      '../../remote_live/app/Http/Controllers/DriverController.php',
+    ).readAsStringSync();
     final missed = driver.substring(
       driver.indexOf('public function missed'),
       driver.indexOf('public function emailDocument'),
     );
+    final webMissed = webDriver.substring(
+      webDriver.indexOf('public function missed'),
+      webDriver.indexOf('private function returnProductsPayload'),
+    );
     expect(missed, contains("'status' => 'missed_closed'"));
     expect(missed, isNot(contains("'sequence' =>")));
+    expect(webMissed, contains("'status' => 'missed_closed'"));
+    expect(webMissed, isNot(contains("'sequence' =>")));
+    expect(webMissed, isNot(contains('maxSequence')));
   });
 
   test('lista dokumentów administratora nie zawiera planowanych WZ', () {
@@ -189,13 +199,74 @@ void main() {
     expect(documents, contains("where('number', '!=', '')"));
   });
 
-  test('trasy cykliczne są generowane tylko 14 dni naprzód', () {
+  test('trasy cykliczne utrzymują bieżące i jedno następne wystąpienie', () {
     final admin = File(
       '../../remote_live/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
     ).readAsStringSync();
-    expect(admin, contains('function ensureRecurringRoutes'));
-    expect(admin, contains('today()->addDays(14)'));
-    expect(admin, contains("\$copy->is_recurring = false"));
+    final recurring = admin.substring(
+      admin.indexOf('private function ensureRecurringRoutes'),
+      admin.indexOf('private function syncMobileRoute'),
+    );
+    expect(recurring, contains(r'$futureOccurrences->skip(2)'));
+    expect(recurring, contains(r'while ($availableOccurrences < 2)'));
+    expect(recurring, contains(r'$copy->is_recurring = false'));
+  });
+
+  test('pomaranczowe oznaczenie dotyczy tylko przyszlej zaplanowanej trasy', () {
+    final admin = File(
+      '../../remote_live/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+    final screen = File(
+      'lib/src/features/admin/presentation/admin_routes_screen.dart',
+    ).readAsStringSync();
+    final web = File(
+      '../../remote_live/resources/views/admin/partials/route-card.blade.php',
+    ).readAsStringSync();
+
+    expect(admin, contains("'is_planned_occurrence'"));
+    expect(admin, contains('isAfter(today())'));
+    expect(screen, contains("route['is_planned_occurrence'] == true"));
+    expect(web, contains(r'$isFuturePlanned'));
+    expect(web, contains("'zaplanowana'"));
+  });
+
+  test('kierowca pobiera wyłącznie aktywne trasy od dziś do 14 dni', () {
+    final driver = File(
+      '../../remote_live/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
+    ).readAsStringSync();
+    final route = driver.substring(
+      driver.indexOf('public function route'),
+      driver.indexOf('public function complete'),
+    );
+    expect(
+      route,
+      contains(
+        "whereBetween('scheduled_date', [today(), today()->addDays(14)])",
+      ),
+    );
+    expect(route, contains("whereNotIn('status', ['completed', 'cancelled'])"));
+    expect(route, contains("where('driver_id', \$driver->id)"));
+  });
+
+  test('zaladunek laczy tylko trasy z dnia wybranej trasy', () {
+    final driver = File(
+      '../../remote_live/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
+    ).readAsStringSync();
+    final route = driver.substring(
+      driver.indexOf('public function route'),
+      driver.indexOf('public function complete'),
+    );
+    expect(
+      route,
+      contains(r'$loadDate = optional($selectedRoute?->scheduled_date)'),
+    );
+    expect(
+      route,
+      contains(
+        "->filter(fn (DeliveryRoute \$route) => optional(\$route->scheduled_date)->toDateString() === \$loadDate)",
+      ),
+    );
+    expect(route, contains("'load_date' => \$loadDate"));
   });
 
   test('reczne WZ nie sa punktami trasy kierowcy', () {

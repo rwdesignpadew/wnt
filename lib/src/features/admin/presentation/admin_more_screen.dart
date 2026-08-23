@@ -245,8 +245,19 @@ class AdminOperationsScreen extends ConsumerWidget {
                         final overdue =
                             dataKey == 'sanitizations' &&
                             item['status']?.toString() == 'overdue';
+                        final overdueOrder =
+                            dataKey == 'orders' && item['is_overdue'] == true;
+                        final newOrder =
+                            dataKey == 'orders' &&
+                            item['status']?.toString() == 'new';
                         return Card(
-                          color: overdue ? WntColors.errorSoft : null,
+                          color: overdue
+                              ? WntColors.errorSoft
+                              : overdueOrder
+                              ? WntColors.warningSoft
+                              : newOrder
+                              ? WntColors.errorSoft
+                              : null,
                           child: ListTile(
                             title: Text(item['title']?.toString() ?? ''),
                             subtitle: Column(
@@ -266,7 +277,10 @@ class AdminOperationsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 _StatusBadge(
-                                  status: item['status']?.toString() ?? '',
+                                  status:
+                                      item['display_status']?.toString() ??
+                                      item['status']?.toString() ??
+                                      '',
                                 ),
                               ],
                             ),
@@ -404,7 +418,9 @@ class _OrderSheet extends ConsumerStatefulWidget {
 }
 
 class _OrderSheetState extends ConsumerState<_OrderSheet> {
-  late String status = '${widget.order['status'] ?? 'new'}';
+  late String status = '${widget.order['status'] ?? 'new'}' == 'overdue'
+      ? 'new'
+      : '${widget.order['status'] ?? 'new'}';
   late int routeId = _int(widget.order['route_id']);
   bool saving = false;
 
@@ -517,6 +533,30 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                         ),
                         if (index < items.length - 1) const Divider(height: 1),
                       ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: WntColors.canvas,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Razem brutto',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Text(
+                        '${_money(widget.order['total_gross'] ?? widget.order['total'])} zł',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -995,3 +1035,5 @@ class _AdminProductEditScreenState
 Map<String, dynamic>? _map(dynamic value) =>
     value is Map ? value.cast<String, dynamic>() : null;
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+String _money(dynamic value) =>
+    (double.tryParse('$value') ?? 0).toStringAsFixed(2).replaceFirst('.', ',');

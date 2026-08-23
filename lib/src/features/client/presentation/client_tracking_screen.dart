@@ -93,6 +93,21 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
               ),
               const SizedBox(height: 12),
               if (driver != null && destination != null) ...[
+                if (item['tracking_active'] != true) ...[
+                  Card(
+                    color: WntColors.warningSoft,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: _InfoLine(
+                        icon: Icons.gps_off_outlined,
+                        label: 'Śledzenie nieaktywne',
+                        value:
+                            'Ostatni sygnał samochodu: ${driver['recorded_at'] ?? 'brak danych'}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Text(
                   'Śledzenie samochodu',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -102,9 +117,31 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
                   borderRadius: BorderRadius.circular(10),
                   child: SizedBox(
                     height: 300,
-                    child: _TrackingMap(
-                      driver: driver,
-                      destination: destination,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: _TrackingMap(
+                            driver: driver,
+                            destination: destination,
+                          ),
+                        ),
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: IconButton.filled(
+                            tooltip: 'Mapa na pełnym ekranie',
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => _FullScreenTrackingMap(
+                                  driver: driver,
+                                  destination: destination,
+                                ),
+                              ),
+                            ),
+                            icon: const Icon(Icons.fullscreen),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -154,7 +191,9 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
                         icon: Icons.schedule_outlined,
                         label: 'Szacowana dostawa',
                         value: item['eta_minutes'] == null
-                            ? 'Pojawi się po uruchomieniu trasy'
+                            ? item['tracking_active'] == true
+                                  ? 'Trwa wyliczanie'
+                                  : 'Brak aktualnego sygnału GPS samochodu'
                             : 'około ${item['eta_at']} (${item['eta_minutes']} min)',
                       ),
                     ],
@@ -167,6 +206,22 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
       },
     );
   }
+}
+
+class _FullScreenTrackingMap extends StatelessWidget {
+  const _FullScreenTrackingMap({
+    required this.driver,
+    required this.destination,
+  });
+
+  final Map<String, dynamic> driver;
+  final Map<String, dynamic> destination;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Śledzenie samochodu')),
+    body: _TrackingMap(driver: driver, destination: destination),
+  );
 }
 
 class _TrackingMap extends StatefulWidget {

@@ -35,7 +35,7 @@ class DriverRouteScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                'Trasy na dziś i jutro',
+                'Trasy na dziś i kolejne 14 dni',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               if (routes.length > 1) ...[

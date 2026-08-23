@@ -202,6 +202,8 @@ class _AdminClientFullEditScreenState
       'is_active': true,
       'invoice_recipient_enabled': false,
       'invoice_recipient_jst': false,
+      'opening_bottles_189': 0,
+      'opening_transporters': 0,
     });
   }
 
@@ -425,6 +427,40 @@ class _AdminClientFullEditScreenState
           ),
           _mapField(location, 'name', 'Nazwa lokalizacji', required: true),
           _mapField(location, 'address', 'Adres lokalizacji', required: true),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              border: Border.all(color: Colors.orange.shade200),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Stan u klienta przed uruchomieniem aplikacji',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Colors.orange.shade900,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _mapField(
+                  location,
+                  'opening_bottles_189',
+                  'Butle 18,9 l',
+                  keyboard: TextInputType.number,
+                ),
+                _mapField(
+                  location,
+                  'opening_transporters',
+                  'Transportery',
+                  keyboard: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
           _mapField(
             location,
             'phone',

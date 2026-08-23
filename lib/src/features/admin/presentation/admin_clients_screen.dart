@@ -143,6 +143,7 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 if (index == 0) {
+                  final compact = MediaQuery.sizeOf(context).width < 420;
                   return Row(
                     children: [
                       Expanded(
@@ -151,18 +152,34 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ),
-                      FilledButton.icon(
-                        onPressed: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const AdminClientFullEditScreen(),
-                            ),
-                          );
-                          ref.invalidate(adminClientsProvider);
-                        },
-                        icon: const Icon(Icons.person_add_alt_1_outlined),
-                        label: const Text('Nowy klient'),
-                      ),
+                      if (compact)
+                        IconButton.filled(
+                          tooltip: 'Nowy klient',
+                          onPressed: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const AdminClientFullEditScreen(),
+                              ),
+                            );
+                            ref.invalidate(adminClientsProvider);
+                          },
+                          icon: const Icon(Icons.person_add_alt_1_outlined),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const AdminClientFullEditScreen(),
+                              ),
+                            );
+                            ref.invalidate(adminClientsProvider);
+                          },
+                          icon: const Icon(Icons.person_add_alt_1_outlined),
+                          label: const Text('Nowy klient'),
+                        ),
                     ],
                   );
                 }
@@ -170,20 +187,27 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                   final activeCount = all
                       .where((item) => item['status']?.toString() == 'aktywny')
                       .length;
-                  return SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(
-                        value: true,
-                        label: Text('Aktywni ($activeCount)'),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        label: Text('Nieaktywni (${all.length - activeCount})'),
-                      ),
-                    ],
-                    selected: {_active},
-                    onSelectionChanged: (value) =>
-                        setState(() => _active = value.first),
+                  return SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<bool>(
+                      showSelectedIcon: false,
+                      expandedInsets: EdgeInsets.zero,
+                      segments: [
+                        ButtonSegment(
+                          value: true,
+                          label: Text('Aktywni ($activeCount)'),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          label: Text(
+                            'Nieaktywni (${all.length - activeCount})',
+                          ),
+                        ),
+                      ],
+                      selected: {_active},
+                      onSelectionChanged: (value) =>
+                          setState(() => _active = value.first),
+                    ),
                   );
                 }
                 if (index == 2) {
@@ -237,7 +261,10 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                       const Divider(height: 1),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Row(
+                        child: Wrap(
+                          spacing: 2,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             TextButton.icon(
                               onPressed: () => _openClient(id),
@@ -249,7 +276,6 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                               icon: const Icon(Icons.inventory_2_outlined),
                               label: const Text('Produkty'),
                             ),
-                            const Spacer(),
                             IconButton(
                               tooltip: 'Dodaj do trasy',
                               onPressed: () => _addToRoute(client),

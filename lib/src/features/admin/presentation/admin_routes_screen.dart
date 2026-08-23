@@ -91,7 +91,15 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
                   );
                 }
                 final route = items[index - 2];
+                final planned = route['is_planned_occurrence'] == true;
                 return Card(
+                  color: planned ? Colors.orange.shade50 : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: planned ? Colors.orange.shade300 : WntColors.line,
+                    ),
+                  ),
                   child: ListTile(
                     leading: const Icon(
                       Icons.route_outlined,
@@ -345,8 +353,7 @@ class _AdminRouteDetailScreenState
                           onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => _AdminRouteFullscreenMap(
-                                routeName:
-                                    route['name']?.toString() ?? 'Trasa',
+                                routeName: route['name']?.toString() ?? 'Trasa',
                                 stops: mappedStops,
                                 roadPath: roadPath,
                                 base: routeBase,
@@ -591,7 +598,8 @@ class _AdminRouteMap extends StatelessWidget {
           position: points[index],
           icon: numberedIcons[_int(stops[index]['sequence'])]!,
           infoWindow: InfoWindow(
-            title: '${stops[index]['sequence']}. ${stops[index]['client_name']}',
+            title:
+                '${stops[index]['sequence']}. ${stops[index]['client_name']}',
             snippet: stops[index]['address']?.toString(),
           ),
         ),
@@ -672,11 +680,7 @@ class _AdminRouteFullscreenMap extends StatelessWidget {
     body: Stack(
       children: [
         Positioned.fill(
-          child: _AdminRouteMap(
-            stops: stops,
-            roadPath: roadPath,
-            base: base,
-          ),
+          child: _AdminRouteMap(stops: stops, roadPath: roadPath, base: base),
         ),
         Positioned(
           left: 12,

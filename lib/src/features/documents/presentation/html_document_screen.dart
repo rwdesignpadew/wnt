@@ -18,7 +18,7 @@ class _HtmlDocumentScreenState extends State<HtmlDocumentScreen> {
   void initState() {
     super.initState();
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setJavaScriptMode(JavaScriptMode.disabled)
       ..setBackgroundColor(const Color(0xffeef1f6))
       ..loadHtmlString(widget.html);
   }

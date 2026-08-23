@@ -43,6 +43,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   bool _showAll = false;
   String _productQuery = '';
   bool _saving = false;
+  bool _customerRequestsInvoice = false;
   late String _paymentMethod;
 
   DriverNavigationDestination? get _clientDestination {
@@ -83,23 +84,25 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     _paymentMethod = widget.document['payment_method']?.toString() == 'cash'
         ? 'cash'
         : 'transfer';
+    final client = _map(widget.document['client']) ?? const {};
+    final forcedGross =
+        widget.document['is_company'] == true ||
+        client['recurring_invoice_enabled'] == true;
+    _customerRequestsInvoice =
+        forcedGross ||
+        (widget.document['status'] == 'completed' &&
+            widget.document['customer_requests_invoice'] == true);
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
-    Map<String, dynamic>? transporter;
-    Map<String, dynamic>? bottles;
     for (final product in widget.products) {
-      if (_returnKind(product) == _ReturnKind.transporter) transporter = product;
-      if (_returnKind(product) == _ReturnKind.smallBottle) bottles = product;
+      if (_isReturnProduct(product) &&
+          _returnKind(product) != _ReturnKind.smallBottleDeposit) {
+        _returnQuantities[_int(product['id'])] =
+            _quantities[_int(product['id'])] ?? 0;
+      }
     }
-    if (transporter != null) {
-      _returnQuantities[_int(transporter['id'])] = _quantities[_int(transporter['id'])] ?? 0;
-    }
-    if (transporter != null && bottles != null) {
-      final expected = (_quantities[_int(transporter['id'])] ?? 0) * 24;
-      final charged = _quantities[_int(bottles['id'])] ?? 0;
-      _returnQuantities[_int(bottles['id'])] = (expected - charged).clamp(0, expected);
-    }
+    _restoreTransporterBottleCount();
     final existingCash =
         double.tryParse('${widget.document['cash_collected'] ?? ''}') ?? 0;
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
@@ -115,6 +118,61 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _restoreTransporterBottleCount() {
+    final transporter = _productForReturnKind(_ReturnKind.transporter);
+    final bottles = _productForReturnKind(_ReturnKind.smallBottle);
+    final deposit = _productForReturnKind(_ReturnKind.smallBottleDeposit);
+    if (transporter == null || bottles == null) return;
+
+    final transporters = _returnQuantities[_int(transporter['id'])] ?? 0;
+    final expected = transporters * 24;
+    if (expected < 1) return;
+    final charged = deposit == null
+        ? 0
+        : (_quantities[_int(deposit['id'])] ?? 0);
+    _returnQuantities[_int(bottles['id'])] = (expected - charged).clamp(
+      0,
+      expected,
+    );
+    _quantities[_int(bottles['id'])] = expected;
+  }
+
+  Map<String, dynamic>? _productForReturnKind(_ReturnKind kind) {
+    for (final product in widget.products) {
+      if (_returnKind(product) == kind) return product;
+    }
+    return null;
+  }
+
+  void _syncTransporterBottleReturn() {
+    final transporter = _productForReturnKind(_ReturnKind.transporter);
+    final bottles = _productForReturnKind(_ReturnKind.smallBottle);
+    final deposit = _productForReturnKind(_ReturnKind.smallBottleDeposit);
+    if (transporter == null || bottles == null) return;
+
+    final transporters = _returnQuantities[_int(transporter['id'])] ?? 0;
+    final expected = transporters * 24;
+    if (expected < 1) {
+      final looseReturns = _returnQuantities[_int(bottles['id'])] ?? 0;
+      _quantities[_int(transporter['id'])] = 0;
+      _quantities[_int(bottles['id'])] = looseReturns;
+      if (deposit != null) _quantities[_int(deposit['id'])] = 0;
+      return;
+    }
+    final returned = (_returnQuantities[_int(bottles['id'])] ?? 0).clamp(
+      0,
+      expected,
+    );
+    _returnQuantities[_int(bottles['id'])] = returned;
+    _quantities[_int(transporter['id'])] = transporters;
+    // Transporter jest przyjmowany magazynowo jako komplet 24 butelek.
+    // Różnica jest osobną płatną kaucją, nie ubytkiem przyjęcia magazynowego.
+    _quantities[_int(bottles['id'])] = expected;
+    if (deposit != null) {
+      _quantities[_int(deposit['id'])] = expected - returned;
+    }
   }
 
   Future<void> _save() async {
@@ -140,6 +198,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             signedBy: _signedBy.text.trim(),
             notes: _notes.text.trim(),
             cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
+            customerRequestsInvoice: _customerRequestsInvoice,
             correction: widget.document['status']?.toString() == 'completed',
             rentalReturns: [
               for (final entry in _rentalReturns.entries)
@@ -180,7 +239,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextButton.icon(
-                      onPressed: () => Navigator.of(reviewContext).pop('cancel'),
+                      onPressed: () =>
+                          Navigator.of(reviewContext).pop('cancel'),
                       icon: const Icon(Icons.close),
                       label: const Text('Anuluj WZ'),
                       style: TextButton.styleFrom(
@@ -401,19 +461,28 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   Widget build(BuildContext context) {
     final client = _map(widget.document['client']) ?? const {};
     final recurringInvoice = client['recurring_invoice_enabled'] == true;
+    final isCompany = widget.document['is_company'] == true;
+    final useGross = isCompany || recurringInvoice || _customerRequestsInvoice;
     final location = _map(widget.document['location']);
     final assignedIds = _intSet(widget.document['available_product_ids']);
     final itemsIds = _list(
       widget.document['items'],
     ).map((e) => _int(e['product_id'])).toSet();
     final allReturnProducts = widget.products
-        .where((product) => !_isRentalEquipment(product) && _isReturnProduct(product))
+        .where(
+          (product) =>
+              !_isRentalEquipment(product) &&
+              (_isReturnProduct(product) ||
+                  _returnKind(product) == _ReturnKind.smallBottleDeposit),
+        )
         .toList();
-    final returnProducts = _returnProductsForDisplay(
-      widget.products.where((product) => !_isRentalEquipment(product)).toList(),
-    );
+    final returnProducts = _returnProductsForDisplay(allReturnProducts);
     final saleProducts = widget.products
-        .where((product) => !_isReturnProduct(product))
+        .where(
+          (product) =>
+              !_isReturnProduct(product) &&
+              _returnKind(product) != _ReturnKind.smallBottleDeposit,
+        )
         .toList();
     final primary = saleProducts
         .where(
@@ -447,11 +516,16 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     });
     final total = widget.products.fold<double>(0, (sum, product) {
       return sum +
-          (_quantities[_int(product['id'])] ?? 0) *
-              _productGrossPrice(product);
+          (_quantities[_int(product['id'])] ?? 0) * _productGrossPrice(product);
     });
+    final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
+    final credit =
+        double.tryParse('${widget.document['credit_amount'] ?? 0}') ?? 0;
+    final balance = credit - debt;
+    final priceToPay = useGross ? total : totalNet;
+    final remainingDue = (priceToPay - balance).clamp(0, double.infinity);
     final received = double.tryParse(_cash.text.replaceAll(',', '.')) ?? 0;
-    final difference = received - total;
+    final difference = received - remainingDue;
 
     return Scaffold(
       appBar: AppBar(
@@ -529,7 +603,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     product: visible[index],
                     value: _quantities[_int(visible[index]['id'])] ?? 0,
                     netUnitPrice: _productPrice(visible[index]),
-                    recurringInvoice: recurringInvoice,
+                    useGross: useGross,
                     onChanged: (value) => setState(
                       () => _quantities[_int(visible[index]['id'])] = value,
                     ),
@@ -556,11 +630,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 setState(() {
                   final id = _int(product['id']);
                   _returnQuantities[id] = value;
+                  _quantities[id] = value;
                   if (_returnKind(product) == _ReturnKind.damagedGallon) {
                     _quantities[id] = value;
                   }
                   if (_returnKind(product) == _ReturnKind.transporter) {
-                    _quantities[id] = value;
                     Map<String, dynamic>? bottles;
                     for (final candidate in returnProducts) {
                       if (_returnKind(candidate) == _ReturnKind.smallBottle) {
@@ -572,26 +646,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       _returnQuantities[_int(bottles['id'])] = value * 24;
                     }
                   }
-                  Map<String, dynamic>? transporter;
-                  Map<String, dynamic>? bottles;
-                  Map<String, dynamic>? deposit;
-                  for (final candidate in allReturnProducts) {
-                    switch (_returnKind(candidate)) {
-                      case _ReturnKind.transporter:
-                        transporter = candidate;
-                      case _ReturnKind.smallBottle:
-                        bottles = candidate;
-                      case _ReturnKind.smallBottleDeposit:
-                        deposit = candidate;
-                      default:
-                        break;
-                    }
-                  }
-                  if (transporter != null && bottles != null && deposit != null) {
-                    final expected = (_returnQuantities[_int(transporter['id'])] ?? 0) * 24;
-                    final returned = _returnQuantities[_int(bottles['id'])] ?? 0;
-                    _quantities[_int(bottles['id'])] = (expected - returned).clamp(0, expected);
-                    _quantities[_int(deposit['id'])] = 0;
+                  if (_returnKind(product) == _ReturnKind.transporter ||
+                      _returnKind(product) == _ReturnKind.smallBottle) {
+                    _syncTransporterBottleReturn();
                   }
                 });
               },
@@ -653,31 +710,58 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       setState(() => _paymentMethod = value.first),
                 ),
                 const SizedBox(height: 12),
+                if (!isCompany && !recurringInvoice)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _customerRequestsInvoice,
+                    onChanged: (value) => setState(
+                      () => _customerRequestsInvoice = value == true,
+                    ),
+                    title: const Text('Klient chce fakturę VAT'),
+                    subtitle: const Text(
+                      'Po zaznaczeniu cena do zapłaty zostanie przeliczona na brutto.',
+                    ),
+                  ),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Całkowita wartość WZ: '
-                        '${(recurringInvoice ? total : totalNet).toStringAsFixed(2)} zł '
-                        '${recurringInvoice ? 'brutto' : 'netto'}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        '${(recurringInvoice ? totalNet : total).toStringAsFixed(2)} zł '
-                        '${recurringInvoice ? 'netto' : 'brutto'}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: WntColors.muted,
-                        ),
+                        'Cena do zapłaty: ${priceToPay.toStringAsFixed(2)} zł',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ],
                   ),
                 ),
                 if (_paymentMethod == 'cash') ...[
                   const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (balance > 0.005)
+                          Text(
+                            'Saldo klienta: +${balance.toStringAsFixed(2)} zł',
+                            style: const TextStyle(
+                              color: WntColors.success,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        else if (balance < -0.005)
+                          Text(
+                            'Zaległość klienta: ${(-balance).toStringAsFixed(2)} zł',
+                            style: const TextStyle(
+                              color: WntColors.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _cash,
                     onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -701,6 +785,34 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    border: Border.all(color: Colors.orange.shade300),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pozostało do zapłaty',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${remainingDue.toStringAsFixed(2)} zł',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.orange.shade900,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _notes,
@@ -777,7 +889,14 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 }
 
-enum _ReturnKind { transporter, smallBottle, smallBottleDeposit, gallon, damagedGallon, other }
+enum _ReturnKind {
+  transporter,
+  smallBottle,
+  smallBottleDeposit,
+  gallon,
+  damagedGallon,
+  other,
+}
 
 _ReturnKind _returnKind(Map<String, dynamic> product) {
   final name = _normalizedProductName(product);
@@ -961,22 +1080,19 @@ class _ProductRow extends StatelessWidget {
     required this.product,
     required this.value,
     required this.netUnitPrice,
-    required this.recurringInvoice,
+    required this.useGross,
     required this.onChanged,
   });
   final Map<String, dynamic> product;
   final int value;
   final double netUnitPrice;
-  final bool recurringInvoice;
+  final bool useGross;
   final ValueChanged<int> onChanged;
   @override
   Widget build(BuildContext context) {
     final vat = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
     final grossUnitPrice = netUnitPrice * (1 + vat / 100);
-    final primaryUnitPrice = recurringInvoice ? grossUnitPrice : netUnitPrice;
-    final secondaryUnitPrice = recurringInvoice ? netUnitPrice : grossUnitPrice;
-    final primaryLabel = recurringInvoice ? 'brutto' : 'netto';
-    final secondaryLabel = recurringInvoice ? 'netto' : 'brutto';
+    final unitPrice = useGross ? grossUnitPrice : netUnitPrice;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -985,29 +1101,22 @@ class _ProductRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              Text(
-                product['name']?.toString() ?? 'Produkt',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 3),
-              Text(
-                '${primaryUnitPrice.toStringAsFixed(2)} zł $primaryLabel',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                '${secondaryUnitPrice.toStringAsFixed(2)} zł $secondaryLabel',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: WntColors.muted,
-                ),
-              ),
-              if (value > 0)
                 Text(
-                  'Razem: ${(primaryUnitPrice * value).toStringAsFixed(2)} zł $primaryLabel'
-                  '  ·  ${(secondaryUnitPrice * value).toStringAsFixed(2)} zł $secondaryLabel',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  product['name']?.toString() ?? 'Produkt',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
+                const SizedBox(height: 3),
+                Text(
+                  '${unitPrice.toStringAsFixed(2)} zł',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                if (value > 0)
+                  Text(
+                    'Razem: ${(unitPrice * value).toStringAsFixed(2)} zł',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
               ],
             ),
           ),

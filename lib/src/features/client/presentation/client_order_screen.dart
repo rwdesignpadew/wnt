@@ -96,48 +96,115 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
       final driver = isTracked && tracking?['driver'] is Map
           ? (tracking!['driver'] as Map).cast<String, dynamic>()
           : null;
-      return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      final items = _mapList(order['items']);
+      return DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .78,
+        minChildSize: .45,
+        maxChildSize: .96,
+        builder: (context, controller) => Column(
           children: [
-            Text(
-              order['number']?.toString() ?? 'Zamówienie',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
+            ListTile(
+              title: Text(
+                order['number']?.toString() ?? 'Zamówienie',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              subtitle: Text(order['location']?.toString() ?? ''),
+              trailing: IconButton(
+                tooltip: 'Zamknij',
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close),
-                label: const Text('Zamknij'),
               ),
             ),
-            const SizedBox(height: 8),
-            _OrderDetail('Status', _orderStatus(order['status'])),
-            _OrderDetail('Data', order['created_at']?.toString() ?? ''),
-            if (isTracked) ...[
-              _OrderDetail(
-                'Adres dostawy',
-                tracking?['address']?.toString() ?? '',
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _OrderDetail('Status', _orderStatus(order['status'])),
+                  _OrderDetail('Data', order['created_at']?.toString() ?? ''),
+                  if (isTracked) ...[
+                    _OrderDetail(
+                      'Adres dostawy',
+                      tracking?['address']?.toString() ?? '',
+                    ),
+                    _OrderDetail(
+                      'Kierowca',
+                      tracking?['driver_name']?.toString() ??
+                          'Jeszcze nie przypisano',
+                    ),
+                    _OrderDetail(
+                      'Szacowana dostawa',
+                      tracking?['eta_minutes'] == null
+                          ? (tracking?['tracking_active'] == true)
+                                ? 'Trwa wyliczanie'
+                                : 'Brak aktualnego sygnału GPS samochodu'
+                          : 'około ${tracking?['eta_at']} (${tracking?['eta_minutes']} min)',
+                    ),
+                    _OrderDetail(
+                      'GPS samochodu (MyCar)',
+                      driver?['recorded_at']?.toString() ?? 'Brak sygnału',
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    'Produkty',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (items.isEmpty)
+                    const Text('Brak pozycji zamówienia.')
+                  else
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (
+                            var index = 0;
+                            index < items.length;
+                            index++
+                          ) ...[
+                            ListTile(
+                              title: Text(
+                                items[index]['name']?.toString() ?? 'Produkt',
+                              ),
+                              trailing: Text(
+                                '${items[index]['quantity'] ?? 0} szt.',
+                              ),
+                            ),
+                            if (index < items.length - 1)
+                              const Divider(height: 1),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
               ),
-              _OrderDetail(
-                'Kierowca',
-                tracking?['driver_name']?.toString() ??
-                    'Jeszcze nie przypisano',
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WntColors.line)),
               ),
-              _OrderDetail(
-                'Szacowana dostawa',
-                tracking?['eta_minutes'] == null
-                    ? 'Pojawi się po uruchomieniu trasy'
-                    : 'około ${tracking?['eta_at']} (${tracking?['eta_minutes']} min)',
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Razem brutto',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    '${_money(order['total_gross'] ?? order['total'])} zł',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
-              _OrderDetail(
-                'GPS samochodu (MyCar)',
-                driver?['recorded_at']?.toString() ?? 'Brak sygnału',
-              ),
-            ],
+            ),
           ],
         ),
       );
@@ -301,6 +368,9 @@ String _orderStatus(dynamic value) => switch ('$value') {
   'cancelled' => 'Anulowane',
   _ => '$value',
 };
+
+String _money(dynamic value) =>
+    (double.tryParse('$value') ?? 0).toStringAsFixed(2).replaceFirst('.', ',');
 
 class _ProductRow extends StatelessWidget {
   const _ProductRow({
