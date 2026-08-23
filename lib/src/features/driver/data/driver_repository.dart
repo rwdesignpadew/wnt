@@ -25,6 +25,10 @@ class DriverRepository {
     return response['message']?.toString() ?? 'Punkt został pominięty.';
   }
 
+  Future<void> startRoute(String token, int routeId) async {
+    await _api.post('/mobile/driver/routes/$routeId/start', token: token);
+  }
+
   Future<Map<String, dynamic>> manualOptions(String token) =>
       _api.get('/mobile/driver/manual-options', token: token);
 

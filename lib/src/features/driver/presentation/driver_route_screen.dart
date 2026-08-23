@@ -102,6 +102,17 @@ class DriverRouteScreen extends ConsumerWidget {
                       onPressed: navigationStops.isEmpty
                           ? null
                           : () async {
+                              final routeId = _int(selected?['id']);
+                              if (routeId > 0) {
+                                final token = ref
+                                    .read(authControllerProvider)
+                                    .session!
+                                    .token;
+                                await ref
+                                    .read(driverRepositoryProvider)
+                                    .startRoute(token, routeId);
+                                if (!context.mounted) return;
+                              }
                               final activeCount = documents
                                   .where((document) => !_isServed(document))
                                   .length;

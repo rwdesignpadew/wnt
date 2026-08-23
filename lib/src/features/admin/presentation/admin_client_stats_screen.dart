@@ -408,14 +408,17 @@ class _AdminClientStatsScreenState
         spacing: 10,
         runSpacing: 10,
         children: [
-          _Metric('Zamówiona woda', _number(totals['water_ordered'])),
           _Metric(
-            'Zwroty butli 18,9 l',
-            _number(totals['bottles_189_returned']),
+            'Woda źródlana 18,9 l',
+            _number(totals['water_189_ordered']),
           ),
           _Metric(
-            'Zwroty butelek 0,3 l',
-            _number(totals['small_bottles_returned']),
+            'Woda - transportery',
+            _number(totals['glass_water_transporters_ordered']),
+          ),
+          _Metric(
+            'Napoje',
+            _number(totals['glass_beverage_transporters_ordered']),
           ),
           _Metric('Dokumenty WZ', _number(totals['documents'])),
           _Metric('Wartość', '${_money(totals['value'])} zł'),
@@ -477,7 +480,6 @@ class _AdminClientStatsScreenState
         runSpacing: 10,
         children: [
           _Metric('Butle 18,9 l', _number(totals['bottles_189_balance'])),
-          _Metric('Butelki 0,3 l', _number(totals['small_bottles_balance'])),
           _Metric('Transportery', _number(totals['transporters_balance'])),
           _Metric('Dzierżawa', '${_number(totals['rental_items'])} szt.'),
         ],
