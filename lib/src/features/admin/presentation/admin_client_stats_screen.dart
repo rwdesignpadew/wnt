@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../documents/presentation/html_document_screen.dart';
+import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/admin_providers.dart';
 import 'admin_client_full_edit_screen.dart';
 
@@ -27,6 +33,7 @@ class _AdminClientStatsScreenState
   Map<String, dynamic>? _data;
   Object? _error;
   bool _loading = true;
+  int? _busyDocumentId;
 
   @override
   void initState() {
@@ -62,6 +69,136 @@ class _AdminClientStatsScreenState
       ),
     );
     await _load();
+  }
+
+  Future<void> _openWz(Map<String, dynamic> document) async {
+    final id = _int(document['id']);
+    setState(() => _busyDocumentId = id);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final download = await ref
+          .read(adminRepositoryProvider)
+          .documentPdf(token, id);
+      if (!mounted) return;
+      final title = document['number']?.toString() ?? 'WZ';
+      if (download.contentType.contains('text/html')) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HtmlDocumentScreen(
+              html: utf8.decode(download.bytes),
+              title: title,
+            ),
+          ),
+        );
+        return;
+      }
+      final directory = await getTemporaryDirectory();
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}statystyki-wz-$id.pdf',
+      );
+      await file.writeAsBytes(download.bytes, flush: true);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfDocumentScreen(path: file.path, title: title),
+        ),
+      );
+      await PdfDocumentScreen.removeTemporary(file.path);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busyDocumentId = null);
+    }
+  }
+
+  Future<void> _openSale(Map<String, dynamic> document) async {
+    final items = _list(document['items']);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.78,
+        minChildSize: 0.45,
+        maxChildSize: 0.96,
+        builder: (context, controller) => Column(
+          children: [
+            ListTile(
+              title: Text('Sprzedaż — ${document['number'] ?? 'WZ'}'),
+              subtitle: Text([
+                document['date'],
+                document['location'],
+              ].whereType<Object>().join(' · ')),
+              trailing: IconButton(
+                tooltip: 'Zamknij',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: items.isEmpty
+                  ? const Center(child: Text('Brak pozycji sprzedaży.'))
+                  : ListView.separated(
+                      controller: controller,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['name']?.toString() ?? 'Produkt',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '${_number(item['quantity'])} ${item['unit'] ?? 'szt.'} × '
+                              '${_money(item['unit_net'])} zł netto '
+                              '(${_money(item['unit_gross'])} zł brutto)',
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'VAT ${_number(item['vat_rate'])}%  ·  '
+                              'Razem ${_money(item['total_net'])} zł netto  ·  '
+                              '${_money(item['total_gross'])} zł brutto',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WntColors.line)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Razem netto: ${_money(document['value'])} zł'),
+                  Text(
+                    'Razem brutto: ${_money(document['value_gross'])} zł',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -289,7 +426,28 @@ class _AdminClientStatsScreenState
                 document['date'],
                 document['location'],
               ].whereType<Object>().join(' · ')),
-              trailing: Text('${_money(document['value'])} zł'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Podgląd WZ',
+                    onPressed: _busyDocumentId == _int(document['id'])
+                        ? null
+                        : () => _openWz(document),
+                    icon: _busyDocumentId == _int(document['id'])
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.description_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Podgląd sprzedaży',
+                    onPressed: () => _openSale(document),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
