@@ -76,7 +76,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
         _date = _parseDate('${route['scheduled_date'] ?? ''}');
         _stops = _maps(route['stops'])
             .map(
-              (stop) => {
+              (stop) => <String, dynamic>{
                 'client_id': _int(stop['client_id']),
                 'location_id': _locationId(stop),
                 'products': _intMap(stop['products']),
@@ -435,6 +435,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _region,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Region'),
                     items: [
                       const DropdownMenuItem(
@@ -444,7 +445,11 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                       ..._regions.map(
                         (item) => DropdownMenuItem(
                           value: '${item['slug']}',
-                          child: Text('${item['name']}'),
+                          child: Text(
+                            '${item['name']}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ],
