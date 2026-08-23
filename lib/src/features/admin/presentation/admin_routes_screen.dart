@@ -80,14 +80,9 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
                   );
                 }
                 if (index == 1) {
-                  return SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Bieżące')),
-                      ButtonSegment(value: true, label: Text('Archiwalne')),
-                    ],
-                    selected: {_archived},
-                    onSelectionChanged: (value) =>
-                        setState(() => _archived = value.first),
+                  return _RouteFilters(
+                    archived: _archived,
+                    onChanged: (value) => setState(() => _archived = value),
                   );
                 }
                 final route = items[index - 2];
@@ -706,6 +701,57 @@ class _AdminRouteFullscreenMap extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _RouteFilters extends StatelessWidget {
+  const _RouteFilters({required this.archived, required this.onChanged});
+
+  final bool archived;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const filters = [(false, 'Aktywne'), (true, 'Archiwalne')];
+    return Container(
+      width: double.infinity,
+      height: 46,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: WntColors.brandSoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: WntColors.line),
+      ),
+      child: Row(
+        children: [
+          for (final filter in filters)
+            Expanded(
+              child: Material(
+                color: archived == filter.$1
+                    ? Colors.white
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: () => onChanged(filter.$1),
+                  child: Center(
+                    child: Text(
+                      filter.$2,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: archived == filter.$1
+                            ? WntColors.brand
+                            : WntColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 String _status(dynamic status) => switch ('$status') {
