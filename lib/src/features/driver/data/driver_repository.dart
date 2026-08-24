@@ -103,6 +103,23 @@ class DriverRepository {
     );
   }
 
+  Future<Map<String, dynamic>> completeSanitization({
+    required String token,
+    required int documentId,
+    required int sanitizationId,
+    required int completedDispenserCount,
+    int intervalDays = 180,
+    String? resultNotes,
+  }) => _api.post(
+    '/mobile/driver/documents/$documentId/sanitizations/$sanitizationId/complete',
+    token: token,
+    body: {
+      'completed_dispenser_count': completedDispenserCount,
+      'next_interval_days': intervalDays,
+      'result_notes': resultNotes,
+    },
+  );
+
   Future<Map<String, dynamic>> serviceDocument(String token, int documentId) =>
       _api.get('/mobile/driver/documents/$documentId', token: token);
 

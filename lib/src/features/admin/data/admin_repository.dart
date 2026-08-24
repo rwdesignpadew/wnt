@@ -30,11 +30,16 @@ class AdminRepository {
     String token,
     int id, {
     int intervalDays = 180,
+    required int completedDispenserCount,
     String? resultNotes,
   }) => _api.post(
     '/mobile/admin/sanitizations/$id/complete',
     token: token,
-    body: {'next_interval_days': intervalDays, 'result_notes': resultNotes},
+    body: {
+      'next_interval_days': intervalDays,
+      'completed_dispenser_count': completedDispenserCount,
+      'result_notes': resultNotes,
+    },
   );
   Future<Map<String, dynamic>> saveSanitization(
     String token,

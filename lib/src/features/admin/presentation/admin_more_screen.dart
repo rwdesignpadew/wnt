@@ -444,6 +444,10 @@ class AdminOperationsScreen extends ConsumerWidget {
       text:
           '${_int(item['next_interval_days']) == 0 ? 180 : _int(item['next_interval_days'])}',
     );
+    final totalDispensers = _int(item['dispenser_count']).clamp(1, 999);
+    final completedDispensers = <int>{
+      for (var unit = 1; unit <= totalDispensers; unit++) unit,
+    };
     DateTime rescheduled = DateTime.now().add(const Duration(days: 1));
     final confirmed = await showDialog<bool>(
       context: context,
@@ -460,6 +464,32 @@ class AdminOperationsScreen extends ConsumerWidget {
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (action == 'complete') ...[
+                      Text(
+                        'Wybierz wykonane dystrybutory: ${completedDispensers.length} z $totalDispensers',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (var unit = 1; unit <= totalDispensers; unit++)
+                            FilterChip(
+                              label: Text('Dystrybutor $unit'),
+                              selected: completedDispensers.contains(unit),
+                              onSelected: (selected) => setDialogState(() {
+                                if (selected) {
+                                  completedDispensers.add(unit);
+                                } else {
+                                  completedDispensers.remove(unit);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (action == 'complete') const SizedBox(height: 12),
                     if (action == 'complete')
                       TextField(
                         controller: interval,
@@ -505,7 +535,9 @@ class AdminOperationsScreen extends ConsumerWidget {
               child: const Text('Wróć'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: action == 'complete' && completedDispensers.isEmpty
+                  ? null
+                  : () => Navigator.pop(context, true),
               child: const Text('Potwierdź'),
             ),
           ],
@@ -521,6 +553,10 @@ class AdminOperationsScreen extends ConsumerWidget {
           token,
           _int(item['id']),
           intervalDays: _int(interval.text) == 0 ? 180 : _int(interval.text),
+          completedDispenserCount: completedDispensers.length.clamp(
+            1,
+            totalDispensers,
+          ),
           resultNotes: notes.text.trim(),
         ),
         'reschedule' => await repository.rescheduleSanitization(

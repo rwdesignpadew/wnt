@@ -39,11 +39,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _notes = TextEditingController();
   final _signedBy = TextEditingController();
   final _cash = TextEditingController();
+  final _sanitizationNotes = TextEditingController();
   String? _signatureData;
   bool _showAll = false;
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
+  bool _savingSanitization = false;
+  Map<String, dynamic>? _sanitization;
+  final Set<int> _completedSanitizationUnits = {};
   late String _paymentMethod;
 
   DriverNavigationDestination? get _clientDestination {
@@ -107,6 +111,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         double.tryParse('${widget.document['cash_collected'] ?? ''}') ?? 0;
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
     _signedBy.text = widget.document['signed_by']?.toString().trim() ?? '';
+    _sanitization = _map(widget.document['sanitization']);
+    _completedSanitizationUnits.addAll(
+      List<int>.generate(
+        _int(_sanitization?['dispenser_count']),
+        (index) => index + 1,
+      ),
+    );
   }
 
   @override
@@ -114,10 +125,39 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     _notes.dispose();
     _signedBy.dispose();
     _cash.dispose();
+    _sanitizationNotes.dispose();
     for (final controller in _damageNotes.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _saveSanitization() async {
+    final task = _sanitization;
+    if (task == null || _completedSanitizationUnits.isEmpty) return;
+    setState(() => _savingSanitization = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(driverRepositoryProvider)
+          .completeSanitization(
+            token: token,
+            documentId: _int(widget.document['id']),
+            sanitizationId: _int(task['id']),
+            completedDispenserCount: _completedSanitizationUnits.length,
+            intervalDays: _int(task['next_interval_days']) == 0
+                ? 180
+                : _int(task['next_interval_days']),
+            resultNotes: _sanitizationNotes.text.trim(),
+          );
+      if (!mounted) return;
+      setState(() => _sanitization = null);
+      _message(response['message']?.toString() ?? 'Sanityzacja zapisana.');
+    } catch (error) {
+      if (mounted) _message('$error', error: true);
+    } finally {
+      if (mounted) setState(() => _savingSanitization = false);
+    }
   }
 
   void _restoreTransporterBottleCount() {
@@ -652,6 +692,94 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   }
                 });
               },
+            ),
+          ],
+          if (_sanitization != null) ...[
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Sanityzacja dystrybutorów',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Do wykonania: ${_int(_sanitization!['dispenser_count'])} szt.',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  if ('${_sanitization!['notes'] ?? ''}'.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('${_sanitization!['notes']}'),
+                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Wybierz wykonane urządzenia'),
+                      Text(
+                        '${_completedSanitizationUnits.length} z ${_int(_sanitization!['dispenser_count'])}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (
+                        var unit = 1;
+                        unit <= _int(_sanitization!['dispenser_count']);
+                        unit++
+                      )
+                        FilterChip(
+                          label: Text('Dystrybutor $unit'),
+                          selected: _completedSanitizationUnits.contains(unit),
+                          onSelected: (selected) => setState(() {
+                            if (selected) {
+                              _completedSanitizationUnits.add(unit);
+                            } else {
+                              _completedSanitizationUnits.remove(unit);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  if (_completedSanitizationUnits.length <
+                      _int(_sanitization!['dispenser_count']))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Pozostałe ${_int(_sanitization!['dispenser_count']) - _completedSanitizationUnits.length} szt. dostaną automatyczny termin dokończenia.',
+                        style: const TextStyle(color: WntColors.warning),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _sanitizationNotes,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Uwagi do sanityzacji',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed:
+                          _savingSanitization ||
+                              _completedSanitizationUnits.isEmpty
+                          ? null
+                          : _saveSanitization,
+                      icon: const Icon(Icons.cleaning_services_outlined),
+                      label: Text(
+                        _savingSanitization
+                            ? 'Zapisywanie...'
+                            : 'Zapisz sanityzację',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           if (rentals.isNotEmpty) ...[
