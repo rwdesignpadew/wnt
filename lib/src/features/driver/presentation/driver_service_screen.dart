@@ -916,6 +916,7 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
 
 bool _isReturnProduct(Map<String, dynamic> product) =>
     product['is_return_container'] == true ||
+    _normalizedProductName(product).startsWith('zwrot') ||
     _returnKind(product) == _ReturnKind.smallBottle ||
     _returnKind(product) == _ReturnKind.damagedGallon ||
     (_normalizedProductName(product).contains('zwrot') &&

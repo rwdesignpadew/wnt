@@ -179,8 +179,15 @@ class AdminRepository {
       token: token,
     ),
   );
-  Future<Map<String, dynamic>> createFinalInvoice(String token, int id) =>
-      _api.post('/mobile/admin/documents/$id/final-invoice', token: token);
+  Future<Map<String, dynamic>> createFinalInvoice(
+    String token,
+    int id, {
+    Map<String, double> servicePrices = const {},
+  }) => _api.post(
+    '/mobile/admin/documents/$id/final-invoice',
+    token: token,
+    body: {'service_prices': servicePrices},
+  );
   Future<Map<String, dynamic>> deleteDocument(String token, int id) =>
       _api.delete('/mobile/admin/documents/$id', token: token);
   Future<ApiDownload> documentPdf(String token, int id) =>

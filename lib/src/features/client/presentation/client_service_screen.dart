@@ -57,6 +57,112 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
     }
   }
 
+  Future<void> openServiceForm(List<Map<String, dynamic>> rentals) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Zamów serwis',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Anuluj',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: rentalId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Sprzęt'),
+                  items: rentals
+                      .map(
+                        (rental) => DropdownMenuItem<int>(
+                          value: int.tryParse('${rental['id']}') ?? 0,
+                          child: Text(
+                            '${rental['name']} - ${rental['location'] ?? 'Główna lokalizacja'} (${rental['quantity']} szt.)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => rentalId = value ?? 0,
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: description,
+                  minLines: 4,
+                  maxLines: 8,
+                  autofocus: true,
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    labelText: 'Opis problemu',
+                    alignLabelWithHint: true,
+                    hintText: 'Opisz usterkę i objawy...',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          if (rentalId == 0 ||
+                              description.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Wybierz sprzęt i opisz problem.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          setSheetState(() => sending = true);
+                          await send();
+                          if (sheetContext.mounted &&
+                              !sending &&
+                              description.text.isEmpty) {
+                            Navigator.of(sheetContext).pop();
+                          } else if (sheetContext.mounted) {
+                            setSheetState(() {});
+                          }
+                        },
+                  icon: sending
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_outlined),
+                  label: const Text('Wyślij zgłoszenie'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ref
       .watch(clientHomeProvider)
@@ -92,56 +198,12 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(
-                  'Zamów serwis',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Zgłoś problem ze sprzętem znajdującym się u Ciebie w dzierżawie.',
-                ),
-                const SizedBox(height: 18),
-                DropdownButtonFormField<int>(
-                  initialValue: rentalId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Sprzęt'),
-                  items: rentals
-                      .map(
-                        (rental) => DropdownMenuItem<int>(
-                          value: int.tryParse('${rental['id']}') ?? 0,
-                          child: Text(
-                            '${rental['name']} - ${rental['location'] ?? 'Główna lokalizacja'} (${rental['quantity']} szt.)',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => rentalId = value ?? 0),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: description,
-                  minLines: 4,
-                  maxLines: 8,
-                  textInputAction: TextInputAction.newline,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis problemu',
-                    alignLabelWithHint: true,
-                    hintText: 'Opisz usterkę i objawy...',
-                  ),
-                ),
-                const SizedBox(height: 18),
                 FilledButton.icon(
-                  onPressed: sending ? null : send,
-                  icon: sending
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_outlined),
-                  label: const Text('Wyślij zgłoszenie'),
+                  onPressed: () => openServiceForm(rentals),
+                  icon: const Icon(Icons.build_outlined),
+                  label: const Text('Zamów serwis'),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
                 Text(
                   'Twoje zgłoszenia',
                   style: Theme.of(context).textTheme.titleLarge,

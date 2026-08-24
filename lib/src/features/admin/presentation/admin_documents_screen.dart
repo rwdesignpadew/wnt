@@ -131,25 +131,86 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
   }
 
   Future<void> _invoice(Map<String, dynamic> document) async {
+    final serviceItems = (document['service_items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList();
+    final serviceControllers = <String, TextEditingController>{
+      for (final item in serviceItems) '${item['id']}': TextEditingController(),
+    };
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Wystawić Fakturę VAT?'),
-        content: Text(
-          'Faktura zostanie wystawiona do ${document['title'] ?? 'wybranego WZ'} i wysłana do Fakturowni.',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Wystawić Fakturę VAT?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Faktura zostanie wystawiona do ${document['title'] ?? 'wybranego WZ'} i wysłana do Fakturowni.',
+                ),
+                if (serviceItems.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'WZ pozostaje z ceną 0 zł. Podaj cenę netto serwisu wyłącznie na Fakturę VAT.',
+                  ),
+                  const SizedBox(height: 12),
+                  for (final item in serviceItems) ...[
+                    TextField(
+                      controller: serviceControllers['${item['id']}'],
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Cena netto - ${item['name'] ?? 'Serwis'}',
+                        suffixText: 'zł',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final valid = serviceControllers.values.every(
+                  (controller) =>
+                      (double.tryParse(controller.text.replaceAll(',', '.')) ??
+                          0) >
+                      0,
+                );
+                if (!valid) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Podaj cenę netto za serwis.'),
+                    ),
+                  );
+                  setDialogState(() {});
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              child: const Text('Wystaw'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Wystaw'),
-          ),
-        ],
       ),
     );
+    final servicePrices = <String, double>{
+      for (final entry in serviceControllers.entries)
+        entry.key: double.tryParse(entry.value.text.replaceAll(',', '.')) ?? 0,
+    };
+    for (final controller in serviceControllers.values) {
+      controller.dispose();
+    }
     if (confirmed != true || !mounted) return;
     final id = _int(document['id']);
     setState(() => _busy = id);
@@ -157,7 +218,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final token = ref.read(authControllerProvider).session!.token;
       final response = await ref
           .read(adminRepositoryProvider)
-          .createFinalInvoice(token, id);
+          .createFinalInvoice(token, id, servicePrices: servicePrices);
       ref.invalidate(adminDocumentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -312,15 +373,14 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
             for (final item in [...items, ..._additionalDocuments])
               '${item['source']}:${item['id']}': item,
           };
-          final sorted = allByKey.values.toList()..sort((a, b) {
-            final byDate = _documentSortAt(
-              b,
-            ).compareTo(_documentSortAt(a));
-            if (byDate != 0) return byDate;
-            if (a['type'] == 'invoice' && b['type'] != 'invoice') return -1;
-            if (b['type'] == 'invoice' && a['type'] != 'invoice') return 1;
-            return _int(b['id']).compareTo(_int(a['id']));
-          });
+          final sorted = allByKey.values.toList()
+            ..sort((a, b) {
+              final byDate = _documentSortAt(b).compareTo(_documentSortAt(a));
+              if (byDate != 0) return byDate;
+              if (a['type'] == 'invoice' && b['type'] != 'invoice') return -1;
+              if (b['type'] == 'invoice' && a['type'] != 'invoice') return 1;
+              return _int(b['id']).compareTo(_int(a['id']));
+            });
           final documents = sorted.where((document) {
             if (_filter == 'wz') {
               return document['type'] == 'wz' || document['type'] == 'pz';
@@ -331,103 +391,107 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           return RefreshIndicator(
             onRefresh: _refreshDocuments,
             child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            itemCount: documents.length + 1 + (_loadingMore ? 1 : 0),
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dokumenty',
-                      style: Theme.of(context).textTheme.headlineSmall,
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              itemCount: documents.length + 1 + (_loadingMore ? 1 : 0),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dokumenty',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 12),
+                      _DocumentFilters(
+                        selected: _filter,
+                        onChanged: (value) => setState(() => _filter = value),
+                      ),
+                    ],
+                  );
+                }
+                if (_loadingMore && index == documents.length + 1) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final document = documents[index - 1];
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.description_outlined,
+                      color: WntColors.brand,
                     ),
-                    const SizedBox(height: 12),
-                    _DocumentFilters(
-                      selected: _filter,
-                      onChanged: (value) => setState(() => _filter = value),
+                    title: Text(
+                      document['title']?.toString().isNotEmpty == true
+                          ? document['title'].toString()
+                          : 'Dokument bez numeru',
                     ),
-                  ],
-                );
-              }
-              if (_loadingMore && index == documents.length + 1) {
-                return const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final document = documents[index - 1];
-              return Card(
-                child: ListTile(
-                  leading: const Icon(
-                    Icons.description_outlined,
-                    color: WntColors.brand,
-                  ),
-                  title: Text(
-                    document['title']?.toString().isNotEmpty == true
-                        ? document['title'].toString()
-                        : 'Dokument bez numeru',
-                  ),
-                  subtitle: Text(
-                    '${document['type'] == 'invoice' ? 'Faktura VAT' : document['type'] == 'pz' ? 'PZ' : 'WZ'} · '
-                    '${document['display_date'] ?? ''} · ${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
-                  ),
-                  trailing: _busy == _int(document['id'])
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (document['can_send_to_ksef'] == true)
-                              IconButton(
-                                tooltip: 'Wyślij do KSeF',
-                                onPressed: () => _sendToKsef(document),
-                                icon: const Icon(
-                                  Icons.cloud_upload_outlined,
-                                  color: WntColors.brand,
+                    subtitle: Text(
+                      '${document['type'] == 'invoice'
+                          ? 'Faktura VAT'
+                          : document['type'] == 'pz'
+                          ? 'PZ'
+                          : 'WZ'} · '
+                      '${document['display_date'] ?? ''} · ${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
+                    ),
+                    trailing: _busy == _int(document['id'])
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (document['can_send_to_ksef'] == true)
+                                IconButton(
+                                  tooltip: 'Wyślij do KSeF',
+                                  onPressed: () => _sendToKsef(document),
+                                  icon: const Icon(
+                                    Icons.cloud_upload_outlined,
+                                    color: WntColors.brand,
+                                  ),
                                 ),
+                              IconButton(
+                                tooltip: 'Podgląd oryginalnego PDF',
+                                onPressed: document['can_preview'] == false
+                                    ? null
+                                    : () => _open(document),
+                                icon: const Icon(Icons.visibility_outlined),
                               ),
-                            IconButton(
-                              tooltip: 'Podgląd oryginalnego PDF',
-                              onPressed: document['can_preview'] == false
-                                  ? null
-                                  : () => _open(document),
-                              icon: const Icon(Icons.visibility_outlined),
-                            ),
-                            if (document['source'] == 'local' &&
-                                (document['can_invoice'] == true ||
-                                    document['can_delete'] == true))
-                              PopupMenuButton<String>(
-                                tooltip: 'Więcej działań',
-                                onSelected: (action) {
-                                  if (action == 'invoice') {
-                                    _invoice(document);
-                                  } else if (action == 'delete') {
-                                    _delete(document);
-                                  }
-                                },
-                                itemBuilder: (_) => [
-                                  if (document['can_invoice'] == true)
-                                    const PopupMenuItem(
-                                      value: 'invoice',
-                                      child: Text('Wystaw Fakturę VAT'),
-                                    ),
-                                  if (document['can_delete'] == true)
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Usuń WZ'),
-                                    ),
-                                ],
-                              ),
-                          ],
-                        ),
-                ),
-              );
-            },
+                              if (document['source'] == 'local' &&
+                                  (document['can_invoice'] == true ||
+                                      document['can_delete'] == true))
+                                PopupMenuButton<String>(
+                                  tooltip: 'Więcej działań',
+                                  onSelected: (action) {
+                                    if (action == 'invoice') {
+                                      _invoice(document);
+                                    } else if (action == 'delete') {
+                                      _delete(document);
+                                    }
+                                  },
+                                  itemBuilder: (_) => [
+                                    if (document['can_invoice'] == true)
+                                      const PopupMenuItem(
+                                        value: 'invoice',
+                                        child: Text('Wystaw Fakturę VAT'),
+                                      ),
+                                    if (document['can_delete'] == true)
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Usuń WZ'),
+                                      ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                  ),
+                );
+              },
             ),
           );
         },
@@ -461,7 +525,9 @@ class _DocumentFilters extends StatelessWidget {
           for (final filter in filters)
             Expanded(
               child: Material(
-                color: selected == filter.$1 ? Colors.white : Colors.transparent,
+                color: selected == filter.$1
+                    ? Colors.white
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(9),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(9),
