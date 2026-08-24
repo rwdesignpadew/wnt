@@ -17,6 +17,7 @@ class AppUser {
     required this.name,
     required this.email,
     required this.role,
+    this.adminPermissions,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
@@ -24,18 +25,27 @@ class AppUser {
     name: json['name']?.toString() ?? '',
     email: json['email']?.toString() ?? '',
     role: UserRole.parse(json['role']?.toString() ?? ''),
+    adminPermissions: json['admin_permissions'] is List
+        ? (json['admin_permissions'] as List).map((item) => '$item').toSet()
+        : null,
   );
 
   final int id;
   final String name;
   final String email;
   final UserRole role;
+  final Set<String>? adminPermissions;
+
+  bool hasAdminPermission(String permission) =>
+      role == UserRole.admin &&
+      (adminPermissions == null || adminPermissions!.contains(permission));
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'email': email,
     'role': role.name,
+    'admin_permissions': adminPermissions?.toList(),
   };
 }
 

@@ -7,6 +7,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../home/application/home_navigation_provider.dart';
 import '../application/admin_providers.dart';
 import 'admin_clients_screen.dart';
+import 'admin_administrators_screen.dart';
 import 'admin_settings_edit_screen.dart';
 
 class AdminMoreScreen extends ConsumerWidget {
@@ -20,29 +21,66 @@ class AdminMoreScreen extends ConsumerWidget {
       Card(
         child: Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.people_outline, color: WntColors.brand),
-              title: const Text('Klienci'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AdminClientsNestedScreen(),
+            if (ref
+                .watch(authControllerProvider)
+                .session!
+                .user
+                .hasAdminPermission('clients')) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.people_outline,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Klienci'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminClientsNestedScreen(),
+                  ),
                 ),
               ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(
-                Icons.inventory_2_outlined,
-                color: WntColors.brand,
+              const Divider(),
+            ],
+            if (ref
+                .watch(authControllerProvider)
+                .session!
+                .user
+                .hasAdminPermission('administrators')) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Administratorzy i uprawnienia'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminAdministratorsScreen(),
+                  ),
+                ),
               ),
-              title: const Text('Produkty'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AdminProductsScreen()),
+              const Divider(),
+            ],
+            if (ref
+                .watch(authControllerProvider)
+                .session!
+                .user
+                .hasAdminPermission('products')) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Produkty'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminProductsScreen(),
+                  ),
+                ),
               ),
-            ),
-            const Divider(),
+              const Divider(),
+            ],
             for (final section in const [
               ('orders', 'Zamówienia', Icons.shopping_cart_outlined),
               ('drivers', 'Kierowcy', Icons.badge_outlined),
@@ -52,22 +90,27 @@ class AdminMoreScreen extends ConsumerWidget {
                 'Sanityzacje',
                 Icons.cleaning_services_outlined,
               ),
-            ]) ...[
-              ListTile(
-                leading: Icon(section.$3, color: WntColors.brand),
-                title: Text(section.$2),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => AdminOperationsScreen(
-                      dataKey: section.$1,
-                      title: section.$2,
+            ])
+              if (ref
+                  .watch(authControllerProvider)
+                  .session!
+                  .user
+                  .hasAdminPermission(section.$1)) ...[
+                ListTile(
+                  leading: Icon(section.$3, color: WntColors.brand),
+                  title: Text(section.$2),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AdminOperationsScreen(
+                        dataKey: section.$1,
+                        title: section.$2,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const Divider(),
-            ],
+                const Divider(),
+              ],
             ListTile(
               leading: const Icon(Icons.logout_outlined),
               title: const Text('Wyloguj się'),

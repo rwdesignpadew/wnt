@@ -79,6 +79,21 @@ class AdminRepository {
   );
   Future<Map<String, dynamic>> deleteDriver(String token, int id) =>
       _api.delete('/mobile/admin/drivers/$id', token: token);
+  Future<Map<String, dynamic>> administrators(String token) =>
+      _api.get('/mobile/admin/administrators', token: token);
+  Future<Map<String, dynamic>> saveAdministrator(
+    String token,
+    int? id,
+    Map<String, dynamic> body,
+  ) => _api.post(
+    id == null
+        ? '/mobile/admin/administrators'
+        : '/mobile/admin/administrators/$id',
+    token: token,
+    body: body,
+  );
+  Future<Map<String, dynamic>> deleteAdministrator(String token, int id) =>
+      _api.delete('/mobile/admin/administrators/$id', token: token);
   Future<Map<String, dynamic>> saveRegion(
     String token,
     int? id,
@@ -190,6 +205,8 @@ class AdminRepository {
   );
   Future<Map<String, dynamic>> deleteDocument(String token, int id) =>
       _api.delete('/mobile/admin/documents/$id', token: token);
+  Future<Map<String, dynamic>> deleteExternalDocument(String token, int id) =>
+      _api.delete('/mobile/admin/external-documents/$id', token: token);
   Future<ApiDownload> documentPdf(String token, int id) =>
       _api.download('/mobile/admin/documents/$id/fakturownia', token: token);
   Future<ApiDownload> externalDocumentPdf(String token, int id) =>

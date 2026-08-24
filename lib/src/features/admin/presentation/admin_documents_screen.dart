@@ -89,9 +89,9 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Usunąć WZ?'),
+        title: const Text('Usunąć dokument?'),
         content: Text(
-          '${document['title'] ?? 'WZ'} zostanie usunięta z aplikacji i Fakturowni. Stany magazynowe oraz zwroty zostaną odwrócone.',
+          '${document['title'] ?? 'Dokument'} zostanie usunięty z aplikacji i Fakturowni. Tej operacji nie można cofnąć.',
         ),
         actions: [
           TextButton(
@@ -100,7 +100,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
           ),
           FilledButton.tonal(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Usuń WZ'),
+            child: const Text('Usuń dokument'),
           ),
         ],
       ),
@@ -110,9 +110,10 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     setState(() => _busy = id);
     try {
       final token = ref.read(authControllerProvider).session!.token;
-      final response = await ref
-          .read(adminRepositoryProvider)
-          .deleteDocument(token, id);
+      final repository = ref.read(adminRepositoryProvider);
+      final response = document['source'] == 'local'
+          ? await repository.deleteDocument(token, id)
+          : await repository.deleteExternalDocument(token, id);
       ref.invalidate(adminDocumentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -462,9 +463,8 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                     : () => _open(document),
                                 icon: const Icon(Icons.visibility_outlined),
                               ),
-                              if (document['source'] == 'local' &&
-                                  (document['can_invoice'] == true ||
-                                      document['can_delete'] == true))
+                              if (document['can_invoice'] == true ||
+                                  document['can_delete'] == true)
                                 PopupMenuButton<String>(
                                   tooltip: 'Więcej działań',
                                   onSelected: (action) {
@@ -483,7 +483,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                     if (document['can_delete'] == true)
                                       const PopupMenuItem(
                                         value: 'delete',
-                                        child: Text('Usuń WZ'),
+                                        child: Text('Usuń dokument'),
                                       ),
                                   ],
                                 ),
