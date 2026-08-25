@@ -351,7 +351,11 @@ class AdminOperationsScreen extends ConsumerWidget {
                                         value: 'edit',
                                         child: Text('Szczegóły i edycja'),
                                       ),
-                                      if (['planned', 'overdue'].contains(
+                                      if ([
+                                        'planned',
+                                        'overdue',
+                                        'in_progress',
+                                      ].contains(
                                         item['status']?.toString(),
                                       )) ...const [
                                         PopupMenuItem(
@@ -1126,6 +1130,7 @@ class _StatusBadge extends StatelessWidget {
       'planned' => 'Zaplanowane',
       'completed' => 'Wykonane',
       'overdue' => 'Po terminie',
+      'in_progress' => 'Do dokończenia',
       'missed' => 'Nie zastano',
       'cancelled' => 'Anulowane',
       _ => status,
