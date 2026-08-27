@@ -21,7 +21,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/asc" fastlane/metadata/review_information
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/asc/AuthKey.p8"
           KEY_CONTENT=$(base64 < "$RUNNER_TEMP/asc/AuthKey.p8" | tr -d '\n')
-          printf '{"key_id":"%s","issuer_id":"%s","key":"%s","in_house":false}' "$ASC_KEY_ID" "$ASC_ISSUER_ID" "$KEY_CONTENT" > "$RUNNER_TEMP/asc/api-key.json"
+          printf '{"key_id":"%s","issuer_id":"%s","key":"%s","is_key_content_base64":true,"in_house":false}' "$ASC_KEY_ID" "$ASC_ISSUER_ID" "$KEY_CONTENT" > "$RUNNER_TEMP/asc/api-key.json"
           printf '%s' "$REVIEW_EMAIL" > fastlane/metadata/review_information/demo_user.txt
           printf '%s' "$REVIEW_PASSWORD" > fastlane/metadata/review_information/demo_password.txt
           printf '%s' 'Konto demonstracyjne klienta. Aplikacja udostępnia funkcje zależnie od roli użytkownika.' > fastlane/metadata/review_information/notes.txt
