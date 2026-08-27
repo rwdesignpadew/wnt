@@ -1,0 +1,39 @@
+name: App Store status
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: macos-latest
+    steps:
+      - name: Inspect App Store Connect state
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          gem install jwt --no-document
+          cat > "$RUNNER_TEMP/status.rb" <<'RUBY'
+          require 'jwt'
+          require 'net/http'
+          require 'json'
+          key = OpenSSL::PKey::EC.new(ENV.fetch('ASC_PRIVATE_KEY'))
+          token = JWT.encode({ iss: ENV.fetch('ASC_ISSUER_ID'), exp: Time.now.to_i + 900, aud: 'appstoreconnect-v1' }, key, 'ES256', { kid: ENV.fetch('ASC_KEY_ID') })
+          def get(path, token)
+            uri = URI("https://api.appstoreconnect.apple.com#{path}")
+            request = Net::HTTP::Get.new(uri)
+            request['Authorization'] = "Bearer #{token}"
+            response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(request) }
+            abort "ASC HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+            JSON.parse(response.body)
+          end
+          app = get('/v1/apps?filter%5BbundleId%5D=pl.wnt.wntDriver', token).fetch('data').first
+          abort 'App not found' unless app
+          puts "APP_ID=#{app['id']} NAME=#{app.dig('attributes', 'name')}"
+          builds = get("/v1/builds?filter%5Bapp%5D=#{app['id']}&sort=-uploadedDate&limit=5", token)
+          builds.fetch('data').each { |b| puts "BUILD id=#{b['id']} number=#{b.dig('attributes','version')} state=#{b.dig('attributes','processingState')} uploaded=#{b.dig('attributes','uploadedDate')}" }
+          versions = get("/v1/appStoreVersions?filter%5Bapp%5D=#{app['id']}&limit=10", token)
+          versions.fetch('data').each { |v| puts "VERSION id=#{v['id']} version=#{v.dig('attributes','versionString')} state=#{v.dig('attributes','appStoreState')} platform=#{v.dig('attributes','platform')}" }
+          RUBY
+          ruby "$RUNNER_TEMP/status.rb"
