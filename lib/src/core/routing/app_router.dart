@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/legal_document_screen.dart';
 import '../../features/auth/presentation/recover_password_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/home/presentation/role_home_screen.dart';
@@ -20,6 +21,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const LegalDocumentScreen(
+          title: 'Polityka prywatności',
+          url: 'https://panel.wodanatelefon.pl/polityka-prywatnosci',
+        ),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) => const LegalDocumentScreen(
+          title: 'Regulamin',
+          url: 'https://panel.wodanatelefon.pl/regulamin',
+        ),
+      ),
+      GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
       ),
@@ -33,7 +48,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      final authPath = {'/login', '/register', '/recover'};
+      final authPath = {'/login', '/register', '/recover', '/privacy', '/terms'};
       final path = state.matchedLocation;
       if (auth.status == AuthStatus.checking) {
         return path == '/start' ? null : '/start';

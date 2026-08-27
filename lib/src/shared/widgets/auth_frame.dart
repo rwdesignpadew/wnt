@@ -17,9 +17,12 @@ class AuthFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
@@ -27,7 +30,7 @@ class AuthFrame extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
                     child: Image.asset(
                       'assets/wnt_app.png',
                       width: 76,
@@ -35,10 +38,15 @@ class AuthFrame extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(title, style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     subtitle,
+                    textAlign: TextAlign.center,
                     style: Theme.of(
                       context,
                     ).textTheme.bodyLarge?.copyWith(color: WntColors.muted),

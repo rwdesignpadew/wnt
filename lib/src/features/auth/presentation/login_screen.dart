@@ -46,6 +46,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             FormError(auth.error),
             TextFormField(
               controller: _email,
+              enableInteractiveSelection: true,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.email],
@@ -57,6 +58,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 14),
             TextFormField(
               controller: _password,
+              enableInteractiveSelection: true,
               obscureText: _obscure,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.password],
@@ -99,6 +101,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             OutlinedButton(
               onPressed: auth.busy ? null : () => context.go('/register'),
               child: const Text('Załóż konto klienta'),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => context.push('/terms'),
+                  child: const Text('Regulamin'),
+                ),
+                const Text('•'),
+                TextButton(
+                  onPressed: () => context.push('/privacy'),
+                  child: const Text('Polityka prywatności'),
+                ),
+              ],
             ),
           ],
         ),
