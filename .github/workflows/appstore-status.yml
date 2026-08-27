@@ -33,7 +33,7 @@ jobs:
           puts "APP_ID=#{app['id']} NAME=#{app.dig('attributes', 'name')}"
           builds = get("/v1/builds?filter%5Bapp%5D=#{app['id']}&sort=-uploadedDate&limit=5", token)
           builds.fetch('data').each { |b| puts "BUILD id=#{b['id']} number=#{b.dig('attributes','version')} state=#{b.dig('attributes','processingState')} uploaded=#{b.dig('attributes','uploadedDate')}" }
-          versions = get("/v1/appStoreVersions?filter%5Bapp%5D=#{app['id']}&limit=10", token)
+          versions = get("/v1/apps/#{app['id']}/appStoreVersions?limit=10", token)
           versions.fetch('data').each { |v| puts "VERSION id=#{v['id']} version=#{v.dig('attributes','versionString')} state=#{v.dig('attributes','appStoreState')} platform=#{v.dig('attributes','platform')}" }
           RUBY
           ruby "$RUNNER_TEMP/status.rb"
