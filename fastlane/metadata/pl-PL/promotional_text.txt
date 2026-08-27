@@ -1,0 +1,1 @@
+Zamawiaj wodę, sprawdzaj status dostawy i dokumenty. Kierowcy mogą realizować trasy, obsługiwać klientów oraz wystawiać WZ z podpisem.

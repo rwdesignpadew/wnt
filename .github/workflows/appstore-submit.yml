@@ -1,0 +1,49 @@
+name: Submit App Store
+
+on:
+  workflow_dispatch:
+
+jobs:
+  submit:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare App Store Connect credentials
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          REVIEW_EMAIL: ${{ secrets.APP_REVIEW_DEMO_EMAIL }}
+          REVIEW_PASSWORD: ${{ secrets.APP_REVIEW_DEMO_PASSWORD }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc" fastlane/metadata/review_information
+          printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          KEY_CONTENT=$(base64 < "$RUNNER_TEMP/asc/AuthKey.p8" | tr -d '\n')
+          printf '{"key_id":"%s","issuer_id":"%s","key":"%s","in_house":false}' "$ASC_KEY_ID" "$ASC_ISSUER_ID" "$KEY_CONTENT" > "$RUNNER_TEMP/asc/api-key.json"
+          printf '%s' "$REVIEW_EMAIL" > fastlane/metadata/review_information/demo_user.txt
+          printf '%s' "$REVIEW_PASSWORD" > fastlane/metadata/review_information/demo_password.txt
+          printf '%s' 'Konto demonstracyjne klienta. Aplikacja udostępnia funkcje zależnie od roli użytkownika.' > fastlane/metadata/review_information/notes.txt
+          printf '%s' 'Tomasz' > fastlane/metadata/review_information/first_name.txt
+          printf '%s' 'Burghardt' > fastlane/metadata/review_information/last_name.txt
+          printf '%s' 'biuro@rwdesign.pl' > fastlane/metadata/review_information/email_address.txt
+          printf '%s' '+48570733733' > fastlane/metadata/review_information/phone_number.txt
+
+      - name: Upload metadata, screenshots and submit build 44
+        run: |
+          gem install fastlane --no-document
+          fastlane deliver \
+            --api_key_path "$RUNNER_TEMP/asc/api-key.json" \
+            --app_identifier pl.wnt.wntDriver \
+            --app_version 1.0 \
+            --build_number 44 \
+            --metadata_path fastlane/metadata \
+            --screenshots_path fastlane/screenshots \
+            --overwrite_screenshots true \
+            --skip_binary_upload true \
+            --submit_for_review true \
+            --automatic_release false \
+            --force true \
+            --precheck_include_in_app_purchases false \
+            --submission_information '{"export_compliance_uses_encryption":false}'

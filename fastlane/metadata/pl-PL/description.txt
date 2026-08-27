@@ -1,0 +1,26 @@
+Woda na telefon to aplikacja do obsługi zamówień i dostaw wody dla klientów, kierowców i administratorów.
+
+KLIENCI
+• szybkie składanie zamówień,
+• wybór firmy i lokalizacji dostawy,
+• bieżący podgląd statusu zamówienia,
+• informacje o dostawie,
+• dostęp do dokumentów i rozliczeń,
+• podgląd dzierżawionego sprzętu,
+• zgłoszenia serwisowe i informacje o sanityzacji.
+
+KIEROWCY
+• lista przypisanych tras i punktów,
+• nawigacja podczas realizacji dostaw,
+• oznaczanie punktów jako obsłużone, pominięte lub „nie zastano”,
+• rejestrowanie produktów, zwrotów i płatności,
+• wystawianie dokumentów WZ,
+• podpis odbiorcy bezpośrednio na ekranie urządzenia.
+
+ADMINISTRATORZY
+• przegląd zamówień, tras i klientów,
+• dostęp do dokumentów,
+• obsługa sanityzacji i serwisów,
+• powiadomienia o nowych zdarzeniach.
+
+Zakres widocznych funkcji zależy od roli i uprawnień konta.
