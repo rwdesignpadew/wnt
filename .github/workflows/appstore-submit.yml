@@ -51,10 +51,14 @@ jobs:
           require 'json'
           key = OpenSSL::PKey::EC.new(ENV.fetch('ASC_PRIVATE_KEY'))
           token = JWT.encode({ iss: ENV.fetch('ASC_ISSUER_ID'), exp: Time.now.to_i + 900, aud: 'appstoreconnect-v1' }, key, 'ES256', { kid: ENV.fetch('ASC_KEY_ID') })
-          def request(method, path, token)
+          def request(method, path, token, body = nil)
             uri = URI("https://api.appstoreconnect.apple.com#{path}")
-            req = method == :get ? Net::HTTP::Get.new(uri) : Net::HTTP::Delete.new(uri)
+            req = method == :get ? Net::HTTP::Get.new(uri) : Net::HTTP::Patch.new(uri)
             req['Authorization'] = "Bearer #{token}"
+            if body
+              req['Content-Type'] = 'application/json'
+              req.body = JSON.generate(body)
+            end
             Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
           end
           app_response = request(:get, '/v1/apps?filter%5BbundleId%5D=pl.wnt.wntDriver', token)
@@ -64,9 +68,10 @@ jobs:
           abort "Submissions HTTP #{submissions_response.code}: #{submissions_response.body}" unless submissions_response.is_a?(Net::HTTPSuccess)
           JSON.parse(submissions_response.body).fetch('data').each do |submission|
             next unless submission.dig('attributes', 'state') == 'UNRESOLVED_ISSUES'
-            response = request(:delete, "/v1/reviewSubmissions/#{submission['id']}", token)
-            abort "Delete HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
-            puts "Closed unresolved submission #{submission['id']}"
+            payload = { data: { type: 'reviewSubmissions', id: submission['id'], attributes: { state: 'CANCELING' } } }
+            response = request(:patch, "/v1/reviewSubmissions/#{submission['id']}", token, payload)
+            abort "Cancel HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
+            puts "Canceling unresolved submission #{submission['id']}"
           end
           RUBY
           ruby "$RUNNER_TEMP/close-review.rb"
