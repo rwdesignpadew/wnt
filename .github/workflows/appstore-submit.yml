@@ -68,7 +68,7 @@ jobs:
           abort "Submissions HTTP #{submissions_response.code}: #{submissions_response.body}" unless submissions_response.is_a?(Net::HTTPSuccess)
           JSON.parse(submissions_response.body).fetch('data').each do |submission|
             next unless submission.dig('attributes', 'state') == 'UNRESOLVED_ISSUES'
-            payload = { data: { type: 'reviewSubmissions', id: submission['id'], attributes: { state: 'CANCELING' } } }
+            payload = { data: { type: 'reviewSubmissions', id: submission['id'], attributes: { canceled: true } } }
             response = request(:patch, "/v1/reviewSubmissions/#{submission['id']}", token, payload)
             abort "Cancel HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
             puts "Canceling unresolved submission #{submission['id']}"
