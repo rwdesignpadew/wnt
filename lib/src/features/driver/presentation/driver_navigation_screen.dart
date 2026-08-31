@@ -25,6 +25,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   bool _sessionReady = false;
   bool _ready = false;
   bool _arrived = false;
+  bool _starting = false;
   Timer? _fallbackTimer;
   StreamSubscription<OnArrivalEvent>? _arrivalSubscription;
   GoogleNavigationViewController? _controller;
@@ -45,7 +46,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         }
       }
     });
-    unawaited(_prepareSession());
   }
 
   Future<void> _prepareSession() async {
@@ -90,12 +90,33 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   }
 
   Future<void> _start(GoogleNavigationViewController controller) async {
+    if (_starting || _ready) return;
+    _starting = true;
     try {
       _controller = controller;
+      final destinations = widget.destinations
+          .where(
+            (item) =>
+                item.latitude.isFinite &&
+                item.longitude.isFinite &&
+                item.latitude >= -90 &&
+                item.latitude <= 90 &&
+                item.longitude >= -180 &&
+                item.longitude <= 180 &&
+                !(item.latitude == 0 && item.longitude == 0),
+          )
+          .toList();
+      if (destinations.isEmpty) {
+        throw Exception('Brak poprawnych współrzędnych punktów trasy.');
+      }
+      await _prepareSession();
+      if (!_sessionReady) {
+        throw Exception(_status);
+      }
       await controller.setNavigationUIEnabled(true);
       final status = await GoogleMapsNavigator.setDestinations(
         Destinations(
-          waypoints: widget.destinations
+          waypoints: destinations
               .map(
                 (item) => NavigationWaypoint.withLatLngTarget(
                   title: item.title,
@@ -140,6 +161,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
           );
         }
       }
+    } finally {
+      _starting = false;
     }
   }
 
@@ -176,16 +199,13 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
               ),
         body: Stack(
           children: [
-            if (_sessionReady)
-              Positioned.fill(
-                child: GoogleMapsNavigationView(
-                  onViewCreated: _start,
-                  initialNavigationUIEnabledPreference:
-                      NavigationUIEnabledPreference.automatic,
-                ),
-              )
-            else
-              const Positioned.fill(child: ColoredBox(color: Colors.black12)),
+            Positioned.fill(
+              child: GoogleMapsNavigationView(
+                onViewCreated: _start,
+                initialNavigationUIEnabledPreference:
+                    NavigationUIEnabledPreference.automatic,
+              ),
+            ),
             if (!_ready)
               Positioned(
                 top: 12,

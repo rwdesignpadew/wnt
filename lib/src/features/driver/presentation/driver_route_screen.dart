@@ -35,7 +35,7 @@ class DriverRouteScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                'Trasy na dziś i kolejne 14 dni',
+                'Trasa',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               if (routes.length > 1) ...[
@@ -178,6 +178,7 @@ class DriverRouteScreen extends ConsumerWidget {
                     isSkipped: documents
                         .skip(index + 1)
                         .any((document) => document['status'] == 'completed'),
+                    canServeToday: _isToday(documents[index]['planned_at']),
                     onRefresh: () => ref.invalidate(driverRouteProvider),
                   ),
                   const SizedBox(height: 10),
@@ -197,6 +198,7 @@ class _StopCard extends ConsumerStatefulWidget {
     required this.products,
     required this.isNext,
     required this.isSkipped,
+    required this.canServeToday,
     required this.onRefresh,
   });
 
@@ -205,6 +207,7 @@ class _StopCard extends ConsumerStatefulWidget {
   final List<Map<String, dynamic>> products;
   final bool isNext;
   final bool isSkipped;
+  final bool canServeToday;
   final VoidCallback onRefresh;
 
   @override
@@ -360,7 +363,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _busy
+                      onPressed: _busy || !widget.canServeToday
                           ? null
                           : () async {
                               await Navigator.of(context).push(
@@ -424,6 +427,13 @@ class _StopCardState extends ConsumerState<_StopCard> {
   }
 }
 
+bool _isToday(dynamic value) {
+  final date = DateTime.tryParse(value?.toString() ?? '');
+  if (date == null) return false;
+  final now = DateTime.now();
+  return date.year == now.year && date.month == now.month && date.day == now.day;
+}
+
 List<DriverNavigationDestination> _routeDestinations(
   List<Map<String, dynamic>> documents,
 ) => documents
@@ -440,7 +450,7 @@ List<DriverNavigationDestination> _routeDestinations(
       final longitude = double.tryParse(
         '${location?['longitude'] ?? client['longitude'] ?? ''}',
       );
-      if (latitude == null || longitude == null) return null;
+      if (!_validCoordinates(latitude, longitude)) return null;
       return DriverNavigationDestination(
         latitude: latitude,
         longitude: longitude,
@@ -461,7 +471,7 @@ DriverNavigationDestination? _documentDestination(
   final longitude = double.tryParse(
     '${location?['longitude'] ?? client['longitude'] ?? ''}',
   );
-  if (latitude == null || longitude == null) return null;
+  if (!_validCoordinates(latitude, longitude)) return null;
   final clientName = client['name']?.toString() ?? 'Punkt trasy';
   final locationName = location?['name']?.toString().trim() ?? '';
   return DriverNavigationDestination(
@@ -470,6 +480,17 @@ DriverNavigationDestination? _documentDestination(
     title: locationName.isEmpty ? clientName : '$clientName - $locationName',
   );
 }
+
+bool _validCoordinates(double? latitude, double? longitude) =>
+    latitude != null &&
+    longitude != null &&
+    latitude.isFinite &&
+    longitude.isFinite &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180 &&
+    !(latitude == 0 && longitude == 0);
 
 bool _isServed(Map<String, dynamic> document) =>
     document['status'] == 'completed' ||

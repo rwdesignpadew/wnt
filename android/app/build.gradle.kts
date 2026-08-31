@@ -12,6 +12,19 @@ val mapsApiKey = (project.findProperty("MAPS_API_KEY") as String?)
     ?: System.getenv("WNT_MAPS_API_KEY")
     ?: ""
 
+val uploadStoreFile = System.getenv("WNT_ANDROID_KEYSTORE")
+val uploadStorePassword = System.getenv("WNT_ANDROID_STORE_PASSWORD")
+val uploadKeyAlias = System.getenv("WNT_ANDROID_KEY_ALIAS") ?: "wnt-upload"
+val uploadKeyPassword = System.getenv("WNT_ANDROID_KEY_PASSWORD")
+val hasUploadSigning = !uploadStoreFile.isNullOrBlank()
+    && !uploadStorePassword.isNullOrBlank()
+    && !uploadKeyPassword.isNullOrBlank()
+val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+
+if (isReleaseBuild) {
+    require(hasUploadSigning) { "Missing Android release signing configuration." }
+}
+
 require(mapsApiKey.isNotBlank()) {
     "Missing Google Maps API key. Set WNT_ANDROID_MAPS_API_KEY or Gradle property MAPS_API_KEY."
 }
@@ -39,11 +52,18 @@ android {
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
+    signingConfigs {
+        if (hasUploadSigning) create("release") {
+            storeFile = file(uploadStoreFile!!)
+            storePassword = uploadStorePassword!!
+            keyAlias = uploadKeyAlias
+            keyPassword = uploadKeyPassword!!
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasUploadSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
 }

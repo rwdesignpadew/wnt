@@ -42,6 +42,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _sanitizationNotes = TextEditingController();
   String? _signatureData;
   bool _showAll = false;
+  bool _showAllRentals = false;
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
@@ -59,7 +60,17 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final longitude = double.tryParse(
       '${location?['longitude'] ?? client['longitude'] ?? ''}',
     );
-    if (latitude == null || longitude == null) return null;
+    if (latitude == null ||
+        longitude == null ||
+        !latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180 ||
+        (latitude == 0 && longitude == 0)) {
+      return null;
+    }
     final locationName = location?['name']?.toString().trim() ?? '';
     final clientName = client['name']?.toString().trim() ?? 'Klient';
     return DriverNavigationDestination(
@@ -503,7 +514,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final recurringInvoice = client['recurring_invoice_enabled'] == true;
     final isCompany = widget.document['is_company'] == true;
     final useGross = isCompany || recurringInvoice || _customerRequestsInvoice;
+    final hideCompanyTransferSettlement =
+        isCompany && _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
+    final returnAvailability =
+        _map(widget.document['return_availability']) ?? const {};
     final assignedIds = _intSet(widget.document['available_product_ids']);
     final itemsIds = _list(
       widget.document['items'],
@@ -516,12 +531,18 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   _returnKind(product) == _ReturnKind.smallBottleDeposit),
         )
         .toList();
-    final returnProducts = _returnProductsForDisplay(allReturnProducts);
+    final returnProducts = _returnProductsForDisplay(allReturnProducts)
+        .where(
+          (product) =>
+              _returnAvailableQuantity(product, returnAvailability) > 0,
+        )
+        .toList();
     final saleProducts = widget.products
         .where(
           (product) =>
               !_isReturnProduct(product) &&
-              _returnKind(product) != _ReturnKind.smallBottleDeposit,
+              _returnKind(product) != _ReturnKind.smallBottleDeposit &&
+              !_isRack(product),
         )
         .toList();
     final primary = saleProducts
@@ -544,7 +565,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ),
         )
         .toList();
-    final rentals = _list(widget.document['rental_items']);
+    final rentals = _list(widget.document['rental_items'])
+        .where(
+          (item) =>
+              _int(item['quantity']) > 0 &&
+              !_isRackName(item['product_name']),
+        )
+        .toList();
     final locationName = location?['name']?.toString();
     final clientName = client['name']?.toString() ?? 'Klient';
     final title = locationName?.isNotEmpty == true
@@ -644,6 +671,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     value: _quantities[_int(visible[index]['id'])] ?? 0,
                     netUnitPrice: _productPrice(visible[index]),
                     useGross: useGross,
+                    showPrices: !hideCompanyTransferSettlement,
                     onChanged: (value) => setState(
                       () => _quantities[_int(visible[index]['id'])] = value,
                     ),
@@ -666,13 +694,18 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             _ReturnSection(
               products: returnProducts,
               quantities: _returnQuantities,
+              availability: returnAvailability,
               onChanged: (product, value) {
                 setState(() {
                   final id = _int(product['id']);
-                  _returnQuantities[id] = value;
-                  _quantities[id] = value;
+                  final safeValue = value.clamp(
+                    0,
+                    _returnAvailableQuantity(product, returnAvailability),
+                  );
+                  _returnQuantities[id] = safeValue;
+                  _quantities[id] = safeValue;
                   if (_returnKind(product) == _ReturnKind.damagedGallon) {
-                    _quantities[id] = value;
+                    _quantities[id] = safeValue;
                   }
                   if (_returnKind(product) == _ReturnKind.transporter) {
                     Map<String, dynamic>? bottles;
@@ -683,7 +716,14 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       }
                     }
                     if (bottles != null) {
-                      _returnQuantities[_int(bottles['id'])] = value * 24;
+                      _returnQuantities[_int(bottles['id'])] = (safeValue * 24)
+                          .clamp(
+                            0,
+                            _returnAvailableQuantity(
+                              bottles,
+                              returnAvailability,
+                            ),
+                          );
                     }
                   }
                   if (_returnKind(product) == _ReturnKind.transporter ||
@@ -788,7 +828,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               title: 'Zwrot sprzętu z dzierżawy',
               child: Column(
                 children: [
-                  for (var index = 0; index < rentals.length; index++) ...[
+                  for (
+                    var index = 0;
+                    index < (_showAllRentals || rentals.length <= 4 ? rentals.length : 4);
+                    index++
+                  ) ...[
                     _RentalReturnRow(
                       item: rentals[index],
                       value: _rentalReturns[_int(rentals[index]['id'])] ?? 0,
@@ -809,12 +853,35 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                         value,
                       ),
                     ),
-                    if (index < rentals.length - 1) const Divider(),
+                    if (index < (_showAllRentals || rentals.length <= 4 ? rentals.length : 4) - 1)
+                      const Divider(),
+                  ],
+                  if (rentals.length > 4) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(
+                          () => _showAllRentals = !_showAllRentals,
+                        ),
+                        icon: Icon(
+                          _showAllRentals
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                        ),
+                        label: Text(
+                          _showAllRentals
+                              ? 'Pokaż mniej'
+                              : 'Pokaż wszystkie (${rentals.length})',
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
           ],
+          if (!hideCompanyTransferSettlement) ...[
           const SizedBox(height: 14),
           _Section(
             title: 'Rozliczenie',
@@ -952,6 +1019,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               ],
             ),
           ),
+          ],
           const SizedBox(height: 14),
           _Section(
             title: 'Podpis klienta',
@@ -1021,6 +1089,7 @@ enum _ReturnKind {
   transporter,
   smallBottle,
   smallBottleDeposit,
+  euroPallet,
   gallon,
   damagedGallon,
   other,
@@ -1035,6 +1104,9 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
     return _ReturnKind.damagedGallon;
   }
   if (name.contains('transporter')) return _ReturnKind.transporter;
+  if (name.contains('palet') && name.contains('euro')) {
+    return _ReturnKind.euroPallet;
+  }
   if (name.contains('18,9') || name.contains('18.9')) {
     return _ReturnKind.gallon;
   }
@@ -1056,6 +1128,25 @@ bool _isRentalEquipment(Map<String, dynamic> product) {
   return name.contains('pompk') ||
       name.contains('stojak') ||
       name.contains('dystrybutor');
+}
+
+bool _isRack(Map<String, dynamic> product) => _isRackName(product['name']);
+
+bool _isRackName(Object? value) =>
+    value?.toString().trim().toLowerCase().contains('rega') == true;
+
+int _returnAvailableQuantity(
+  Map<String, dynamic> product,
+  Map<String, dynamic> availability,
+) {
+  final key = switch (_returnKind(product)) {
+    _ReturnKind.transporter => 'transporter',
+    _ReturnKind.smallBottle => 'smallBottle',
+    _ReturnKind.euroPallet => 'euroPallet',
+    _ReturnKind.gallon || _ReturnKind.damagedGallon => 'bottle189',
+    _ => '',
+  };
+  return key.isEmpty ? 0 : _int(availability[key]);
 }
 
 String _normalizedProductName(Map<String, dynamic> product) =>
@@ -1087,11 +1178,13 @@ class _ReturnSection extends StatelessWidget {
   const _ReturnSection({
     required this.products,
     required this.quantities,
+    required this.availability,
     required this.onChanged,
   });
 
   final List<Map<String, dynamic>> products;
   final Map<int, int> quantities;
+  final Map<String, dynamic> availability;
   final void Function(Map<String, dynamic> product, int value) onChanged;
 
   @override
@@ -1109,6 +1202,10 @@ class _ReturnSection extends StatelessWidget {
             _ReturnRow(
               product: ordered[index],
               value: quantities[_int(ordered[index]['id'])] ?? 0,
+              maximum: _returnAvailableQuantity(
+                ordered[index],
+                availability,
+              ),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),
@@ -1130,11 +1227,13 @@ class _ReturnRow extends StatelessWidget {
   const _ReturnRow({
     required this.product,
     required this.value,
+    required this.maximum,
     required this.onChanged,
   });
 
   final Map<String, dynamic> product;
   final int value;
+  final int maximum;
   final ValueChanged<int> onChanged;
 
   @override
@@ -1143,6 +1242,7 @@ class _ReturnRow extends StatelessWidget {
       _ReturnKind.transporter => 'Transportery',
       _ReturnKind.smallBottle => 'Butelki 0,3 l',
       _ReturnKind.smallBottleDeposit => 'Kaucja za brakujące butelki',
+      _ReturnKind.euroPallet => 'Palety EURO',
       _ReturnKind.gallon => 'Butle 18,9 l',
       _ReturnKind.damagedGallon => 'Uszkodzone butle 18,9 l',
       _ReturnKind.other => product['name']?.toString() ?? 'Zwrot',
@@ -1166,7 +1266,11 @@ class _ReturnRow extends StatelessWidget {
               ],
             ),
           ),
-          QuantityStepper(value: value, onChanged: onChanged, compact: true),
+          QuantityStepper(
+            value: value,
+            onChanged: (next) => onChanged(next.clamp(0, maximum)),
+            compact: true,
+          ),
         ],
       ),
     );
@@ -1210,12 +1314,14 @@ class _ProductRow extends StatelessWidget {
     required this.value,
     required this.netUnitPrice,
     required this.useGross,
+    required this.showPrices,
     required this.onChanged,
   });
   final Map<String, dynamic> product;
   final int value;
   final double netUnitPrice;
   final bool useGross;
+  final bool showPrices;
   final ValueChanged<int> onChanged;
   @override
   Widget build(BuildContext context) {
@@ -1234,14 +1340,14 @@ class _ProductRow extends StatelessWidget {
                   product['name']?.toString() ?? 'Produkt',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 3),
-                Text(
+                if (showPrices) const SizedBox(height: 3),
+                if (showPrices) Text(
                   '${unitPrice.toStringAsFixed(2)} zł',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                if (value > 0)
+                if (showPrices && value > 0)
                   Text(
                     'Razem: ${(unitPrice * value).toStringAsFixed(2)} zł',
                     style: Theme.of(context).textTheme.bodySmall,

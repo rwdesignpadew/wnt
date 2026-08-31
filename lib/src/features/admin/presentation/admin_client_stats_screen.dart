@@ -481,6 +481,8 @@ class _AdminClientStatsScreenState
         children: [
           _Metric('Butle 18,9 l', _number(totals['bottles_189_balance'])),
           _Metric('Transportery', _number(totals['transporters_balance'])),
+          if (_double(totals['euro_pallets_balance']) > 0)
+            _Metric('Palety EURO', _number(totals['euro_pallets_balance'])),
           _Metric('Dzierżawa', '${_number(totals['rental_items'])} szt.'),
         ],
       ),
