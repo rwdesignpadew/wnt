@@ -38,6 +38,39 @@ jobs:
           printf '%s' 'biuro@rwdesign.pl' > fastlane/metadata/review_information/email_address.txt
           printf '%s' '+48570733733' > fastlane/metadata/review_information/phone_number.txt
 
+      - name: Close unresolved rejected submission
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          gem install jwt --no-document
+          cat > "$RUNNER_TEMP/close-review.rb" <<'RUBY'
+          require 'jwt'
+          require 'net/http'
+          require 'json'
+          key = OpenSSL::PKey::EC.new(ENV.fetch('ASC_PRIVATE_KEY'))
+          token = JWT.encode({ iss: ENV.fetch('ASC_ISSUER_ID'), exp: Time.now.to_i + 900, aud: 'appstoreconnect-v1' }, key, 'ES256', { kid: ENV.fetch('ASC_KEY_ID') })
+          def request(method, path, token)
+            uri = URI("https://api.appstoreconnect.apple.com#{path}")
+            req = method == :get ? Net::HTTP::Get.new(uri) : Net::HTTP::Delete.new(uri)
+            req['Authorization'] = "Bearer #{token}"
+            Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
+          end
+          app_response = request(:get, '/v1/apps?filter%5BbundleId%5D=pl.wnt.wntDriver', token)
+          abort "Apps HTTP #{app_response.code}: #{app_response.body}" unless app_response.is_a?(Net::HTTPSuccess)
+          app = JSON.parse(app_response.body).fetch('data').first
+          submissions_response = request(:get, "/v1/reviewSubmissions?filter%5Bapp%5D=#{app['id']}&limit=10", token)
+          abort "Submissions HTTP #{submissions_response.code}: #{submissions_response.body}" unless submissions_response.is_a?(Net::HTTPSuccess)
+          JSON.parse(submissions_response.body).fetch('data').each do |submission|
+            next unless submission.dig('attributes', 'state') == 'UNRESOLVED_ISSUES'
+            response = request(:delete, "/v1/reviewSubmissions/#{submission['id']}", token)
+            abort "Delete HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
+            puts "Closed unresolved submission #{submission['id']}"
+          end
+          RUBY
+          ruby "$RUNNER_TEMP/close-review.rb"
+
       - name: Upload metadata, screenshots and submit build 45
         run: |
           gem install fastlane --no-document
