@@ -28,6 +28,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   bool _starting = false;
   Timer? _fallbackTimer;
   StreamSubscription<OnArrivalEvent>? _arrivalSubscription;
+  StreamSubscription<RoadSnappedLocationUpdatedEvent>? _locationSubscription;
+  final Completer<void> _firstNavigationLocation = Completer<void>();
   GoogleNavigationViewController? _controller;
 
   @override
@@ -76,6 +78,19 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       await GoogleMapsNavigator.initializeNavigationSession().timeout(
         const Duration(seconds: 40),
       );
+      await _locationSubscription?.cancel();
+      _locationSubscription =
+          await GoogleMapsNavigator.setRoadSnappedLocationUpdatedListener((
+            event,
+          ) {
+            final location = event.location;
+            if (!_firstNavigationLocation.isCompleted &&
+                location.latitude.isFinite &&
+                location.longitude.isFinite &&
+                !(location.latitude == 0 && location.longitude == 0)) {
+              _firstNavigationLocation.complete();
+            }
+          });
       await _arrivalSubscription?.cancel();
       _arrivalSubscription = GoogleMapsNavigator.setOnArrivalListener((_) {
         if (mounted) setState(() => _arrived = true);
@@ -119,6 +134,18 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         throw Exception(_status);
       }
       await controller.setNavigationUIEnabled(true);
+      await controller.setMyLocationEnabled(true);
+      if (!_firstNavigationLocation.isCompleted && mounted) {
+        setState(() => _status = 'Oczekiwanie na pozycję GPS...');
+      }
+      await _firstNavigationLocation.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw Exception(
+          'Google nie uzyskało jeszcze pozycji GPS. Sprawdź sygnał i spróbuj ponownie.',
+        ),
+      );
+      await _enableFollowingCamera(controller);
+      if (mounted) setState(() => _status = 'Wyznaczanie trasy...');
       final status = await GoogleMapsNavigator.setDestinations(
         Destinations(
           waypoints: destinations
@@ -138,7 +165,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         ),
       ).timeout(const Duration(seconds: 30));
       if (status != NavigationRouteStatus.statusOk) {
-        throw Exception('Google nie wyznaczyło trasy do tego punktu.');
+        throw Exception(_routeStatusMessage(status));
       }
       await GoogleMapsNavigator.startGuidance().timeout(
         const Duration(seconds: 20),
@@ -147,9 +174,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         _fallbackTimer?.cancel();
         setState(() => _ready = true);
       }
-      await controller
-          .followMyLocation(CameraPerspective.tilted)
-          .timeout(const Duration(seconds: 5));
+      await _enableFollowingCamera(controller);
     } catch (error) {
       if (mounted) {
         setState(
@@ -161,9 +186,25 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     }
   }
 
+  Future<void> _enableFollowingCamera(
+    GoogleNavigationViewController controller,
+  ) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await controller
+            .followMyLocation(CameraPerspective.tilted)
+            .timeout(const Duration(seconds: 5));
+        return;
+      } catch (_) {
+        if (attempt < 2) await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
+  }
+
   Future<void> _close() async {
     _fallbackTimer?.cancel();
     await _arrivalSubscription?.cancel();
+    await _locationSubscription?.cancel();
     try {
       await GoogleMapsNavigator.cleanup();
     } catch (_) {
@@ -171,6 +212,24 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     }
     if (mounted) Navigator.of(context).pop();
   }
+
+  String _routeStatusMessage(NavigationRouteStatus status) => switch (status) {
+    NavigationRouteStatus.locationUnavailable =>
+      'Google nie uzyskało pozycji GPS potrzebnej do wyznaczenia trasy.',
+    NavigationRouteStatus.routeNotFound =>
+      'Google nie znalazło przejezdnej trasy przez wybrane punkty.',
+    NavigationRouteStatus.duplicateWaypointsError =>
+      'Trasa zawiera powtórzony punkt GPS.',
+    NavigationRouteStatus.waypointError =>
+      'Jeden z punktów trasy ma nieprawidłową lokalizację.',
+    NavigationRouteStatus.networkError =>
+      'Brak połączenia z Google podczas wyznaczania trasy.',
+    NavigationRouteStatus.quotaExceeded =>
+      'Przekroczono limit usługi Google Navigation.',
+    NavigationRouteStatus.apiKeyNotAuthorized =>
+      'Klucz Google Navigation nie ma wymaganych uprawnień.',
+    _ => 'Google nie wyznaczyło trasy (${status.name}).',
+  };
 
   @override
   Widget build(BuildContext context) {
