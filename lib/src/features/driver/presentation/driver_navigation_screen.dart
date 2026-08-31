@@ -33,6 +33,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_prepareSession());
     _fallbackTimer = Timer(const Duration(seconds: 45), () async {
       if (!mounted || _ready) return;
       setState(() => _status = 'Moduł nawigacji Google nie odpowiedział.');
@@ -79,7 +80,12 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       _arrivalSubscription = GoogleMapsNavigator.setOnArrivalListener((_) {
         if (mounted) setState(() => _arrived = true);
       });
-      if (mounted) setState(() => _sessionReady = true);
+      if (mounted) {
+        setState(() {
+          _sessionReady = true;
+          _status = 'Przygotowywanie mapy...';
+        });
+      }
     } catch (error) {
       if (mounted) {
         setState(
@@ -109,7 +115,6 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       if (destinations.isEmpty) {
         throw Exception('Brak poprawnych współrzędnych punktów trasy.');
       }
-      await _prepareSession();
       if (!_sessionReady) {
         throw Exception(_status);
       }
@@ -147,19 +152,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
           .timeout(const Duration(seconds: 5));
     } catch (error) {
       if (mounted) {
-        setState(() => _status = 'Nawigacja w aplikacji nie odpowiedziała.');
-      }
-      try {
-        throw Exception('Nawigacja wewnętrzna nie odpowiedziała.');
-      } catch (fallbackError) {
-        if (mounted) {
-          setState(
-            () => _status = fallbackError.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-          );
-        }
+        setState(
+          () => _status = error.toString().replaceFirst('Exception: ', ''),
+        );
       }
     } finally {
       _starting = false;
@@ -199,13 +194,14 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
               ),
         body: Stack(
           children: [
-            Positioned.fill(
-              child: GoogleMapsNavigationView(
-                onViewCreated: _start,
-                initialNavigationUIEnabledPreference:
-                    NavigationUIEnabledPreference.automatic,
+            if (_sessionReady)
+              Positioned.fill(
+                child: GoogleMapsNavigationView(
+                  onViewCreated: _start,
+                  initialNavigationUIEnabledPreference:
+                      NavigationUIEnabledPreference.automatic,
+                ),
               ),
-            ),
             if (!_ready)
               Positioned(
                 top: 12,
