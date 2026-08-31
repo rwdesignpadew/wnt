@@ -35,5 +35,11 @@ jobs:
           builds.fetch('data').each { |b| puts "BUILD id=#{b['id']} number=#{b.dig('attributes','version')} state=#{b.dig('attributes','processingState')} uploaded=#{b.dig('attributes','uploadedDate')}" }
           versions = get("/v1/apps/#{app['id']}/appStoreVersions?limit=10", token)
           versions.fetch('data').each { |v| puts "VERSION id=#{v['id']} version=#{v.dig('attributes','versionString')} state=#{v.dig('attributes','appStoreState')} platform=#{v.dig('attributes','platform')}" }
+          submissions = get("/v1/reviewSubmissions?filter%5Bapp%5D=#{app['id']}&limit=10", token)
+          submissions.fetch('data').each do |submission|
+            puts "SUBMISSION id=#{submission['id']} state=#{submission.dig('attributes','state')} submitted=#{submission.dig('attributes','submittedDate')}"
+            items = get("/v1/reviewSubmissions/#{submission['id']}/items?limit=50", token)
+            items.fetch('data').each { |item| puts "ITEM id=#{item['id']} state=#{item.dig('attributes','state')}" }
+          end
           RUBY
           ruby "$RUNNER_TEMP/status.rb"
