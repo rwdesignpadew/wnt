@@ -452,8 +452,8 @@ List<DriverNavigationDestination> _routeDestinations(
       );
       if (!_validCoordinates(latitude, longitude)) return null;
       return DriverNavigationDestination(
-        latitude: latitude,
-        longitude: longitude,
+        latitude: latitude!,
+        longitude: longitude!,
         title: '${client['name'] ?? 'Punkt trasy'}',
       );
     })
@@ -475,8 +475,8 @@ DriverNavigationDestination? _documentDestination(
   final clientName = client['name']?.toString() ?? 'Punkt trasy';
   final locationName = location?['name']?.toString().trim() ?? '';
   return DriverNavigationDestination(
-    latitude: latitude,
-    longitude: longitude,
+    latitude: latitude!,
+    longitude: longitude!,
     title: locationName.isEmpty ? clientName : '$clientName - $locationName',
   );
 }
