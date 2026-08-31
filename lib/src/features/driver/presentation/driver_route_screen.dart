@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
@@ -385,9 +385,14 @@ class _StopCardState extends ConsumerState<_StopCard> {
                     const SizedBox(width: 8),
                     IconButton.outlined(
                       tooltip: 'Zadzwoń',
-                      onPressed: () => const MethodChannel(
-                        'pl.wnt/phone',
-                      ).invokeMethod<void>('call', {'phone': phone}),
+                      onPressed: () async {
+                        final normalized = phone.replaceAll(
+                          RegExp(r'[^0-9+]'),
+                          '',
+                        );
+                        if (normalized.isEmpty) return;
+                        await launchUrl(Uri(scheme: 'tel', path: normalized));
+                      },
                       icon: const Icon(Icons.phone_outlined),
                     ),
                   ],

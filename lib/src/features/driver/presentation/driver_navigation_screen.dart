@@ -33,7 +33,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _fallbackTimer = Timer(const Duration(seconds: 15), () async {
+    _fallbackTimer = Timer(const Duration(seconds: 45), () async {
       if (!mounted || _ready) return;
       setState(() => _status = 'Moduł nawigacji Google nie odpowiedział.');
       try {
@@ -73,7 +73,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       }
 
       await GoogleMapsNavigator.initializeNavigationSession().timeout(
-        const Duration(seconds: 12),
+        const Duration(seconds: 40),
       );
       await _arrivalSubscription?.cancel();
       _arrivalSubscription = GoogleMapsNavigator.setOnArrivalListener((_) {
@@ -131,12 +131,12 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
             showDestinationMarkers: true,
           ),
         ),
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(const Duration(seconds: 30));
       if (status != NavigationRouteStatus.statusOk) {
         throw Exception('Google nie wyznaczyło trasy do tego punktu.');
       }
       await GoogleMapsNavigator.startGuidance().timeout(
-        const Duration(seconds: 8),
+        const Duration(seconds: 20),
       );
       if (mounted) {
         _fallbackTimer?.cancel();
