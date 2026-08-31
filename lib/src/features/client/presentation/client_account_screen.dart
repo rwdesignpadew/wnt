@@ -183,6 +183,40 @@ class _ClientAccountScreenState extends ConsumerState<ClientAccountScreen> {
     }
   }
 
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Usuń konto'),
+        content: const Text(
+          'Konto zostanie trwale usunięte i nie będzie można się ponownie zalogować. Dokumenty księgowe mogą pozostać przechowywane przez okres wymagany prawem.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: WntColors.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Usuń konto trwale'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(authControllerProvider.notifier).deleteAccount();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _saving = false);
+        _snack(error.toString(), error: true);
+      }
+    }
+  }
+
   void _snack(String message, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -327,6 +361,13 @@ class _ClientAccountScreenState extends ConsumerState<ClientAccountScreen> {
               onPressed: _changePassword,
               icon: const Icon(Icons.lock_outline),
               label: const Text('Zmień hasło'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _deleteAccount,
+              style: OutlinedButton.styleFrom(foregroundColor: WntColors.error),
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: const Text('Usuń konto'),
             ),
           ],
         );

@@ -56,7 +56,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final auth = ref.watch(authControllerProvider);
     return AuthFrame(
       title: 'Załóż konto klienta',
-      subtitle: 'Adres zostanie sprawdzony w obsługiwanych regionach dostaw.',
+      subtitle: 'Telefon i adres dostawy możesz uzupełnić później.',
       child: Form(
         key: _formKey,
         child: Column(
@@ -84,8 +84,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               controller: _phone,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(labelText: 'Telefon odbiorcy'),
-              validator: _required,
+              decoration: const InputDecoration(
+                labelText: 'Telefon odbiorcy (opcjonalnie)',
+              ),
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -95,10 +96,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               minLines: 2,
               maxLines: 3,
               decoration: const InputDecoration(
-                labelText: 'Adres dostawy',
+                labelText: 'Adres dostawy (opcjonalnie)',
                 hintText: 'Ulica, numer, kod pocztowy, miejscowość',
               ),
-              validator: _required,
             ),
             const SizedBox(height: 12),
             TextFormField(

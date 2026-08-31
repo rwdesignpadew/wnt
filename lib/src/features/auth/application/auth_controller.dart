@@ -125,4 +125,14 @@ class AuthController extends StateNotifier<AuthState> {
       state = const AuthState.signedOut();
     }
   }
+
+  Future<void> deleteAccount() async {
+    final session = state.session;
+    if (session == null) return;
+    try {
+      await _repository.deleteAccount(session);
+    } finally {
+      state = const AuthState.signedOut();
+    }
+  }
 }

@@ -79,6 +79,14 @@ class AuthRepository {
     }
   }
 
+  Future<void> deleteAccount(AppSession session) async {
+    try {
+      await _api.delete('/mobile/account', token: session.token);
+    } finally {
+      await _store.clear();
+    }
+  }
+
   AppSession _sessionFromResponse(Map<String, dynamic> response) {
     final rawUser = response['user'] ?? response['driver'];
     if (rawUser is! Map || response['token'] == null) {
