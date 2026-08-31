@@ -24,20 +24,28 @@ jobs:
           printf '{"key_id":"%s","issuer_id":"%s","key":"%s","is_key_content_base64":true,"in_house":false}' "$ASC_KEY_ID" "$ASC_ISSUER_ID" "$KEY_CONTENT" > "$RUNNER_TEMP/asc/api-key.json"
           printf '%s' "$REVIEW_EMAIL" > fastlane/metadata/review_information/demo_user.txt
           printf '%s' "$REVIEW_PASSWORD" > fastlane/metadata/review_information/demo_password.txt
-          printf '%s' 'Konto demonstracyjne klienta. Aplikacja udostępnia funkcje zależnie od roli użytkownika.' > fastlane/metadata/review_information/notes.txt
+          cat > fastlane/metadata/review_information/notes.txt <<'EOF'
+          Konto demonstracyjne klienta. Aplikacja udostępnia funkcje zależnie od roli użytkownika.
+
+          Rozwiązane problemy z poprzedniej recenzji:
+          1. Telefon i adres są opcjonalne podczas rejestracji.
+          2. Usunięcie konta: Konto > Usuń konto > Usuń konto trwale. Operacja usuwa konto i możliwość ponownego logowania.
+          3. Usunięto nieużywane deklaracje odtwarzania audio i lokalizacji w tle.
+          4. Zrzuty iPada przedstawiają główne funkcje aplikacji, a nie wyłącznie ekran logowania.
+          EOF
           printf '%s' 'Tomasz' > fastlane/metadata/review_information/first_name.txt
           printf '%s' 'Burghardt' > fastlane/metadata/review_information/last_name.txt
           printf '%s' 'biuro@rwdesign.pl' > fastlane/metadata/review_information/email_address.txt
           printf '%s' '+48570733733' > fastlane/metadata/review_information/phone_number.txt
 
-      - name: Upload metadata, screenshots and submit build 44
+      - name: Upload metadata, screenshots and submit build 45
         run: |
           gem install fastlane --no-document
           fastlane deliver \
             --api_key_path "$RUNNER_TEMP/asc/api-key.json" \
             --app_identifier pl.wnt.wntDriver \
             --app_version 1.0 \
-            --build_number 44 \
+            --build_number 45 \
             --metadata_path fastlane/metadata \
             --screenshots_path fastlane/screenshots \
             --overwrite_screenshots true \
