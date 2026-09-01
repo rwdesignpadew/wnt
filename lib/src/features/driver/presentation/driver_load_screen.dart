@@ -111,24 +111,26 @@ class _LoadStopCard extends StatelessWidget {
     final locationName = location['name']?.toString();
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(radius: 18, child: Text('${index + 1}')),
-                const SizedBox(width: 12),
+                CircleAvatar(radius: 16, child: Text('${index + 1}')),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         client['name']?.toString() ?? 'Klient',
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (locationName != null && locationName.isNotEmpty)
                         Text(locationName),
@@ -143,18 +145,11 @@ class _LoadStopCard extends StatelessWidget {
                 ),
               ],
             ),
-            const Divider(height: 24),
-            if (items.isEmpty)
-              Text(
-                'Brak zapisanych produktów - przygotuj miejsce na zamówienie.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
-              )
-            else
+            if (items.isNotEmpty) ...[
+              const Divider(height: 18),
               for (final item in items)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 3),
                   child: Row(
                     children: [
                       Expanded(
@@ -164,11 +159,14 @@ class _LoadStopCard extends StatelessWidget {
                       ),
                       Text(
                         '${_int(item['quantity'])} szt.',
-                        style: Theme.of(context).textTheme.titleSmall,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ),
+            ],
           ],
         ),
       ),

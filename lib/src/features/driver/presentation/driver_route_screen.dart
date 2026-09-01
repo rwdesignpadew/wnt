@@ -339,31 +339,24 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.72),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: WntColors.line),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Do wydania',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  if (itemsToIssue.isEmpty)
+            if (itemsToIssue.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: WntColors.line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'Brak zapisanych produktów',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
-                    )
-                  else
+                      'Do wydania',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 6),
                     for (final item in itemsToIssue)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
@@ -383,9 +376,10 @@ class _StopCardState extends ConsumerState<_StopCard> {
                           ],
                         ),
                       ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
             if (completed) ...[
               const SizedBox(height: 12),
               SizedBox(
