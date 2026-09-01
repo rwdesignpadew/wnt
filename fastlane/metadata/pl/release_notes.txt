@@ -1,0 +1,1 @@
+Dodano ręczne wystawianie dokumentów WZ i Faktur VAT w panelu administratora. Usprawniono obsługę dokumentów oraz stabilność aplikacji.
