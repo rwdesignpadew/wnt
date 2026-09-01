@@ -1,0 +1,48 @@
+name: Cancel App Store review
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cancel:
+    runs-on: macos-latest
+    steps:
+      - name: Cancel active review submission
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          gem install jwt --no-document
+          cat > "$RUNNER_TEMP/cancel-review.rb" <<'RUBY'
+          require 'jwt'
+          require 'net/http'
+          require 'json'
+          key = OpenSSL::PKey::EC.new(ENV.fetch('ASC_PRIVATE_KEY'))
+          token = JWT.encode({ iss: ENV.fetch('ASC_ISSUER_ID'), exp: Time.now.to_i + 900, aud: 'appstoreconnect-v1' }, key, 'ES256', { kid: ENV.fetch('ASC_KEY_ID') })
+          def request(method, path, token, body = nil)
+            uri = URI("https://api.appstoreconnect.apple.com#{path}")
+            req = method == :get ? Net::HTTP::Get.new(uri) : Net::HTTP::Patch.new(uri)
+            req['Authorization'] = "Bearer #{token}"
+            if body
+              req['Content-Type'] = 'application/json'
+              req.body = JSON.generate(body)
+            end
+            Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
+          end
+          app_response = request(:get, '/v1/apps?filter%5BbundleId%5D=pl.wnt.wntDriver', token)
+          abort "Apps HTTP #{app_response.code}: #{app_response.body}" unless app_response.is_a?(Net::HTTPSuccess)
+          app = JSON.parse(app_response.body).fetch('data').first
+          submissions_response = request(:get, "/v1/reviewSubmissions?filter%5Bapp%5D=#{app['id']}&limit=20", token)
+          abort "Submissions HTTP #{submissions_response.code}: #{submissions_response.body}" unless submissions_response.is_a?(Net::HTTPSuccess)
+          active_states = %w[READY_FOR_REVIEW WAITING_FOR_REVIEW IN_REVIEW UNRESOLVED_ISSUES]
+          active = JSON.parse(submissions_response.body).fetch('data').select { |submission| active_states.include?(submission.dig('attributes', 'state')) }
+          abort 'No active review submission found' if active.empty?
+          active.each do |submission|
+            payload = { data: { type: 'reviewSubmissions', id: submission['id'], attributes: { canceled: true } } }
+            response = request(:patch, "/v1/reviewSubmissions/#{submission['id']}", token, payload)
+            abort "Cancel HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
+            puts "Canceled submission #{submission['id']} state=#{submission.dig('attributes', 'state')}"
+          end
+          RUBY
+          ruby "$RUNNER_TEMP/cancel-review.rb"
