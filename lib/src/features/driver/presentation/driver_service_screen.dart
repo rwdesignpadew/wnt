@@ -32,6 +32,7 @@ class DriverServiceScreen extends ConsumerStatefulWidget {
 
 class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _quantities = <int, int>{};
+  final _packageQuantities = <int, int>{};
   final _returnQuantities = <int, int>{};
   final _rentalReturns = <int, int>{};
   final _damagedRentalIds = <int>{};
@@ -110,6 +111,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             widget.document['customer_requests_invoice'] == true);
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
+    }
+    for (final packageItem in _list(widget.document['packages'])) {
+      _packageQuantities[_int(packageItem['id'])] = _int(packageItem['quantity']);
     }
     for (final product in widget.products) {
       if (_isReturnProduct(product) &&
@@ -241,6 +245,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             token: token,
             documentId: _int(widget.document['id']),
             quantities: _quantities,
+            packageQuantities: _packageQuantities,
             paymentMethod: _paymentMethod,
             signatureData: _signatureData!,
             signedBy: _signedBy.text.trim(),
@@ -567,6 +572,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               _int(item['quantity']) > 0 && !_isRackName(item['product_name']),
         )
         .toList();
+    final packages = _list(widget.document['packages']);
     final locationName = location?['name']?.toString();
     final clientName = client['name']?.toString() ?? 'Klient';
     final title = locationName?.isNotEmpty == true
@@ -575,10 +581,24 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final totalNet = widget.products.fold<double>(0, (sum, product) {
       return sum +
           (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
-    });
+    }) +
+        packages.fold<double>(
+          0,
+          (sum, packageItem) =>
+              sum +
+              (_packageQuantities[_int(packageItem['id'])] ?? 0) *
+                  (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
+        );
     final total = widget.products.fold<double>(0, (sum, product) {
       return sum +
           (_quantities[_int(product['id'])] ?? 0) * _productGrossPrice(product);
+    }) + packages.fold<double>(0, (sum, packageItem) {
+      final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
+      final vat = double.tryParse('${packageItem['vat_rate'] ?? 23}') ?? 23;
+      return sum +
+          (_packageQuantities[_int(packageItem['id'])] ?? 0) *
+              net *
+              (1 + vat / 100);
     });
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final credit =
@@ -647,6 +667,28 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             ),
           ],
           const SizedBox(height: 18),
+          if (packages.isNotEmpty) ...[
+            _Section(
+              title: 'Pakiety',
+              child: Column(
+                children: [
+                  for (var index = 0; index < packages.length; index++) ...[
+                    _PackageRow(
+                      packageItem: packages[index],
+                      value: _packageQuantities[_int(packages[index]['id'])] ?? 0,
+                      onChanged: (value) => setState(
+                        () => _packageQuantities[
+                          _int(packages[index]['id'])
+                        ] = value,
+                      ),
+                    ),
+                    if (index < packages.length - 1) const Divider(),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           _Section(
             title: 'Produkty',
             child: Column(
@@ -1337,6 +1379,52 @@ class _Section extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _PackageRow extends StatelessWidget {
+  const _PackageRow({
+    required this.packageItem,
+    required this.value,
+    required this.onChanged,
+  });
+  final Map<String, dynamic> packageItem;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final components = _list(packageItem['components']);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${packageItem['name']}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                for (final component in components)
+                  Text(
+                    '${_int(component['quantity'])} x ${component['name']}'
+                    '${component['is_rental'] == true ? ' (dzierżawa)' : ''}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          QuantityStepper(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProductRow extends StatelessWidget {

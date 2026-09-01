@@ -75,6 +75,7 @@ class DriverRepository {
     required String token,
     required int documentId,
     required Map<int, int> quantities,
+    Map<int, int> packageQuantities = const {},
     required String paymentMethod,
     required String signatureData,
     required String signedBy,
@@ -89,6 +90,9 @@ class DriverRepository {
       token: token,
       body: {
         'quantities': quantities.map(
+          (id, quantity) => MapEntry('$id', quantity),
+        ),
+        'package_quantities': packageQuantities.map(
           (id, quantity) => MapEntry('$id', quantity),
         ),
         'payment_method': paymentMethod,
