@@ -17,11 +17,14 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.6'
           channel: stable
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          mkdir -p build/ios/SourcePackages
+          flutter pub get
 
       - name: Configure private build settings
         env:
