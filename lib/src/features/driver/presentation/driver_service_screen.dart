@@ -123,12 +123,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
     _signedBy.text = widget.document['signed_by']?.toString().trim() ?? '';
     _sanitization = _map(widget.document['sanitization']);
-    _completedSanitizationUnits.addAll(
-      List<int>.generate(
-        _int(_sanitization?['dispenser_count']),
-        (index) => index + 1,
-      ),
-    );
   }
 
   @override
@@ -453,8 +447,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     } finally {
       await SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
       ]);
     }
     if (signature != null && mounted) {
@@ -568,8 +560,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final rentals = _list(widget.document['rental_items'])
         .where(
           (item) =>
-              _int(item['quantity']) > 0 &&
-              !_isRackName(item['product_name']),
+              _int(item['quantity']) > 0 && !_isRackName(item['product_name']),
         )
         .toList();
     final locationName = location?['name']?.toString();
@@ -716,14 +707,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       }
                     }
                     if (bottles != null) {
-                      _returnQuantities[_int(bottles['id'])] = (safeValue * 24)
-                          .clamp(
-                            0,
-                            _returnAvailableQuantity(
-                              bottles,
-                              returnAvailability,
-                            ),
-                          );
+                      _returnQuantities[_int(
+                        bottles['id'],
+                      )] = (safeValue * 24).clamp(
+                        0,
+                        _returnAvailableQuantity(bottles, returnAvailability),
+                      );
                     }
                   }
                   if (_returnKind(product) == _ReturnKind.transporter ||
@@ -830,7 +819,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 children: [
                   for (
                     var index = 0;
-                    index < (_showAllRentals || rentals.length <= 4 ? rentals.length : 4);
+                    index <
+                        (_showAllRentals || rentals.length <= 4
+                            ? rentals.length
+                            : 4);
                     index++
                   ) ...[
                     _RentalReturnRow(
@@ -853,7 +845,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                         value,
                       ),
                     ),
-                    if (index < (_showAllRentals || rentals.length <= 4 ? rentals.length : 4) - 1)
+                    if (index <
+                        (_showAllRentals || rentals.length <= 4
+                                ? rentals.length
+                                : 4) -
+                            1)
                       const Divider(),
                   ],
                   if (rentals.length > 4) ...[
@@ -861,9 +857,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => setState(
-                          () => _showAllRentals = !_showAllRentals,
-                        ),
+                        onPressed: () =>
+                            setState(() => _showAllRentals = !_showAllRentals),
                         icon: Icon(
                           _showAllRentals
                               ? Icons.expand_less
@@ -882,143 +877,143 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             ),
           ],
           if (!hideCompanyTransferSettlement) ...[
-          const SizedBox(height: 14),
-          _Section(
-            title: 'Rozliczenie',
-            child: Column(
-              children: [
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 'transfer',
-                      label: Text('Przelew'),
-                      icon: Icon(Icons.account_balance_outlined),
-                    ),
-                    ButtonSegment(
-                      value: 'cash',
-                      label: Text('Gotówka'),
-                      icon: Icon(Icons.payments_outlined),
-                    ),
-                  ],
-                  selected: {_paymentMethod},
-                  onSelectionChanged: (value) =>
-                      setState(() => _paymentMethod = value.first),
-                ),
-                const SizedBox(height: 12),
-                if (!isCompany && !recurringInvoice)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _customerRequestsInvoice,
-                    onChanged: (value) => setState(
-                      () => _customerRequestsInvoice = value == true,
-                    ),
-                    title: const Text('Klient chce fakturę VAT'),
-                    subtitle: const Text(
-                      'Po zaznaczeniu cena do zapłaty zostanie przeliczona na brutto.',
-                    ),
-                  ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cena do zapłaty: ${priceToPay.toStringAsFixed(2)} zł',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Rozliczenie',
+              child: Column(
+                children: [
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'transfer',
+                        label: Text('Przelew'),
+                        icon: Icon(Icons.account_balance_outlined),
+                      ),
+                      ButtonSegment(
+                        value: 'cash',
+                        label: Text('Gotówka'),
+                        icon: Icon(Icons.payments_outlined),
                       ),
                     ],
+                    selected: {_paymentMethod},
+                    onSelectionChanged: (value) =>
+                        setState(() => _paymentMethod = value.first),
                   ),
-                ),
-                if (_paymentMethod == 'cash') ...[
                   const SizedBox(height: 12),
+                  if (!isCompany && !recurringInvoice)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _customerRequestsInvoice,
+                      onChanged: (value) => setState(
+                        () => _customerRequestsInvoice = value == true,
+                      ),
+                      title: const Text('Klient chce fakturę VAT'),
+                      subtitle: const Text(
+                        'Po zaznaczeniu cena do zapłaty zostanie przeliczona na brutto.',
+                      ),
+                    ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (balance > 0.005)
-                          Text(
-                            'Saldo klienta: +${balance.toStringAsFixed(2)} zł',
-                            style: const TextStyle(
-                              color: WntColors.success,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        else if (balance < -0.005)
-                          Text(
-                            'Zaległość klienta: ${(-balance).toStringAsFixed(2)} zł',
-                            style: const TextStyle(
-                              color: WntColors.error,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        Text(
+                          'Cena do zapłaty: ${priceToPay.toStringAsFixed(2)} zł',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _cash,
-                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                    onChanged: (_) => setState(() {}),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  if (_paymentMethod == 'cash') ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (balance > 0.005)
+                            Text(
+                              'Saldo klienta: +${balance.toStringAsFixed(2)} zł',
+                              style: const TextStyle(
+                                color: WntColors.success,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          else if (balance < -0.005)
+                            Text(
+                              'Zaległość klienta: ${(-balance).toStringAsFixed(2)} zł',
+                              style: const TextStyle(
+                                color: WntColors.error,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Otrzymana gotówka',
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _cash,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Otrzymana gotówka',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        difference > 0.005
+                            ? 'Nadpłata klienta: ${difference.toStringAsFixed(2)} zł'
+                            : difference < -0.005
+                            ? 'Pozostało do zapłaty: ${(-difference).toStringAsFixed(2)} zł'
+                            : 'Rozliczono w całości',
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      border: Border.all(color: Colors.orange.shade300),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pozostało do zapłaty',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${remainingDue.toStringAsFixed(2)} zł',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.orange.shade900,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      difference > 0.005
-                          ? 'Nadpłata klienta: ${difference.toStringAsFixed(2)} zł'
-                          : difference < -0.005
-                          ? 'Pozostało do zapłaty: ${(-difference).toStringAsFixed(2)} zł'
-                          : 'Rozliczono w całości',
-                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _notes,
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Uwagi'),
                   ),
                 ],
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    border: Border.all(color: Colors.orange.shade300),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pozostało do zapłaty',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${remainingDue.toStringAsFixed(2)} zł',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: Colors.orange.shade900,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _notes,
-                  onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Uwagi'),
-                ),
-              ],
+              ),
             ),
-          ),
           ],
           const SizedBox(height: 14),
           _Section(
@@ -1202,10 +1197,7 @@ class _ReturnSection extends StatelessWidget {
             _ReturnRow(
               product: ordered[index],
               value: quantities[_int(ordered[index]['id'])] ?? 0,
-              maximum: _returnAvailableQuantity(
-                ordered[index],
-                availability,
-              ),
+              maximum: _returnAvailableQuantity(ordered[index], availability),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),
@@ -1341,12 +1333,13 @@ class _ProductRow extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 if (showPrices) const SizedBox(height: 3),
-                if (showPrices) Text(
-                  '${unitPrice.toStringAsFixed(2)} zł',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
+                if (showPrices)
+                  Text(
+                    '${unitPrice.toStringAsFixed(2)} zł',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 if (showPrices && value > 0)
                   Text(
                     'Razem: ${(unitPrice * value).toStringAsFixed(2)} zł',
