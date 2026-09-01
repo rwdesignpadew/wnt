@@ -10,6 +10,7 @@ import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
 import '../../documents/presentation/html_document_screen.dart';
+import '../../driver/presentation/driver_manual_wz_screen.dart';
 import '../application/admin_providers.dart';
 
 class AdminDocumentsScreen extends ConsumerStatefulWidget {
@@ -83,6 +84,60 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     });
     ref.invalidate(adminDocumentsProvider);
     await ref.read(adminDocumentsProvider.future);
+  }
+
+  Future<void> _openManualWz() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const DriverManualWzScreen()),
+    );
+    if (saved == true && mounted) await _refreshDocuments();
+  }
+
+  Future<void> _selectInvoiceDocument(
+    List<Map<String, dynamic>> documents,
+  ) async {
+    final eligible = documents
+        .where(
+          (document) =>
+              document['source'] == 'local' &&
+              document['type'] == 'wz' &&
+              document['can_invoice'] == true,
+        )
+        .toList();
+    final selected = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Generuj Fakturę VAT'),
+        content: SizedBox(
+          width: 560,
+          child: eligible.isEmpty
+              ? const Text('Brak WZ oczekujących na Fakturę VAT.')
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: eligible.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final document = eligible[index];
+                    return ListTile(
+                      title: Text('${document['title'] ?? 'WZ'}'),
+                      subtitle: Text(
+                        '${document['subtitle'] ?? ''} · ${document['display_date'] ?? ''}',
+                      ),
+                      trailing: Text('${document['meta'] ?? ''}'),
+                      onTap: () => Navigator.pop(dialogContext, document),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    );
+    if (selected != null && mounted) await _invoice(selected);
   }
 
   Future<void> _delete(Map<String, dynamic> document) async {
@@ -404,6 +459,26 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       Text(
                         'Dokumenty',
                         style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _selectInvoiceDocument(sorted),
+                              icon: const Icon(Icons.receipt_long_outlined),
+                              label: const Text('Generuj Fakturę VAT'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _openManualWz,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Generuj WZ'),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       _DocumentFilters(
