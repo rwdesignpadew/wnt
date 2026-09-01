@@ -113,7 +113,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
     for (final packageItem in _list(widget.document['packages'])) {
-      _packageQuantities[_int(packageItem['id'])] = _int(packageItem['quantity']);
+      _packageQuantities[_int(packageItem['id'])] = _int(
+        packageItem['quantity'],
+      );
     }
     for (final product in widget.products) {
       if (_isReturnProduct(product) &&
@@ -578,10 +580,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final title = locationName?.isNotEmpty == true
         ? '$clientName - $locationName'
         : clientName;
-    final totalNet = widget.products.fold<double>(0, (sum, product) {
-      return sum +
-          (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
-    }) +
+    final totalNet =
+        widget.products.fold<double>(0, (sum, product) {
+          return sum +
+              (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
+        }) +
         packages.fold<double>(
           0,
           (sum, packageItem) =>
@@ -589,17 +592,20 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               (_packageQuantities[_int(packageItem['id'])] ?? 0) *
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
         );
-    final total = widget.products.fold<double>(0, (sum, product) {
-      return sum +
-          (_quantities[_int(product['id'])] ?? 0) * _productGrossPrice(product);
-    }) + packages.fold<double>(0, (sum, packageItem) {
-      final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
-      final vat = double.tryParse('${packageItem['vat_rate'] ?? 23}') ?? 23;
-      return sum +
-          (_packageQuantities[_int(packageItem['id'])] ?? 0) *
-              net *
-              (1 + vat / 100);
-    });
+    final total =
+        widget.products.fold<double>(0, (sum, product) {
+          return sum +
+              (_quantities[_int(product['id'])] ?? 0) *
+                  _productGrossPrice(product);
+        }) +
+        packages.fold<double>(0, (sum, packageItem) {
+          final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
+          final vat = double.tryParse('${packageItem['vat_rate'] ?? 23}') ?? 23;
+          return sum +
+              (_packageQuantities[_int(packageItem['id'])] ?? 0) *
+                  net *
+                  (1 + vat / 100);
+        });
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final credit =
         double.tryParse('${widget.document['credit_amount'] ?? 0}') ?? 0;
@@ -713,11 +719,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   for (var index = 0; index < packages.length; index++) ...[
                     _PackageRow(
                       packageItem: packages[index],
-                      value: _packageQuantities[_int(packages[index]['id'])] ?? 0,
+                      value:
+                          _packageQuantities[_int(packages[index]['id'])] ?? 0,
                       onChanged: (value) => setState(
-                        () => _packageQuantities[
-                          _int(packages[index]['id'])
-                        ] = value,
+                        () => _packageQuantities[_int(packages[index]['id'])] =
+                            value,
                       ),
                     ),
                     if (index < packages.length - 1) const Divider(),
@@ -741,6 +747,17 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   );
                   _returnQuantities[id] = safeValue;
                   _quantities[id] = safeValue;
+                  if (_returnKind(product) == _ReturnKind.gallon &&
+                      safeValue == 0) {
+                    final damaged = _productForReturnKind(
+                      _ReturnKind.damagedGallon,
+                    );
+                    if (damaged != null) {
+                      final damagedId = _int(damaged['id']);
+                      _returnQuantities[damagedId] = 0;
+                      _quantities[damagedId] = 0;
+                    }
+                  }
                   if (_returnKind(product) == _ReturnKind.damagedGallon) {
                     _quantities[id] = safeValue;
                   }
@@ -753,12 +770,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       }
                     }
                     if (bottles != null) {
-                      _returnQuantities[_int(
-                        bottles['id'],
-                      )] = (safeValue * 24).clamp(
-                        0,
-                        _returnAvailableQuantity(bottles, returnAvailability),
-                      );
+                      _returnQuantities[_int(bottles['id'])] = safeValue * 24;
                     }
                   }
                   if (_returnKind(product) == _ReturnKind.transporter ||
@@ -862,12 +874,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => setState(
-                  () => _showRentalReturns = !_showRentalReturns,
-                ),
-                icon: Icon(
-                  _showRentalReturns ? Icons.expand_less : Icons.undo,
-                ),
+                onPressed: () =>
+                    setState(() => _showRentalReturns = !_showRentalReturns),
+                icon: Icon(_showRentalReturns ? Icons.expand_less : Icons.undo),
                 label: Text(
                   _showRentalReturns
                       ? 'Ukryj zwrot sprzętu z dzierżawy'
@@ -878,66 +887,68 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             if (_showRentalReturns) ...[
               const SizedBox(height: 10),
               _Section(
-              title: 'Zwrot sprzętu z dzierżawy',
-              child: Column(
-                children: [
-                  for (
-                    var index = 0;
-                    index <
-                        (_showAllRentals || rentals.length <= 4
-                            ? rentals.length
-                            : 4);
-                    index++
-                  ) ...[
-                    _RentalReturnRow(
-                      item: rentals[index],
-                      value: _rentalReturns[_int(rentals[index]['id'])] ?? 0,
-                      damaged: _damagedRentalIds.contains(
-                        _int(rentals[index]['id']),
-                      ),
-                      damageController: _damageNotes.putIfAbsent(
-                        _int(rentals[index]['id']),
-                        TextEditingController.new,
-                      ),
-                      onChanged: (value) => setState(
-                        () => _rentalReturns[_int(rentals[index]['id'])] = value
-                            .clamp(0, _int(rentals[index]['quantity'])),
-                      ),
-                      onDamaged: (value) => _setRentalDamaged(
-                        _int(rentals[index]['id']),
-                        rentals[index]['product_name']?.toString() ?? 'sprzęt',
-                        value,
-                      ),
-                    ),
-                    if (index <
-                        (_showAllRentals || rentals.length <= 4
-                                ? rentals.length
-                                : 4) -
-                            1)
-                      const Divider(),
-                  ],
-                  if (rentals.length > 4) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            setState(() => _showAllRentals = !_showAllRentals),
-                        icon: Icon(
-                          _showAllRentals
-                              ? Icons.expand_less
-                              : Icons.expand_more,
+                title: 'Zwrot sprzętu z dzierżawy',
+                child: Column(
+                  children: [
+                    for (
+                      var index = 0;
+                      index <
+                          (_showAllRentals || rentals.length <= 4
+                              ? rentals.length
+                              : 4);
+                      index++
+                    ) ...[
+                      _RentalReturnRow(
+                        item: rentals[index],
+                        value: _rentalReturns[_int(rentals[index]['id'])] ?? 0,
+                        damaged: _damagedRentalIds.contains(
+                          _int(rentals[index]['id']),
                         ),
-                        label: Text(
-                          _showAllRentals
-                              ? 'Pokaż mniej'
-                              : 'Pokaż wszystkie (${rentals.length})',
+                        damageController: _damageNotes.putIfAbsent(
+                          _int(rentals[index]['id']),
+                          TextEditingController.new,
+                        ),
+                        onChanged: (value) => setState(
+                          () => _rentalReturns[_int(rentals[index]['id'])] =
+                              value.clamp(0, _int(rentals[index]['quantity'])),
+                        ),
+                        onDamaged: (value) => _setRentalDamaged(
+                          _int(rentals[index]['id']),
+                          rentals[index]['product_name']?.toString() ??
+                              'sprzęt',
+                          value,
                         ),
                       ),
-                    ),
+                      if (index <
+                          (_showAllRentals || rentals.length <= 4
+                                  ? rentals.length
+                                  : 4) -
+                              1)
+                        const Divider(),
+                    ],
+                    if (rentals.length > 4) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(
+                            () => _showAllRentals = !_showAllRentals,
+                          ),
+                          icon: Icon(
+                            _showAllRentals
+                                ? Icons.expand_less
+                                : Icons.expand_more,
+                          ),
+                          label: Text(
+                            _showAllRentals
+                                ? 'Pokaż mniej'
+                                : 'Pokaż wszystkie (${rentals.length})',
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
               ),
             ],
           ],
@@ -1213,8 +1224,7 @@ bool _isAlwaysVisibleReturn(Map<String, dynamic> product) {
   final kind = _returnKind(product);
   return kind == _ReturnKind.transporter ||
       kind == _ReturnKind.smallBottle ||
-      kind == _ReturnKind.gallon ||
-      kind == _ReturnKind.damagedGallon;
+      kind == _ReturnKind.gallon;
 }
 
 int _returnMaximum(
@@ -1265,11 +1275,24 @@ class _ReturnSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ordered = [...products]
-      ..sort(
-        (left, right) =>
-            _returnKind(left).index.compareTo(_returnKind(right).index),
-      );
+    final gallonReturn = products
+        .where((product) => _returnKind(product) == _ReturnKind.gallon)
+        .fold<int>(
+          0,
+          (sum, product) => sum + (quantities[_int(product['id'])] ?? 0),
+        );
+    final ordered =
+        products
+            .where(
+              (product) =>
+                  _returnKind(product) != _ReturnKind.damagedGallon ||
+                  gallonReturn > 0,
+            )
+            .toList()
+          ..sort(
+            (left, right) =>
+                _returnKind(left).index.compareTo(_returnKind(right).index),
+          );
     return _Section(
       title: 'Zwrot opakowań',
       child: Column(
