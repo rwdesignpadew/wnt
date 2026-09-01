@@ -2,6 +2,14 @@ name: Submit App Store
 
 on:
   workflow_dispatch:
+    inputs:
+      app_version:
+        description: App Store version
+        required: true
+        default: 1.0.1
+      build_number:
+        description: Processed TestFlight build number
+        required: true
 
 jobs:
   submit:
@@ -76,14 +84,14 @@ jobs:
           RUBY
           ruby "$RUNNER_TEMP/close-review.rb"
 
-      - name: Upload metadata, screenshots and submit build 45
+      - name: Upload metadata, screenshots and submit selected build
         run: |
           gem install fastlane --no-document
           fastlane deliver \
             --api_key_path "$RUNNER_TEMP/asc/api-key.json" \
             --app_identifier pl.wnt.wntDriver \
-            --app_version 1.0 \
-            --build_number 45 \
+            --app_version "${{ inputs.app_version }}" \
+            --build_number "${{ inputs.build_number }}" \
             --metadata_path fastlane/metadata \
             --screenshots_path fastlane/screenshots \
             --overwrite_screenshots true \
