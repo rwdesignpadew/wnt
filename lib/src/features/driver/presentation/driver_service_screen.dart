@@ -43,6 +43,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   String? _signatureData;
   bool _showAll = false;
   bool _showAllRentals = false;
+  bool _showRentalReturns = false;
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
@@ -526,6 +527,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final returnProducts = _returnProductsForDisplay(allReturnProducts)
         .where(
           (product) =>
+              _isAlwaysVisibleReturn(product) ||
               _returnAvailableQuantity(product, returnAvailability) > 0,
         )
         .toList();
@@ -691,7 +693,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   final id = _int(product['id']);
                   final safeValue = value.clamp(
                     0,
-                    _returnAvailableQuantity(product, returnAvailability),
+                    _returnMaximum(product, returnAvailability),
                   );
                   _returnQuantities[id] = safeValue;
                   _quantities[id] = safeValue;
@@ -813,7 +815,25 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ],
           if (rentals.isNotEmpty) ...[
             const SizedBox(height: 14),
-            _Section(
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => setState(
+                  () => _showRentalReturns = !_showRentalReturns,
+                ),
+                icon: Icon(
+                  _showRentalReturns ? Icons.expand_less : Icons.undo,
+                ),
+                label: Text(
+                  _showRentalReturns
+                      ? 'Ukryj zwrot sprzętu z dzierżawy'
+                      : 'Zwróć sprzęt z dzierżawy',
+                ),
+              ),
+            ),
+            if (_showRentalReturns) ...[
+              const SizedBox(height: 10),
+              _Section(
               title: 'Zwrot sprzętu z dzierżawy',
               child: Column(
                 children: [
@@ -874,7 +894,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   ],
                 ],
               ),
-            ),
+              ),
+            ],
           ],
           if (!hideCompanyTransferSettlement) ...[
             const SizedBox(height: 14),
@@ -1144,6 +1165,21 @@ int _returnAvailableQuantity(
   return key.isEmpty ? 0 : _int(availability[key]);
 }
 
+bool _isAlwaysVisibleReturn(Map<String, dynamic> product) {
+  final kind = _returnKind(product);
+  return kind == _ReturnKind.transporter ||
+      kind == _ReturnKind.gallon ||
+      kind == _ReturnKind.damagedGallon;
+}
+
+int _returnMaximum(
+  Map<String, dynamic> product,
+  Map<String, dynamic> availability,
+) {
+  if (_isAlwaysVisibleReturn(product)) return 9999;
+  return _returnAvailableQuantity(product, availability);
+}
+
 String _normalizedProductName(Map<String, dynamic> product) =>
     product['name']?.toString().trim().toLowerCase() ?? '';
 
@@ -1197,7 +1233,7 @@ class _ReturnSection extends StatelessWidget {
             _ReturnRow(
               product: ordered[index],
               value: quantities[_int(ordered[index]['id'])] ?? 0,
-              maximum: _returnAvailableQuantity(ordered[index], availability),
+              maximum: _returnMaximum(ordered[index], availability),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),
