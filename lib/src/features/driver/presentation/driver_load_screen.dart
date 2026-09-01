@@ -5,18 +5,11 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../application/driver_providers.dart';
 
-class DriverLoadScreen extends ConsumerStatefulWidget {
+class DriverLoadScreen extends ConsumerWidget {
   const DriverLoadScreen({super.key});
 
   @override
-  ConsumerState<DriverLoadScreen> createState() => _DriverLoadScreenState();
-}
-
-class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
-  String _selection = 'all';
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ref
         .watch(driverRouteProvider)
         .when(
@@ -26,41 +19,13 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
             onRetry: () => ref.invalidate(driverRouteProvider),
           ),
           data: (data) {
-            final totals = <String, int>{};
-            final loadRoutes = _list(data['load_routes']);
-            final loadDate = data['load_date']?.toString() ?? '';
-            final selectedRoutes = _selection == 'all'
-                ? loadRoutes
-                : loadRoutes
-                      .where((route) => '${route['id']}' == _selection)
-                      .toList();
-            if (loadRoutes.isNotEmpty) {
-              for (final route in selectedRoutes) {
-                for (final item in _list(route['items'])) {
-                  final name = item['product_name']?.toString() ?? 'Produkt';
-                  totals.update(
-                    name,
-                    (value) => value + _int(item['quantity']),
-                    ifAbsent: () => _int(item['quantity']),
-                  );
-                }
-              }
-            } else {
-              for (final document in _list(data['documents'])) {
-                if (document['status'] == 'completed') continue;
-                for (final item in _list(document['items'])) {
-                  final name = item['product_name']?.toString() ?? 'Produkt';
-                  totals.update(
-                    name,
-                    (value) => value + _int(item['quantity']),
-                    ifAbsent: () => _int(item['quantity']),
-                  );
-                }
-              }
-            }
-            final entries =
-                totals.entries.where((entry) => entry.value > 0).toList()
-                  ..sort((a, b) => a.key.compareTo(b.key));
+            final routes = _list(data['routes']);
+            final selectedRoute = data['selected_route'] is Map
+                ? (data['selected_route'] as Map).cast<String, dynamic>()
+                : null;
+            final selectedRouteId = _intOrNull(selectedRoute?['id']);
+            final documents = _list(data['documents']);
+
             return RefreshIndicator(
               onRefresh: () async => ref.refresh(driverRouteProvider.future),
               child: ListView(
@@ -72,68 +37,50 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _selection == 'all'
-                        ? 'Suma produktów ze wszystkich tras na $loadDate bez powrotu do bazy.'
-                        : 'Suma produktów dla wybranej trasy.',
+                    'Punkty i produkty do załadowania dla jednej wybranej trasy.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
                   ),
                   const SizedBox(height: 16),
-                  if (loadRoutes.isNotEmpty) ...[
-                    DropdownButtonFormField<String>(
-                      initialValue: _selection,
+                  if (routes.isEmpty)
+                    const EmptyState(
+                      icon: Icons.route_outlined,
+                      title: 'Brak tras do załadunku',
+                      message: 'Załadunek pojawi się po przypisaniu trasy.',
+                    )
+                  else ...[
+                    DropdownButtonFormField<int>(
+                      initialValue: selectedRouteId,
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Załadunek dla trasy',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Trasa'),
                       items: [
-                        const DropdownMenuItem(
-                          value: 'all',
-                          child: Text('Wszystko — wszystkie trasy tego dnia'),
-                        ),
-                        for (final route in loadRoutes)
+                        for (final route in routes)
                           DropdownMenuItem(
-                            value: '${route['id']}',
+                            value: _intOrNull(route['id']),
                             child: Text(
-                              '${route['scheduled_date']} — ${route['name']}',
+                              '${route['scheduled_date'] ?? ''} - ${route['name'] ?? 'Trasa'}',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                       ],
-                      onChanged: (value) =>
-                          setState(() => _selection = value ?? 'all'),
+                      onChanged: (value) {
+                        if (value == null || value == selectedRouteId) return;
+                        ref.read(selectedDriverRouteIdProvider.notifier).state =
+                            value;
+                      },
                     ),
                     const SizedBox(height: 16),
+                    if (documents.isEmpty)
+                      const EmptyState(
+                        icon: Icons.people_outline,
+                        title: 'Brak punktów na trasie',
+                        message: 'Wybrana trasa nie ma jeszcze klientów.',
+                      )
+                    else
+                      for (var index = 0; index < documents.length; index++)
+                        _LoadStopCard(index: index, document: documents[index]),
                   ],
-                  if (entries.isEmpty)
-                    const EmptyState(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Brak produktów do załadunku',
-                      message:
-                          'Produkty pojawią się po dodaniu ich klientom na trasie.',
-                    )
-                  else
-                    Card(
-                      child: Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < entries.length;
-                            index++
-                          ) ...[
-                            ListTile(
-                              title: Text(entries[index].key),
-                              trailing: Text(
-                                '${entries[index].value} szt.',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            if (index < entries.length - 1) const Divider(),
-                          ],
-                        ],
-                      ),
-                    ),
                 ],
               ),
             );
@@ -142,7 +89,96 @@ class _DriverLoadScreenState extends ConsumerState<DriverLoadScreen> {
   }
 }
 
+class _LoadStopCard extends StatelessWidget {
+  const _LoadStopCard({required this.index, required this.document});
+
+  final int index;
+  final Map<String, dynamic> document;
+
+  @override
+  Widget build(BuildContext context) {
+    final client = document['client'] is Map
+        ? (document['client'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final location = document['location'] is Map
+        ? (document['location'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final items = _list(
+      document['items'],
+    ).where((item) => _int(item['quantity']) > 0).toList();
+    final address = (location['address'] ?? document['delivery_address'] ?? '')
+        .toString();
+    final locationName = location['name']?.toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(radius: 18, child: Text('${index + 1}')),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        client['name']?.toString() ?? 'Klient',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (locationName != null && locationName.isNotEmpty)
+                        Text(locationName),
+                      if (address.isNotEmpty)
+                        Text(
+                          address,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: WntColors.muted),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (items.isEmpty)
+              Text(
+                'Brak zapisanych produktów - przygotuj miejsce na zamówienie.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
+              )
+            else
+              for (final item in items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item['product_name']?.toString() ?? 'Produkt',
+                        ),
+                      ),
+                      Text(
+                        '${_int(item['quantity'])} szt.',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 List<Map<String, dynamic>> _list(dynamic value) => value is List
     ? value.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList()
     : const [];
+
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+int? _intOrNull(dynamic value) => int.tryParse('$value');

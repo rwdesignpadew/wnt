@@ -93,21 +93,6 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
               ),
               const SizedBox(height: 12),
               if (driver != null && destination != null) ...[
-                if (item['tracking_active'] != true) ...[
-                  Card(
-                    color: WntColors.warningSoft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: _InfoLine(
-                        icon: Icons.gps_off_outlined,
-                        label: 'Śledzenie nieaktywne',
-                        value:
-                            'Ostatni sygnał samochodu: ${driver['recorded_at'] ?? 'brak danych'}',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
                 Text(
                   'Śledzenie samochodu',
                   style: Theme.of(context).textTheme.titleLarge,
