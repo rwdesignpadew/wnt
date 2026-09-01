@@ -6,6 +6,16 @@ class AdminRepository {
 
   Future<Map<String, dynamic>> summary(String token) =>
       _api.get('/mobile/admin/summary', token: token);
+  Future<Map<String, dynamic>> driverStatistics(
+    String token, {
+    int? driverId,
+    String range = 'seven',
+    required String date,
+  }) => _api.get(
+    '/mobile/admin/driver-statistics?range=$range&date=$date'
+    '${driverId == null ? '' : '&driver_id=$driverId'}',
+    token: token,
+  );
   Future<Map<String, dynamic>> operations(String token) =>
       _api.get('/mobile/admin/operations', token: token);
   Future<Map<String, dynamic>> updateOrderStatus(

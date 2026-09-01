@@ -8,6 +8,7 @@ import '../../home/application/home_navigation_provider.dart';
 import '../application/admin_providers.dart';
 import 'admin_clients_screen.dart';
 import 'admin_administrators_screen.dart';
+import 'admin_driver_statistics_screen.dart';
 import 'admin_settings_edit_screen.dart';
 
 class AdminMoreScreen extends ConsumerWidget {
@@ -56,6 +57,26 @@ class AdminMoreScreen extends ConsumerWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const AdminAdministratorsScreen(),
+                  ),
+                ),
+              ),
+              const Divider(),
+            ],
+            if (ref
+                .watch(authControllerProvider)
+                .session!
+                .user
+                .hasAdminPermission('drivers')) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.query_stats_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Statystyki kierowców'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminDriverStatisticsNestedScreen(),
                   ),
                 ),
               ),
@@ -215,6 +236,17 @@ class AdminClientsNestedScreen extends ConsumerWidget {
     appBar: _adminNestedHeader(context, ref, 'Klienci'),
     bottomNavigationBar: _adminNestedNavigation(context, ref),
     body: const AdminClientsScreen(),
+  );
+}
+
+class AdminDriverStatisticsNestedScreen extends ConsumerWidget {
+  const AdminDriverStatisticsNestedScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: _adminNestedHeader(context, ref, 'Statystyki kierowców'),
+    bottomNavigationBar: _adminNestedNavigation(context, ref),
+    body: const AdminDriverStatisticsScreen(),
   );
 }
 
