@@ -10,6 +10,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/html_document_screen.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 import 'admin_client_full_edit_screen.dart';
 
 class AdminClientStatsScreen extends ConsumerStatefulWidget {
@@ -341,6 +342,7 @@ class _AdminClientStatsScreenState
           ),
         ],
       ),
+      bottomNavigationBar: adminBottomNavigation(context, ref),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -408,10 +410,7 @@ class _AdminClientStatsScreenState
         spacing: 10,
         runSpacing: 10,
         children: [
-          _Metric(
-            'Woda źródlana 18,9 l',
-            _number(totals['water_189_ordered']),
-          ),
+          _Metric('Woda źródlana 18,9 l', _number(totals['water_189_ordered'])),
           _Metric(
             'Woda - transportery',
             _number(totals['glass_water_transporters_ordered']),

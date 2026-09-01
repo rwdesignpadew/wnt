@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 
 class AdminClientFullEditScreen extends ConsumerStatefulWidget {
   const AdminClientFullEditScreen({this.id, this.initialTab = 0, super.key});
@@ -199,6 +200,7 @@ class _AdminClientFullEditScreenState
       'latitude': null,
       'longitude': null,
       'is_default': _locations.isEmpty,
+      'packages': <Map<String, dynamic>>[],
       'is_active': true,
       'invoice_recipient_enabled': false,
       'invoice_recipient_jst': false,
@@ -267,30 +269,40 @@ class _AdminClientFullEditScreenState
         ],
       ),
     ),
-    bottomNavigationBar: SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: WntColors.line)),
-        ),
-        child: FilledButton.icon(
-          onPressed: _saving || _loading ? null : _save,
-          icon: _saving
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.save_outlined),
-          label: Text(
-            _saving
-                ? 'Zapisywanie...'
-                : widget.id == null
-                ? 'Dodaj klienta'
-                : 'Zapisz zmiany',
+    bottomNavigationBar: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: WntColors.line)),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving || _loading ? null : _save,
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(
+                  _saving
+                      ? 'Zapisywanie...'
+                      : widget.id == null
+                      ? 'Dodaj klienta'
+                      : 'Zapisz zmiany',
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+        adminBottomNavigation(context, ref),
+      ],
     ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
@@ -439,6 +451,7 @@ class _AdminClientFullEditScreenState
           ),
           _mapField(location, 'region', 'Region'),
           _mapField(location, 'delivery_window', 'Okno dostawy'),
+          _mapField(location, 'document_notes', 'Uwagi do WZ/FV'),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Lokalizacja aktywna'),
@@ -471,10 +484,69 @@ class _AdminClientFullEditScreenState
               keyboard: TextInputType.emailAddress,
             ),
           ],
+          const Divider(height: 28),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Pakiety',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _editLocationPackage(index),
+                icon: const Icon(Icons.add),
+                label: const Text('Dodaj pakiet'),
+              ),
+            ],
+          ),
+          for (final package in _maps(location['packages']))
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.inventory_2_outlined),
+              title: Text('${package['name'] ?? 'Pakiet'}'),
+              subtitle: Text(
+                '${package['price'] ?? 0} zł - ${_maps(package['components']).map((item) => '${item['name']} x ${_int(item['quantity'])}').join(', ')}',
+              ),
+              onTap: () => _editLocationPackage(index, package: package),
+              trailing: IconButton(
+                tooltip: 'Usuń pakiet',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => setState(() {
+                  final packages = _maps(location['packages']);
+                  packages.remove(package);
+                  location['packages'] = packages;
+                }),
+              ),
+            ),
         ],
       ),
     ),
   );
+
+  Future<void> _editLocationPackage(
+    int locationIndex, {
+    Map<String, dynamic>? package,
+  }) async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) =>
+          _LocationPackageEditor(products: _products, initial: package),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      final packages = _maps(_locations[locationIndex]['packages']);
+      _locations[locationIndex]['packages'] = packages;
+      if (package == null) {
+        packages.add(result);
+      } else {
+        final packageIndex = packages.indexOf(package);
+        if (packageIndex >= 0) packages[packageIndex] = result;
+      }
+    });
+  }
 
   Widget _productsTab() {
     final query = _productQuery.trim().toLowerCase();
@@ -799,6 +871,198 @@ class _AdminClientFullEditScreenState
 
   void _error(Object error) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+  );
+}
+
+class _LocationPackageEditor extends StatefulWidget {
+  const _LocationPackageEditor({required this.products, this.initial});
+  final List<Map<String, dynamic>> products;
+  final Map<String, dynamic>? initial;
+
+  @override
+  State<_LocationPackageEditor> createState() => _LocationPackageEditorState();
+}
+
+class _LocationPackageEditorState extends State<_LocationPackageEditor> {
+  late final TextEditingController name = TextEditingController(
+    text: widget.initial?['name']?.toString() ?? '',
+  );
+  late final TextEditingController price = TextEditingController(
+    text: widget.initial?['price']?.toString() ?? '',
+  );
+  late final TextEditingController vat = TextEditingController(
+    text: widget.initial?['vat_rate']?.toString() ?? '23',
+  );
+  late final Map<int, int> quantities = {
+    for (final item in _maps(widget.initial?['components']))
+      _int(item['product_id']): _int(item['quantity']),
+  };
+  late final Set<int> rentalIds = {
+    for (final item in _maps(widget.initial?['components']))
+      if (_bool(item['is_rental'])) _int(item['product_id']),
+  };
+
+  @override
+  void dispose() {
+    name.dispose();
+    price.dispose();
+    vat.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .94,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Pakiet lokalizacji',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: name,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Nazwa pakietu'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 105,
+                child: TextField(
+                  controller: price,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Cena'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 78,
+                child: TextField(
+                  controller: vat,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'VAT %'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ListView.builder(
+            itemCount: widget.products.length,
+            itemBuilder: (context, index) {
+              final product = widget.products[index];
+              final id = _int(product['id']);
+              final quantity = quantities[id] ?? 0;
+              return ListTile(
+                title: Text('${product['name']}'),
+                subtitle: quantity > 0
+                    ? CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Element dzierżawy'),
+                        value: rentalIds.contains(id),
+                        onChanged: (value) => setState(
+                          () => value == true
+                              ? rentalIds.add(id)
+                              : rentalIds.remove(id),
+                        ),
+                      )
+                    : null,
+                trailing: _PackageCounter(
+                  value: quantity,
+                  onChanged: (value) => setState(() {
+                    if (value < 1) {
+                      quantities.remove(id);
+                      rentalIds.remove(id);
+                    } else {
+                      quantities[id] = value;
+                    }
+                  }),
+                ),
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: name.text.trim().isEmpty || quantities.isEmpty
+                    ? null
+                    : () => Navigator.pop(context, {
+                        if (widget.initial?['id'] != null)
+                          'id': widget.initial!['id'],
+                        'name': name.text.trim(),
+                        'price': price.text.trim().isEmpty
+                            ? '0'
+                            : price.text.trim(),
+                        'vat_rate': vat.text.trim().isEmpty
+                            ? '23'
+                            : vat.text.trim(),
+                        'is_active': true,
+                        'components': [
+                          for (final entry in quantities.entries)
+                            {
+                              'product_id': entry.key,
+                              'name': widget.products.firstWhere(
+                                (item) => _int(item['id']) == entry.key,
+                              )['name'],
+                              'quantity': entry.value,
+                              'is_rental': rentalIds.contains(entry.key),
+                            },
+                        ],
+                      }),
+                child: const Text('Zapisz pakiet'),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _PackageCounter extends StatelessWidget {
+  const _PackageCounter({required this.value, required this.onChanged});
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        onPressed: value > 0 ? () => onChanged(value - 1) : null,
+        icon: const Icon(Icons.remove),
+      ),
+      Text('$value', style: const TextStyle(fontWeight: FontWeight.w700)),
+      IconButton(
+        onPressed: () => onChanged(value + 1),
+        icon: const Icon(Icons.add),
+      ),
+    ],
   );
 }
 

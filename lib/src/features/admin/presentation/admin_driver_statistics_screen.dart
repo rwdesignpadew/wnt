@@ -39,12 +39,14 @@ class _AdminDriverStatisticsScreenState
 
   Future<Map<String, dynamic>> _load() {
     final token = ref.read(authControllerProvider).session!.token;
-    return ref.read(adminRepositoryProvider).driverStatistics(
-      token,
-      driverId: _driverId,
-      range: _range,
-      date: DateFormat('yyyy-MM-dd').format(_date),
-    );
+    return ref
+        .read(adminRepositoryProvider)
+        .driverStatistics(
+          token,
+          driverId: _driverId,
+          range: _range,
+          date: DateFormat('yyyy-MM-dd').format(_date),
+        );
   }
 
   void _reload() => setState(() => _result = _load());
@@ -78,10 +80,17 @@ class _AdminDriverStatisticsScreenState
       final drivers = (data['drivers'] as List? ?? const [])
           .cast<Map<String, dynamic>>();
       final stats = (data['stats'] as Map? ?? const {}).cast<String, dynamic>();
+      final breakdown = (data['breakdown'] as List? ?? const [])
+          .cast<Map<String, dynamic>>();
       final monthly = (data['monthly'] as List? ?? const [])
           .cast<Map<String, dynamic>>()
           .reversed
           .toList();
+      final showMonthly = const {
+        'six_months',
+        'twelve_months',
+        'year',
+      }.contains(_range);
 
       return RefreshIndicator(
         onRefresh: () async {
@@ -123,7 +132,7 @@ class _AdminDriverStatisticsScreenState
               children: [
                 Expanded(
                   child: Text(
-                    'Stan na ${DateFormat('dd.MM.yyyy').format(_date)}',
+                    _periodLabel(data),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -193,42 +202,68 @@ class _AdminDriverStatisticsScreenState
                       label: 'Wartość WZ',
                       value: '${_number(stats['value'], 2)} zł',
                     ),
+                    _StatCard(
+                      width: width,
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Pobrana gotówka',
+                      value: '${_number(stats['cash'], 2)} zł',
+                    ),
                   ],
                 );
               },
             ),
-            const SizedBox(height: 24),
-            Text('Ostatnie 12 miesięcy', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: monthly.map((row) {
-                  return Column(
-                    children: [
-                      ListTile(
-                        title: Text(row['label']?.toString() ?? ''),
-                        subtitle: Text(
-                          '${_number(row['km'], 1)} km • ${_duration(row['drive_minutes'])}',
-                        ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${_number(row['value'], 2)} zł',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            Text('${row['documents'] ?? 0} WZ'),
-                          ],
-                        ),
-                      ),
-                      if (row != monthly.last) const Divider(height: 1),
-                    ],
-                  );
-                }).toList(),
+            if (_driverId == null && breakdown.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                'Porównanie kierowców',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ),
+              const SizedBox(height: 4),
+              const Text(
+                'WZ, wartość, kilometry i czas dla wybranego zakresu.',
+              ),
+              const SizedBox(height: 10),
+              _DriverComparison(rows: breakdown),
+            ],
+            if (showMonthly) ...[
+              const SizedBox(height: 24),
+              Text(
+                'Ostatnie 12 miesięcy',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Card(
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: monthly.map((row) {
+                    return Column(
+                      children: [
+                        ListTile(
+                          title: Text(row['label']?.toString() ?? ''),
+                          subtitle: Text(
+                            '${_number(row['km'], 1)} km • ${_duration(row['drive_minutes'])}',
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${_number(row['value'], 2)} zł',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text('${row['documents'] ?? 0} WZ'),
+                            ],
+                          ),
+                        ),
+                        if (row != monthly.last) const Divider(height: 1),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -247,6 +282,144 @@ class _AdminDriverStatisticsScreenState
     final rest = minutes % 60;
     return hours > 0 ? '$hours h $rest min' : '$rest min';
   }
+
+  static String _periodLabel(Map<String, dynamic> data) {
+    final from = DateTime.tryParse(data['from']?.toString() ?? '');
+    final to = DateTime.tryParse(data['to']?.toString() ?? '');
+    if (from == null || to == null) return 'Wybrany okres';
+    final formatter = DateFormat('dd.MM.yyyy');
+    return from == to
+        ? formatter.format(from)
+        : '${formatter.format(from)} - ${formatter.format(to)}';
+  }
+}
+
+class _DriverComparison extends StatelessWidget {
+  const _DriverComparison({required this.rows});
+
+  final List<Map<String, dynamic>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxDocuments = _max('documents');
+    final maxValue = _max('value');
+    final maxKm = _max('km');
+    final maxMinutes = _max('drive_minutes');
+    final colors = <Color>[
+      WntColors.brand,
+      WntColors.error,
+      Colors.green.shade600,
+      Colors.orange.shade700,
+      Colors.purple.shade600,
+    ];
+
+    return Column(
+      children: rows.indexed.map((entry) {
+        final index = entry.$1;
+        final row = entry.$2;
+        final color = colors[index % colors.length];
+        return Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row['name']?.toString() ?? 'Kierowca',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                _ComparisonBar(
+                  label: 'WZ',
+                  value: '${row['documents'] ?? 0}',
+                  progress: _ratio(row['documents'], maxDocuments),
+                  color: color,
+                ),
+                _ComparisonBar(
+                  label: 'Wartość',
+                  value:
+                      '${_AdminDriverStatisticsScreenState._number(row['value'], 2)} zł',
+                  progress: _ratio(row['value'], maxValue),
+                  color: color.withValues(alpha: .82),
+                ),
+                _ComparisonBar(
+                  label: 'Kilometry',
+                  value:
+                      '${_AdminDriverStatisticsScreenState._number(row['km'], 1)} km',
+                  progress: _ratio(row['km'], maxKm),
+                  color: color.withValues(alpha: .66),
+                ),
+                _ComparisonBar(
+                  label: 'Czas',
+                  value: _AdminDriverStatisticsScreenState._duration(
+                    row['drive_minutes'],
+                  ),
+                  progress: _ratio(row['drive_minutes'], maxMinutes),
+                  color: color.withValues(alpha: .5),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  double _max(String key) => rows.fold<double>(
+    0,
+    (current, row) => ((row[key] as num?)?.toDouble() ?? 0) > current
+        ? (row[key] as num).toDouble()
+        : current,
+  );
+
+  static double _ratio(dynamic value, double maximum) => maximum <= 0
+      ? 0
+      : (((value as num?)?.toDouble() ?? 0) / maximum).clamp(0, 1);
+}
+
+class _ComparisonBar extends StatelessWidget {
+  const _ComparisonBar({
+    required this.label,
+    required this.value,
+    required this.progress,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final double progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      children: [
+        SizedBox(width: 72, child: Text(label)),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 9,
+              color: color,
+              backgroundColor: color.withValues(alpha: .12),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 92,
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StatCard extends StatelessWidget {

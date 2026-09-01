@@ -18,6 +18,11 @@ final adminOperationsProvider = FutureProvider<Map<String, dynamic>>((ref) {
   ref.onDispose(timer.cancel);
   return ref.watch(adminRepositoryProvider).operations(_token(ref));
 });
+final adminNotificationsProvider = FutureProvider<Map<String, dynamic>>((ref) {
+  final timer = Timer(const Duration(seconds: 20), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return ref.watch(adminRepositoryProvider).notifications(_token(ref));
+});
 final adminRoutesProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(adminRepositoryProvider).routes(_token(ref)),
 );

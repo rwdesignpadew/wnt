@@ -18,6 +18,12 @@ class AdminRepository {
   );
   Future<Map<String, dynamic>> operations(String token) =>
       _api.get('/mobile/admin/operations', token: token);
+  Future<Map<String, dynamic>> notifications(String token) =>
+      _api.get('/mobile/admin/notifications', token: token);
+  Future<Map<String, dynamic>> markNotificationRead(String token, int id) =>
+      _api.post('/mobile/admin/notifications/$id/read', token: token);
+  Future<Map<String, dynamic>> markAllNotificationsRead(String token) =>
+      _api.post('/mobile/admin/notifications/read-all', token: token);
   Future<Map<String, dynamic>> updateOrderStatus(
     String token,
     int id,
@@ -36,6 +42,8 @@ class AdminRepository {
     token: token,
     body: {'delivery_route_id': routeId},
   );
+  Future<Map<String, dynamic>> deleteOrder(String token, int id) =>
+      _api.delete('/mobile/admin/orders/$id', token: token);
   Future<Map<String, dynamic>> completeSanitization(
     String token,
     int id, {

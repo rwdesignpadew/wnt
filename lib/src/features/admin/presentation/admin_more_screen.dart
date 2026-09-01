@@ -56,7 +56,7 @@ class AdminMoreScreen extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const AdminAdministratorsScreen(),
+                    builder: (_) => const AdminAdministratorsNestedScreen(),
                   ),
                 ),
               ),
@@ -247,6 +247,17 @@ class AdminDriverStatisticsNestedScreen extends ConsumerWidget {
     appBar: _adminNestedHeader(context, ref, 'Statystyki kierowców'),
     bottomNavigationBar: _adminNestedNavigation(context, ref),
     body: const AdminDriverStatisticsScreen(),
+  );
+}
+
+class AdminAdministratorsNestedScreen extends ConsumerWidget {
+  const AdminAdministratorsNestedScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: _adminNestedHeader(context, ref, 'Administratorzy'),
+    bottomNavigationBar: _adminNestedNavigation(context, ref),
+    body: const AdminAdministratorsScreen(embedded: true),
   );
 }
 
@@ -916,6 +927,50 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
   late int routeId = _int(widget.order['route_id']);
   bool saving = false;
 
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Usunąć zamówienie?'),
+        content: const Text(
+          'Zamówienie zostanie trwale usunięte. Powiązany punkt dodany przez to zamówienie również zniknie z trasy.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: WntColors.error),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Usuń'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || saving) return;
+
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      await ref
+          .read(adminRepositoryProvider)
+          .deleteOrder(token, _int(widget.order['id']));
+      ref.invalidate(adminOperationsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
   Future<void> _save() async {
     setState(() => saving = true);
     try {
@@ -1128,9 +1183,17 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
+              child: Row(
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Usuń zamówienie',
+                    onPressed: saving ? null : _delete,
+                    color: WntColors.error,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
                   onPressed: saving ? null : _save,
                   icon: saving
                       ? const SizedBox.square(
@@ -1140,6 +1203,8 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                       : const Icon(Icons.save_outlined),
                   label: const Text('Zapisz obsługę zamówienia'),
                 ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1245,14 +1310,9 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: true, label: Text('Aktywne')),
-                      ButtonSegment(value: false, label: Text('Wyłączone')),
-                    ],
-                    selected: {_active},
-                    onSelectionChanged: (value) =>
-                        setState(() => _active = value.first),
+                  return _ProductStatusTabs(
+                    active: _active,
+                    onChanged: (value) => setState(() => _active = value),
                   );
                 }
                 if (index == 1) {
@@ -1532,3 +1592,48 @@ String _isoDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 String _money(dynamic value) =>
     (double.tryParse('$value') ?? 0).toStringAsFixed(2).replaceFirst('.', ',');
+
+class _ProductStatusTabs extends StatelessWidget {
+  const _ProductStatusTabs({required this.active, required this.onChanged});
+
+  final bool active;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    height: 46,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: WntColors.brandSoft,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: WntColors.line),
+    ),
+    child: Row(
+      children: [
+        for (final item in const [(true, 'Aktywne'), (false, 'Wyłączone')])
+          Expanded(
+            child: Material(
+              color: active == item.$1 ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(9),
+                onTap: () => onChanged(item.$1),
+                child: Center(
+                  child: Text(
+                    item.$2,
+                    style: TextStyle(
+                      color: active == item.$1
+                          ? WntColors.brand
+                          : WntColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}

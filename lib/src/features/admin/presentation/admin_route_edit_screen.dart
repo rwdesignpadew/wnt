@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 
 class AdminRouteEditScreen extends ConsumerStatefulWidget {
   const AdminRouteEditScreen({this.id, this.initialClientId, super.key});
@@ -80,6 +81,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 'client_id': _int(stop['client_id']),
                 'location_id': _locationId(stop),
                 'products': _intMap(stop['products']),
+                'packages': _intMap(stop['packages']),
               },
             )
             .toList();
@@ -127,6 +129,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'client_id': initialClientId,
       'location_id': _int(location['id']),
       'products': <String, int>{},
+      'packages': <String, int>{},
     });
     _initialProductsStopIndex = _stops.length - 1;
   }
@@ -222,6 +225,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'client_id': _int(client['id']),
       'location_id': _int(location['id']),
       'products': <String, int>{},
+      'packages': <String, int>{},
     };
     if (_stops.any((item) => _stopKey(item) == _stopKey(stop))) {
       _message('Ta lokalizacja jest już na trasie.', error: true);
@@ -233,7 +237,8 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
   Future<void> _editProducts(int index) async {
     final client = _client(_stops[index]);
     if (client == null) return;
-    final result = await showModalBottomSheet<Map<String, int>>(
+    final location = _location(_stops[index]);
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -242,10 +247,17 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
         visibleIds: _ints(client['visible_product_ids']).toSet(),
         prices: _map(client['prices']),
         quantities: Map<String, int>.from(_intMap(_stops[index]['products'])),
+        packages: _maps(location?['packages']),
+        packageQuantities: Map<String, int>.from(
+          _intMap(_stops[index]['packages']),
+        ),
       ),
     );
     if (result != null && mounted) {
-      setState(() => _stops[index]['products'] = result);
+      setState(() {
+        _stops[index]['products'] = result['products'];
+        _stops[index]['packages'] = result['packages'];
+      });
     }
   }
 
@@ -272,6 +284,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
     appBar: AppBar(
       title: Text(widget.id == null ? 'Nowa trasa' : 'Edytuj trasę'),
     ),
+    bottomNavigationBar: adminBottomNavigation(context, ref),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
         : Column(
@@ -504,7 +517,11 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
     final locations = _maps(client['locations']);
     final location = _location(stop);
     final quantities = _intMap(stop['products']);
-    final count = quantities.values.fold<int>(0, (sum, value) => sum + value);
+    final packageQuantities = _intMap(stop['packages']);
+    final count = [
+      ...quantities.values,
+      ...packageQuantities.values,
+    ].fold<int>(0, (sum, value) => sum + value);
     return Card(
       key: ValueKey('${_stopKey(stop)}-$index'),
       margin: const EdgeInsets.only(bottom: 10),
@@ -661,11 +678,15 @@ class _ProductPicker extends StatefulWidget {
     required this.visibleIds,
     required this.prices,
     required this.quantities,
+    required this.packages,
+    required this.packageQuantities,
   });
   final List<Map<String, dynamic>> products;
   final Set<int> visibleIds;
   final Map<String, dynamic> prices;
   final Map<String, int> quantities;
+  final List<Map<String, dynamic>> packages;
+  final Map<String, int> packageQuantities;
 
   @override
   State<_ProductPicker> createState() => _ProductPickerState();
@@ -673,6 +694,9 @@ class _ProductPicker extends StatefulWidget {
 
 class _ProductPickerState extends State<_ProductPicker> {
   late Map<String, int> quantities = Map<String, int>.from(widget.quantities);
+  late Map<String, int> packageQuantities = Map<String, int>.from(
+    widget.packageQuantities,
+  );
   String query = '';
   bool showAll = false;
 
@@ -735,17 +759,48 @@ class _ProductPickerState extends State<_ProductPicker> {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: products.length + (canShowMore ? 1 : 0),
+              itemCount:
+                  widget.packages.length +
+                  products.length +
+                  (canShowMore ? 1 : 0),
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                if (canShowMore && index == products.length) {
+                if (index < widget.packages.length) {
+                  final package = widget.packages[index];
+                  final id = '${package['id']}';
+                  final quantity = packageQuantities[id] ?? 0;
+                  final components = _maps(package['components'])
+                      .map(
+                        (item) => '${item['name']} x ${_int(item['quantity'])}',
+                      )
+                      .join(', ');
+                  return ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: Text('${package['name']}'),
+                    subtitle: Text(
+                      '${package['price']} zł${components.isEmpty ? '' : ' - $components'}',
+                    ),
+                    trailing: _Counter(
+                      value: quantity,
+                      onChanged: (value) => setState(() {
+                        if (value == 0) {
+                          packageQuantities.remove(id);
+                        } else {
+                          packageQuantities[id] = value;
+                        }
+                      }),
+                    ),
+                  );
+                }
+                final productIndex = index - widget.packages.length;
+                if (canShowMore && productIndex == products.length) {
                   return TextButton.icon(
                     onPressed: () => setState(() => showAll = true),
                     icon: const Icon(Icons.expand_more),
                     label: const Text('Pokaż wszystkie produkty'),
                   );
                 }
-                final product = products[index];
+                final product = products[productIndex];
                 final id = '${product['id']}';
                 final quantity = quantities[id] ?? 0;
                 final price = widget.prices[id] ?? product['default_price'];
@@ -773,7 +828,10 @@ class _ProductPickerState extends State<_ProductPicker> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(context, quantities),
+                  onPressed: () => Navigator.pop(context, {
+                    'products': quantities,
+                    'packages': packageQuantities,
+                  }),
                   child: const Text('Dodaj produkty'),
                 ),
               ),

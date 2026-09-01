@@ -7,6 +7,7 @@ import '../../admin/application/admin_providers.dart';
 import '../../admin/presentation/admin_dashboard_screen.dart';
 import '../../admin/presentation/admin_documents_screen.dart';
 import '../../admin/presentation/admin_more_screen.dart';
+import '../../admin/presentation/admin_notifications_screen.dart';
 import '../../admin/presentation/admin_routes_screen.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/app_session.dart';
@@ -97,6 +98,12 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
           ],
         ),
         actions: [
+          if (session.user.role == UserRole.admin)
+            _AdminNotificationsAction(
+              unreadCount: _int(
+                ref.watch(adminNotificationsProvider).valueOrNull?['unread_count'],
+              ),
+            ),
           IconButton(
             tooltip: 'Wyloguj się',
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),
@@ -203,6 +210,26 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
     return const SizedBox.shrink();
   }
 }
+
+class _AdminNotificationsAction extends StatelessWidget {
+  const _AdminNotificationsAction({required this.unreadCount});
+  final int unreadCount;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Powiadomienia',
+    onPressed: () => Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdminNotificationsScreen()),
+    ),
+    icon: Badge(
+      isLabelVisible: unreadCount > 0,
+      label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+      child: const Icon(Icons.notifications_outlined),
+    ),
+  );
+}
+
+int _int(dynamic value) => int.tryParse('$value') ?? 0;
 
 class _DriverAccountScreen extends ConsumerWidget {
   const _DriverAccountScreen();

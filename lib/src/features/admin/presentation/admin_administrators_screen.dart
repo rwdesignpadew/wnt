@@ -6,7 +6,8 @@ import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 
 class AdminAdministratorsScreen extends ConsumerStatefulWidget {
-  const AdminAdministratorsScreen({super.key});
+  const AdminAdministratorsScreen({this.embedded = false, super.key});
+  final bool embedded;
   @override
   ConsumerState<AdminAdministratorsScreen> createState() => _State();
 }
@@ -180,7 +181,7 @@ class _State extends ConsumerState<AdminAdministratorsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Administratorzy')),
+    appBar: widget.embedded ? null : AppBar(title: const Text('Administratorzy')),
     floatingActionButton: FloatingActionButton(
       onPressed: () => _edit(),
       child: const Icon(Icons.add),

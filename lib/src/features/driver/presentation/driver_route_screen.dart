@@ -176,7 +176,9 @@ class DriverRouteScreen extends ConsumerWidget {
                         !_isServed(documents[index]) &&
                         documents
                             .skip(index + 1)
-                            .any((document) => document['status'] == 'completed'),
+                            .any(
+                              (document) => document['status'] == 'completed',
+                            ),
                     canServeToday: _isToday(documents[index]['planned_at']),
                     onRefresh: () => ref.invalidate(driverRouteProvider),
                   ),
@@ -263,6 +265,9 @@ class _StopCardState extends ConsumerState<_StopCard> {
       final name = item['product_name']?.toString().trim().toLowerCase() ?? '';
       return quantity > 0 && !name.startsWith('zwrot ');
     }).toList();
+    final packagesToIssue = _list(
+      widget.document['packages'],
+    ).where((item) => _int(item['quantity']) > 0).toList();
     final background = completed
         ? WntColors.successSoft
         : missed
@@ -341,7 +346,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
               ],
             ),
-            if (itemsToIssue.isNotEmpty) ...[
+            if (packagesToIssue.isNotEmpty || itemsToIssue.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -359,6 +364,28 @@ class _StopCardState extends ConsumerState<_StopCard> {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 6),
+                    for (final package in packagesToIssue)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 7),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${package['name'] ?? 'Pakiet'} x ${_int(package['quantity'])}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            for (final component in _list(
+                              package['components'],
+                            ))
+                              Text(
+                                '  ${component['name'] ?? 'Produkt'}: ${_int(component['quantity']) * _int(package['quantity'])} szt.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
                     for (final item in itemsToIssue)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),

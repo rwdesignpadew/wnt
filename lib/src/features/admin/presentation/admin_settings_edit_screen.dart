@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 
 class AdminSettingsEditScreen extends ConsumerStatefulWidget {
   const AdminSettingsEditScreen({required this.kind, this.item, super.key});
@@ -161,15 +162,25 @@ class _AdminSettingsEditScreenState
           ),
       ],
     ),
-    bottomNavigationBar: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: FilledButton.icon(
-          onPressed: _saving ? null : _save,
-          icon: const Icon(Icons.save_outlined),
-          label: Text(_saving ? 'Zapisywanie...' : 'Zapisz'),
+    bottomNavigationBar: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: const Icon(Icons.save_outlined),
+                label: Text(_saving ? 'Zapisywanie...' : 'Zapisz'),
+              ),
+            ),
+          ),
         ),
-      ),
+        adminBottomNavigation(context, ref),
+      ],
     ),
     body: Form(
       key: _form,

@@ -5,6 +5,7 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 import 'admin_client_full_edit_screen.dart';
 import 'admin_client_stats_screen.dart';
 import 'admin_route_edit_screen.dart';
@@ -187,27 +188,11 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                   final activeCount = all
                       .where((item) => item['status']?.toString() == 'aktywny')
                       .length;
-                  return SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<bool>(
-                      showSelectedIcon: false,
-                      expandedInsets: EdgeInsets.zero,
-                      segments: [
-                        ButtonSegment(
-                          value: true,
-                          label: Text('Aktywni ($activeCount)'),
-                        ),
-                        ButtonSegment(
-                          value: false,
-                          label: Text(
-                            'Nieaktywni (${all.length - activeCount})',
-                          ),
-                        ),
-                      ],
-                      selected: {_active},
-                      onSelectionChanged: (value) =>
-                          setState(() => _active = value.first),
-                    ),
+                  return _ClientStatusTabs(
+                    active: _active,
+                    activeLabel: 'Aktywni ($activeCount)',
+                    inactiveLabel: 'Nieaktywni (${all.length - activeCount})',
+                    onChanged: (value) => setState(() => _active = value),
                   );
                 }
                 if (index == 2) {
@@ -421,18 +406,28 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Edytuj klienta')),
-    bottomNavigationBar: SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: WntColors.line)),
+    bottomNavigationBar: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: WntColors.line)),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Zapisywanie...' : 'Zapisz zmiany'),
+              ),
+            ),
+          ),
         ),
-        child: FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Zapisywanie...' : 'Zapisz zmiany'),
-        ),
-      ),
+        adminBottomNavigation(context, ref),
+      ],
     ),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
@@ -561,3 +556,59 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
 Map<String, dynamic>? _map(dynamic value) =>
     value is Map ? value.cast<String, dynamic>() : null;
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+
+class _ClientStatusTabs extends StatelessWidget {
+  const _ClientStatusTabs({
+    required this.active,
+    required this.activeLabel,
+    required this.inactiveLabel,
+    required this.onChanged,
+  });
+
+  final bool active;
+  final String activeLabel;
+  final String inactiveLabel;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    height: 46,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: WntColors.brandSoft,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: WntColors.line),
+    ),
+    child: Row(
+      children: [
+        for (final item in [(true, activeLabel), (false, inactiveLabel)])
+          Expanded(
+            child: Material(
+              color: active == item.$1 ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(9),
+                onTap: () => onChanged(item.$1),
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      item.$2,
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: active == item.$1
+                            ? WntColors.brand
+                            : WntColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}

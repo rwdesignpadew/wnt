@@ -667,28 +667,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             ),
           ],
           const SizedBox(height: 18),
-          if (packages.isNotEmpty) ...[
-            _Section(
-              title: 'Pakiety',
-              child: Column(
-                children: [
-                  for (var index = 0; index < packages.length; index++) ...[
-                    _PackageRow(
-                      packageItem: packages[index],
-                      value: _packageQuantities[_int(packages[index]['id'])] ?? 0,
-                      onChanged: (value) => setState(
-                        () => _packageQuantities[
-                          _int(packages[index]['id'])
-                        ] = value,
-                      ),
-                    ),
-                    if (index < packages.length - 1) const Divider(),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
           _Section(
             title: 'Produkty',
             child: Column(
@@ -726,6 +704,28 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               ],
             ),
           ),
+          if (packages.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Pakiety',
+              child: Column(
+                children: [
+                  for (var index = 0; index < packages.length; index++) ...[
+                    _PackageRow(
+                      packageItem: packages[index],
+                      value: _packageQuantities[_int(packages[index]['id'])] ?? 0,
+                      onChanged: (value) => setState(
+                        () => _packageQuantities[
+                          _int(packages[index]['id'])
+                        ] = value,
+                      ),
+                    ),
+                    if (index < packages.length - 1) const Divider(),
+                  ],
+                ],
+              ),
+            ),
+          ],
           if (returnProducts.isNotEmpty) ...[
             const SizedBox(height: 14),
             _ReturnSection(

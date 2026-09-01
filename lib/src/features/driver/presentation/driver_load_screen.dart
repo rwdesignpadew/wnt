@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../application/driver_providers.dart';
+import '../domain/driver_product_classification.dart';
 
 class DriverLoadScreen extends ConsumerWidget {
   const DriverLoadScreen({super.key});
@@ -104,9 +105,11 @@ class _LoadStopCard extends StatelessWidget {
         ? (document['location'] as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
     final items = _list(document['items']).where((item) {
-      final name = item['product_name']?.toString().trim().toLowerCase() ?? '';
-      return _int(item['quantity']) > 0 && !name.contains('zwrot');
+      return _int(item['quantity']) > 0 && !isDriverReturnItem(item);
     }).toList();
+    final packages = _list(
+      document['packages'],
+    ).where((item) => _int(item['quantity']) > 0).toList();
     final address = (location['address'] ?? document['delivery_address'] ?? '')
         .toString();
     final locationName = location['name']?.toString();
@@ -146,8 +149,28 @@ class _LoadStopCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (items.isNotEmpty) ...[
+            if (packages.isNotEmpty || items.isNotEmpty) ...[
               const Divider(height: 18),
+              for (final package in packages)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${package['name'] ?? 'Pakiet'} x ${_int(package['quantity'])}',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      for (final component in _list(package['components']))
+                        Text(
+                          '${component['name'] ?? 'Produkt'}: ${_int(component['quantity']) * _int(package['quantity'])} szt.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
               for (final item in items)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),
