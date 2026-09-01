@@ -103,9 +103,10 @@ class _LoadStopCard extends StatelessWidget {
     final location = document['location'] is Map
         ? (document['location'] as Map).cast<String, dynamic>()
         : const <String, dynamic>{};
-    final items = _list(
-      document['items'],
-    ).where((item) => _int(item['quantity']) > 0).toList();
+    final items = _list(document['items']).where((item) {
+      final name = item['product_name']?.toString().trim().toLowerCase() ?? '';
+      return _int(item['quantity']) > 0 && !name.contains('zwrot');
+    }).toList();
     final address = (location['address'] ?? document['delivery_address'] ?? '')
         .toString();
     final locationName = location['name']?.toString();
