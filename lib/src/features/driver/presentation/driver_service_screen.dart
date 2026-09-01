@@ -1170,6 +1170,7 @@ int _returnAvailableQuantity(
 bool _isAlwaysVisibleReturn(Map<String, dynamic> product) {
   final kind = _returnKind(product);
   return kind == _ReturnKind.transporter ||
+      kind == _ReturnKind.smallBottle ||
       kind == _ReturnKind.gallon ||
       kind == _ReturnKind.damagedGallon;
 }
