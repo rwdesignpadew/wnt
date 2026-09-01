@@ -172,9 +172,11 @@ class DriverRouteScreen extends ConsumerWidget {
                     isNext:
                         '${data['next_document_id']}' ==
                         '${documents[index]['id']}',
-                    isSkipped: documents
-                        .skip(index + 1)
-                        .any((document) => document['status'] == 'completed'),
+                    isSkipped:
+                        !_isServed(documents[index]) &&
+                        documents
+                            .skip(index + 1)
+                            .any((document) => document['status'] == 'completed'),
                     canServeToday: _isToday(documents[index]['planned_at']),
                     onRefresh: () => ref.invalidate(driverRouteProvider),
                   ),
