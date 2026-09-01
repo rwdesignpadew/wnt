@@ -118,7 +118,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             _quantities[_int(product['id'])] ?? 0;
       }
     }
-    _restoreTransporterBottleCount();
+    if (widget.document['status']?.toString() != 'completed') {
+      _restoreTransporterBottleCount();
+    }
     final existingCash =
         double.tryParse('${widget.document['cash_collected'] ?? ''}') ?? 0;
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
