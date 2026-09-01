@@ -34,10 +34,7 @@ class DriverRouteScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text(
-                'Trasa',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+              Text('Trasa', style: Theme.of(context).textTheme.headlineSmall),
               if (routes.length > 1) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
@@ -259,6 +256,11 @@ class _StopCardState extends ConsumerState<_StopCard> {
         ? '$name - $locationName'
         : name;
     final navigationDestination = _documentDestination(widget.document);
+    final itemsToIssue = _list(widget.document['items']).where((item) {
+      final quantity = _int(item['quantity']);
+      final name = item['product_name']?.toString().trim().toLowerCase() ?? '';
+      return quantity > 0 && !name.startsWith('zwrot ');
+    }).toList();
     final background = completed
         ? WntColors.successSoft
         : missed
@@ -336,6 +338,53 @@ class _StopCardState extends ConsumerState<_StopCard> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: WntColors.line),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Do wydania',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  if (itemsToIssue.isEmpty)
+                    Text(
+                      'Brak zapisanych produktów',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
+                    )
+                  else
+                    for (final item in itemsToIssue)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item['product_name']?.toString() ?? 'Produkt',
+                              ),
+                            ),
+                            Text(
+                              '${_int(item['quantity'])} szt.',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
             ),
             if (completed) ...[
               const SizedBox(height: 12),
@@ -436,7 +485,9 @@ bool _isToday(dynamic value) {
   final date = DateTime.tryParse(value?.toString() ?? '');
   if (date == null) return false;
   final now = DateTime.now();
-  return date.year == now.year && date.month == now.month && date.day == now.day;
+  return date.year == now.year &&
+      date.month == now.month &&
+      date.day == now.day;
 }
 
 List<DriverNavigationDestination> _routeDestinations(
