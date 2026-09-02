@@ -254,7 +254,11 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final address = location?['address']?.toString().trim().isNotEmpty == true
         ? location!['address'].toString()
         : widget.document['delivery_address']?.toString() ?? '';
-    final phone = client['phone']?.toString() ?? '';
+    final phone = location?['phone']?.toString().trim().isNotEmpty == true
+        ? location!['phone'].toString()
+        : client['phone']?.toString() ?? '';
+    final callAndAsk = widget.document['call_and_ask'] == true ||
+        widget.document['call_and_ask'] == 1;
     final name = client['name']?.toString() ?? 'Klient';
     final title = locationName?.isNotEmpty == true
         ? '$name - $locationName'
@@ -404,6 +408,45 @@ class _StopCardState extends ConsumerState<_StopCard> {
                             ),
                           ],
                         ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            if (callAndAsk) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7E6),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.phone_in_talk_outlined, color: Color(0xFFB45309)),
+                    const SizedBox(width: 9),
+                    const Expanded(
+                      child: Text(
+                        'Zadzwoń i zapytaj, czy klient potrzebuje wody',
+                        style: TextStyle(
+                          color: Color(0xFF92400E),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (phone.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Zadzwoń',
+                        color: const Color(0xFFB45309),
+                        onPressed: () async {
+                          final normalized = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+                          if (normalized.isNotEmpty) {
+                            await launchUrl(Uri(scheme: 'tel', path: normalized));
+                          }
+                        },
+                        icon: const Icon(Icons.call),
                       ),
                   ],
                 ),
