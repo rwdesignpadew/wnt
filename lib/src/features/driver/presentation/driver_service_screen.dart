@@ -131,6 +131,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final existingCash =
         double.tryParse('${widget.document['cash_collected'] ?? ''}') ?? 0;
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
+    _notes.text = widget.document['notes']?.toString().trim() ?? '';
     _signedBy.text = widget.document['signed_by']?.toString().trim() ?? '';
     _sanitization = _map(widget.document['sanitization']);
   }
@@ -785,33 +786,35 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ],
           if (_sanitization != null) ...[
             const SizedBox(height: 14),
-            if (!_showSanitization)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => setState(() => _showSanitization = true),
-                  icon: const Icon(Icons.cleaning_services_outlined),
-                  label: const Text('Wykonaj sanityzację'),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() {
+                  _showSanitization = !_showSanitization;
+                  if (!_showSanitization) {
+                    _completedSanitizationUnits.clear();
+                    _sanitizationNotes.clear();
+                  }
+                }),
+                icon: Icon(
+                  _showSanitization
+                      ? Icons.keyboard_arrow_up
+                      : Icons.cleaning_services_outlined,
                 ),
-              )
-            else
+                label: Text(
+                  _showSanitization
+                      ? 'Zwiń sanityzację'
+                      : 'Wykonaj sanityzację',
+                ),
+              ),
+            ),
+            if (_showSanitization) ...[
+              const SizedBox(height: 10),
               _Section(
                 title: 'Sanityzacja dystrybutorów',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => setState(() {
-                          _showSanitization = false;
-                          _completedSanitizationUnits.clear();
-                          _sanitizationNotes.clear();
-                        }),
-                        icon: const Icon(Icons.expand_less),
-                        label: const Text('Ukryj'),
-                      ),
-                    ),
                     Text(
                       'Do wykonania: ${_int(_sanitization!['dispenser_count'])} szt.',
                       style: const TextStyle(fontWeight: FontWeight.w700),
@@ -894,6 +897,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   ],
                 ),
               ),
+            ],
           ],
           if (rentals.isNotEmpty) ...[
             const SizedBox(height: 14),
@@ -902,11 +906,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               child: OutlinedButton.icon(
                 onPressed: () =>
                     setState(() => _showRentalReturns = !_showRentalReturns),
-                icon: Icon(_showRentalReturns ? Icons.expand_less : Icons.undo),
+                icon: Icon(
+                  _showRentalReturns
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                ),
                 label: Text(
                   _showRentalReturns
-                      ? 'Ukryj zwrot sprzętu z dzierżawy'
-                      : 'Zwróć sprzęt z dzierżawy',
+                      ? 'Zwiń zwrot sprzętu z dzierżawy'
+                      : 'Rozwiń zwrot sprzętu z dzierżawy',
                 ),
               ),
             ),
@@ -1111,7 +1119,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     onTapOutside: (_) => FocusScope.of(context).unfocus(),
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Uwagi'),
+                    decoration: const InputDecoration(
+                      labelText: 'Uwagi do WZ',
+                      hintText: 'Np. numer magazynu lub informacja dla odbiorcy',
+                    ),
                   ),
                 ],
               ),
