@@ -415,6 +415,53 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     }
   }
 
+  Future<void> _emailDocument(Map<String, dynamic> document) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Wysłać dokument do klienta?'),
+        content: Text(
+          '${document['title'] ?? 'Dokument'} zostanie wysłany zgodnie z ustawieniami odbiorców przypisanymi do klienta i lokalizacji.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.send_outlined),
+            label: const Text('Wyślij'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final id = _int(document['id']);
+    setState(() => _busy = id);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final message = await ref
+          .read(adminRepositoryProvider)
+          .emailDocument(token, id);
+      await _refreshDocuments();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => ref
       .watch(adminDocumentsProvider)
@@ -522,6 +569,18 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                         : Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if ((document['type'] == 'wz' ||
+                                      document['type'] == 'pz') &&
+                                  document['source'] != 'fakturownia' &&
+                                  _int(document['id']) > 0)
+                                IconButton(
+                                  tooltip: 'Wyślij dokument do klienta',
+                                  onPressed: () => _emailDocument(document),
+                                  icon: const Icon(
+                                    Icons.send_outlined,
+                                    color: WntColors.brand,
+                                  ),
+                                ),
                               if (document['can_send_to_ksef'] == true)
                                 IconButton(
                                   tooltip: 'Wyślij do KSeF',

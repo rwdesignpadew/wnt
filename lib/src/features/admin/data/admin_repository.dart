@@ -239,6 +239,15 @@ class AdminRepository {
       );
   Future<Map<String, dynamic>> sendInvoiceToKsef(String token, int id) =>
       _api.post('/mobile/admin/external-documents/$id/ksef', token: token);
+  Future<String> emailDocument(String token, int id) async {
+    final response = await _api.post(
+      '/mobile/driver/documents/$id/email',
+      token: token,
+    );
+    return response['message']?.toString() ??
+        'Dokument został wysłany do klienta.';
+  }
+
   Future<List<Map<String, dynamic>>> products(String token) async =>
       _items(await _api.get('/mobile/admin/products', token: token));
   Future<Map<String, dynamic>> product(String token, int id) =>
