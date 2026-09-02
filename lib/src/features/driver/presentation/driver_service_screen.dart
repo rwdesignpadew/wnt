@@ -518,8 +518,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final recurringInvoice = client['recurring_invoice_enabled'] == true;
     final isCompany = widget.document['is_company'] == true;
     final useGross = isCompany || recurringInvoice || _customerRequestsInvoice;
-    final hideCompanyTransferSettlement =
-        isCompany && _paymentMethod == 'transfer';
+    final hideTransferPrices = _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
     final returnAvailability =
         _map(widget.document['return_availability']) ?? const {};
@@ -695,7 +694,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     value: _quantities[_int(visible[index]['id'])] ?? 0,
                     netUnitPrice: _productPrice(visible[index]),
                     useGross: useGross,
-                    showPrices: !hideCompanyTransferSettlement,
+                    showPrices: !hideTransferPrices,
                     onChanged: (value) => setState(
                       () => _quantities[_int(visible[index]['id'])] = value,
                     ),
@@ -986,30 +985,19 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               ),
             ],
           ],
-          if (!hideCompanyTransferSettlement) ...[
+          if (!hideTransferPrices) ...[
             const SizedBox(height: 14),
             _Section(
               title: 'Rozliczenie',
               child: Column(
                 children: [
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'transfer',
-                        label: Text('Przelew'),
-                        icon: Icon(Icons.account_balance_outlined),
-                      ),
-                      ButtonSegment(
-                        value: 'cash',
-                        label: Text('Gotówka'),
-                        icon: Icon(Icons.payments_outlined),
-                      ),
-                    ],
-                    selected: {_paymentMethod},
-                    onSelectionChanged: (value) =>
-                        setState(() => _paymentMethod = value.first),
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.payments_outlined),
+                    title: Text('Gotówka'),
+                    subtitle: Text('Metoda płatności ustawiona dla klienta'),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
                   if (!isCompany && !recurringInvoice)
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1121,7 +1109,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     maxLines: 4,
                     decoration: const InputDecoration(
                       labelText: 'Uwagi do WZ',
-                      hintText: 'Np. numer magazynu lub informacja dla odbiorcy',
+                      hintText:
+                          'Np. numer magazynu lub informacja dla odbiorcy',
                     ),
                   ),
                 ],
