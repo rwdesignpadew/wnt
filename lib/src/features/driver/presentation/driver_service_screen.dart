@@ -743,14 +743,25 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               onChanged: (product, value) {
                 setState(() {
                   final id = _int(product['id']);
-                  final safeValue = value.clamp(
-                    0,
-                    _returnMaximum(product, returnAvailability),
-                  );
+                  final returnKind = _returnKind(product);
+                  final maximum = returnKind == _ReturnKind.damagedGallon
+                      ? returnProducts
+                            .where(
+                              (candidate) =>
+                                  _returnKind(candidate) == _ReturnKind.gallon,
+                            )
+                            .fold<int>(
+                              0,
+                              (sum, candidate) =>
+                                  sum +
+                                  (_returnQuantities[_int(candidate['id'])] ??
+                                      0),
+                            )
+                      : _returnMaximum(product, returnAvailability);
+                  final safeValue = value.clamp(0, maximum);
                   _returnQuantities[id] = safeValue;
                   _quantities[id] = safeValue;
-                  if (_returnKind(product) == _ReturnKind.gallon &&
-                      safeValue == 0) {
+                  if (returnKind == _ReturnKind.gallon && safeValue == 0) {
                     final damaged = _productForReturnKind(
                       _ReturnKind.damagedGallon,
                     );
@@ -760,10 +771,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       _quantities[damagedId] = 0;
                     }
                   }
-                  if (_returnKind(product) == _ReturnKind.damagedGallon) {
+                  if (returnKind == _ReturnKind.damagedGallon) {
                     _quantities[id] = safeValue;
                   }
-                  if (_returnKind(product) == _ReturnKind.transporter) {
+                  if (returnKind == _ReturnKind.transporter) {
                     Map<String, dynamic>? bottles;
                     for (final candidate in returnProducts) {
                       if (_returnKind(candidate) == _ReturnKind.smallBottle) {
@@ -775,8 +786,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       _returnQuantities[_int(bottles['id'])] = safeValue * 24;
                     }
                   }
-                  if (_returnKind(product) == _ReturnKind.transporter ||
-                      _returnKind(product) == _ReturnKind.smallBottle) {
+                  if (returnKind == _ReturnKind.transporter ||
+                      returnKind == _ReturnKind.smallBottle) {
                     _syncTransporterBottleReturn();
                   }
                 });
@@ -1327,7 +1338,9 @@ class _ReturnSection extends StatelessWidget {
             _ReturnRow(
               product: ordered[index],
               value: quantities[_int(ordered[index]['id'])] ?? 0,
-              maximum: _returnMaximum(ordered[index], availability),
+              maximum: _returnKind(ordered[index]) == _ReturnKind.damagedGallon
+                  ? gallonReturn
+                  : _returnMaximum(ordered[index], availability),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),
