@@ -6,7 +6,7 @@ on:
       app_version:
         description: App Store version
         required: true
-        default: 1.0.1
+        default: 1.0.2
       build_number:
         description: Processed TestFlight build number
         required: true
