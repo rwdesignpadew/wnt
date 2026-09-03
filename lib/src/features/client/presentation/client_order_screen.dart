@@ -231,7 +231,14 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
         final tracking = trackingResponse?['tracking'] is Map
             ? (trackingResponse!['tracking'] as Map).cast<String, dynamic>()
             : null;
-        _locationId ??= _defaultLocation(locations);
+        final availableLocationIds = locations
+            .map((location) => _int(location['id']))
+            .where((id) => id > 0)
+            .toSet();
+        if (_locationId == null ||
+            !availableLocationIds.contains(_locationId)) {
+          _locationId = _defaultLocation(locations);
+        }
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(clientHomeProvider),
           child: ListView(
@@ -255,6 +262,32 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
               ),
               if (_showOrderForm) ...[
                 const SizedBox(height: 16),
+                if (locations.isNotEmpty) ...[
+                  DropdownButtonFormField<int>(
+                    initialValue: _locationId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Lokalizacja zamawiająca',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                    items: locations
+                        .map(
+                          (location) => DropdownMenuItem<int>(
+                            value: _int(location['id']),
+                            child: Text(
+                              _locationLabel(location),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _locationId = value),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 Text(
                   'Wybierz produkty i ich ilości.',
                   style: Theme.of(
@@ -478,4 +511,12 @@ int? _defaultLocation(List<Map<String, dynamic>> locations) {
     orElse: () => locations.first,
   );
   return _int(selected['id']);
+}
+
+String _locationLabel(Map<String, dynamic> location) {
+  final name = location['name']?.toString().trim() ?? '';
+  final address = location['address']?.toString().trim() ?? '';
+  if (name.isEmpty) return address.isEmpty ? 'Lokalizacja' : address;
+  if (address.isEmpty || address == name) return name;
+  return '$name - $address';
 }
