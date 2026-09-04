@@ -13,6 +13,7 @@ import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/driver_providers.dart';
+import '../domain/driver_product_classification.dart';
 import 'driver_navigation_screen.dart';
 
 class DriverServiceScreen extends ConsumerStatefulWidget {
@@ -566,7 +567,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final allReturnProducts = widget.products
         .where(
           (product) =>
-              !_isRentalEquipment(product) &&
+              !isDriverRentalEquipment(product) &&
               (_isReturnProduct(product) ||
                   _returnKind(product) == _ReturnKind.smallBottleDeposit),
         )
@@ -1245,6 +1246,10 @@ enum _ReturnKind {
 
 _ReturnKind _returnKind(Map<String, dynamic> product) {
   final name = _normalizedProductName(product);
+  // "Dystrybutor" contains the letters "but". Checking only that fragment
+  // classified every dispenser as a small-bottle return and removed it from
+  // both the sales list and the rental-return section.
+  if (isDriverRentalEquipment(product)) return _ReturnKind.other;
   if (name.contains('kauc') && name.contains('but')) {
     return _ReturnKind.smallBottleDeposit;
   }
@@ -1261,7 +1266,11 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
   if (name.contains('18,9') || name.contains('18.9')) {
     return _ReturnKind.gallon;
   }
-  if (name.contains('but')) return _ReturnKind.smallBottle;
+  if (name.contains('butel') ||
+      name.startsWith('butla') ||
+      name.contains(' butla')) {
+    return _ReturnKind.smallBottle;
+  }
   return _ReturnKind.other;
 }
 
@@ -1273,13 +1282,6 @@ bool _isReturnProduct(Map<String, dynamic> product) =>
     (_normalizedProductName(product).contains('zwrot') &&
         (_normalizedProductName(product).contains('but') ||
             _normalizedProductName(product).contains('transporter')));
-
-bool _isRentalEquipment(Map<String, dynamic> product) {
-  final name = _normalizedProductName(product);
-  return name.contains('pompk') ||
-      name.contains('stojak') ||
-      name.contains('dystrybutor');
-}
 
 bool _isRackName(Object? value) =>
     value?.toString().trim().toLowerCase().contains('rega') == true;

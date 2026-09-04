@@ -41,5 +41,17 @@ void main() {
         expect(isDriverReturnItem({'product_name': name}), isFalse);
       }
     });
+
+    test('does not classify distributors as bottle returns', () {
+      for (final name in [
+        'Dystrybutor wody',
+        'Dystrybutor nablatowy',
+        'Dystrybutor wody GAZUJĄCY',
+      ]) {
+        final product = {'product_name': name};
+        expect(isDriverRentalEquipment(product), isTrue);
+        expect(isDriverReturnItem(product), isFalse);
+      }
+    });
   });
 }
