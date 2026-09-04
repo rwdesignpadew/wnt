@@ -599,7 +599,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final remaining = saleProducts
         .where((product) => !primary.contains(product))
         .toList();
-    final productPool = [...primary, ...remaining];
+    final productPool = _showAll || primary.isEmpty
+        ? [...primary, ...remaining]
+        : primary;
     final visible = productPool
         .where(
           (product) => '${product['name']}'.toLowerCase().contains(
@@ -738,7 +740,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   ),
                   if (index < visible.length - 1) const Divider(),
                 ],
-                if (!_showAll && remaining.isNotEmpty)
+                if (!_showAll && primary.isNotEmpty && remaining.isNotEmpty)
                   TextButton.icon(
                     onPressed: () => setState(() => _showAll = true),
                     icon: const Icon(Icons.expand_more),
