@@ -75,8 +75,11 @@ jobs:
         run: |
           IPA_PATH=$(find build/ios/ipa -name '*.ipa' -print -quit)
           test -n "$IPA_PATH"
-          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool-validate.log"
+          ! grep -qE 'VALIDATION FAILED|Validation failed|ERROR:' "$RUNNER_TEMP/altool-validate.log"
+          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool-upload.log"
+          ! grep -qE 'UPLOAD FAILED|Validation failed|ERROR:|Failed to upload' "$RUNNER_TEMP/altool-upload.log"
+          grep -q 'No errors uploading' "$RUNNER_TEMP/altool-upload.log"
 
       - name: Upload signed IPA artifact
         uses: actions/upload-artifact@v4
