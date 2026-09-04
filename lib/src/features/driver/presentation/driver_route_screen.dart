@@ -259,6 +259,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
         : client['phone']?.toString() ?? '';
     final callAndAsk = widget.document['call_and_ask'] == true ||
         widget.document['call_and_ask'] == 1;
+    final driverNote = widget.document['driver_note']?.toString().trim() ?? '';
     final name = client['name']?.toString() ?? 'Klient';
     final title = locationName?.isNotEmpty == true
         ? '$name - $locationName'
@@ -448,6 +449,44 @@ class _StopCardState extends ConsumerState<_StopCard> {
                         },
                         icon: const Icon(Icons.call),
                       ),
+                  ],
+                ),
+              ),
+            ],
+            if (driverNote.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF3B82F6)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xFF1D4ED8)),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Uwaga dla kierowcy',
+                            style: TextStyle(
+                              color: Color(0xFF1E3A8A),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            driverNote,
+                            style: const TextStyle(color: Color(0xFF1E3A8A)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

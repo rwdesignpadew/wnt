@@ -212,6 +212,8 @@ class _AdminDriverStatisticsScreenState
                 );
               },
             ),
+            const SizedBox(height: 16),
+            _StatisticsBreakdownCard(stats: stats),
             if (_driverId == null && breakdown.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text(
@@ -458,5 +460,181 @@ class _StatCard extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+class _StatisticsBreakdownCard extends StatelessWidget {
+  const _StatisticsBreakdownCard({required this.stats});
+
+  final Map<String, dynamic> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final customers = (stats['customers'] as num?)?.toInt() ?? 0;
+    final value = (stats['value'] as num?)?.toDouble() ?? 0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Klienci i płatności',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Podział zakończonych WZ w wybranym okresie.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            _BreakdownRow(
+              label: 'Obsłużeni klienci',
+              value: '$customers',
+              details: customers > 0
+                  ? 'średnio ${_AdminDriverStatisticsScreenState._number(value / customers, 2)} zł na klienta'
+                  : 'średnio 0,00 zł na klienta',
+            ),
+            _BreakdownRow(
+              label: 'Firmy',
+              value: '${stats['company_customers'] ?? 0}',
+              details: _detailsFor('company'),
+            ),
+            _BreakdownRow(
+              label: 'Osoby prywatne',
+              value: '${stats['private_customers'] ?? 0}',
+              details: _detailsFor('private'),
+            ),
+            _BreakdownRow(
+              label: 'Gotówka',
+              value:
+                  '${_AdminDriverStatisticsScreenState._number(stats['cash_value'], 2)} zł',
+              details:
+                  '${stats['cash_documents'] ?? 0} WZ · pobrano ${_AdminDriverStatisticsScreenState._number(stats['cash'], 2)} zł',
+            ),
+            _BreakdownRow(
+              label: 'Przelew',
+              value:
+                  '${_AdminDriverStatisticsScreenState._number(stats['transfer_value'], 2)} zł',
+              details: '${stats['transfer_documents'] ?? 0} WZ',
+            ),
+            const SizedBox(height: 12),
+            _ProductBreakdown(
+              title: 'Co kupiły firmy',
+              items: stats['company_products'],
+            ),
+            const SizedBox(height: 12),
+            _ProductBreakdown(
+              title: 'Co kupiły osoby prywatne',
+              items: stats['private_products'],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _detailsFor(String type) {
+    final format = _AdminDriverStatisticsScreenState._number;
+    return 'Razem ${format(stats['${type}_value'], 2)} zł\n'
+        'Gotówka: ${format(stats['${type}_cash_value'], 2)} zł '
+        '(${stats['${type}_cash_documents'] ?? 0} WZ)\n'
+        'Przelew: ${format(stats['${type}_transfer_value'], 2)} zł '
+        '(${stats['${type}_transfer_documents'] ?? 0} WZ)';
+  }
+}
+
+class _ProductBreakdown extends StatelessWidget {
+  const _ProductBreakdown({required this.title, required this.items});
+
+  final String title;
+  final dynamic items;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = items is List
+        ? (items as List).whereType<Map>().toList(growable: false)
+        : const <Map>[];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          if (rows.isEmpty)
+            Text(
+              'Brak sprzedaży w tym okresie.',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          else
+            ...rows.map(
+              (item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item['name']?.toString() ?? 'Produkt'),
+                    Text(
+                      '${_AdminDriverStatisticsScreenState._number(item['quantity'], 2)} szt. · '
+                      '${_AdminDriverStatisticsScreenState._number(item['value'], 2)} zł · '
+                      'gotówka ${_AdminDriverStatisticsScreenState._number(item['cash_value'], 2)} zł · '
+                      'przelew ${_AdminDriverStatisticsScreenState._number(item['transfer_value'], 2)} zł',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  const _BreakdownRow({
+    required this.label,
+    required this.value,
+    required this.details,
+  });
+
+  final String label;
+  final String value;
+  final String details;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(details, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+      const Divider(height: 1),
+    ],
   );
 }
