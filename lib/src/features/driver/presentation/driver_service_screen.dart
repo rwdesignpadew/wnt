@@ -274,6 +274,16 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       final savedDocument = _map(response['document']) ?? widget.document;
       final documentId = _int(savedDocument['id'] ?? widget.document['id']);
       final number = savedDocument['number']?.toString() ?? 'WZ';
+      final plannedRecipients =
+          (savedDocument['email_recipients_planned'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .toList();
+      final recipientText = plannedRecipients.isEmpty
+          ? 'Nie wybrano adresu e-mail'
+          : plannedRecipients.join(', ');
+      final hasReturnPz = savedDocument['has_return_pz'] == true;
       final pdf = await ref
           .read(driverRepositoryProvider)
           .documentPdf(token, documentId);
@@ -295,6 +305,33 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: WntColors.brand.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'WZ: $recipientText',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          if (hasReturnPz) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'PZ: $recipientText',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextButton.icon(
                       onPressed: () =>
                           Navigator.of(reviewContext).pop('cancel'),
@@ -546,10 +583,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         .where(
           (product) =>
               !_isReturnProduct(product) &&
-              _returnKind(product) != _ReturnKind.smallBottleDeposit &&
-              !_isRack(product),
+              _returnKind(product) != _ReturnKind.smallBottleDeposit,
         )
         .toList();
+    // The API already limits this collection to products explicitly enabled
+    // for the driver. Client assignments affect ordering only and must never
+    // hide a product selected by an administrator.
     final primary = saleProducts
         .where(
           (product) =>
@@ -560,9 +599,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final remaining = saleProducts
         .where((product) => !primary.contains(product))
         .toList();
-    final productPool = _showAll || _productQuery.isNotEmpty
-        ? [...primary, ...remaining]
-        : primary;
+    final productPool = [...primary, ...remaining];
     final visible = productPool
         .where(
           (product) => '${product['name']}'.toLowerCase().contains(
@@ -1199,6 +1236,7 @@ enum _ReturnKind {
   smallBottleDeposit,
   euroPallet,
   gallon,
+  co2Bottle,
   damagedGallon,
   other,
 }
@@ -1210,6 +1248,9 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
   }
   if (name.contains('uszk') && name.contains('butl')) {
     return _ReturnKind.damagedGallon;
+  }
+  if (name.contains('zwrot') && name.contains('co2') && name.contains('butl')) {
+    return _ReturnKind.co2Bottle;
   }
   if (name.contains('transporter')) return _ReturnKind.transporter;
   if (name.contains('palet') && name.contains('euro')) {
@@ -1238,8 +1279,6 @@ bool _isRentalEquipment(Map<String, dynamic> product) {
       name.contains('dystrybutor');
 }
 
-bool _isRack(Map<String, dynamic> product) => _isRackName(product['name']);
-
 bool _isRackName(Object? value) =>
     value?.toString().trim().toLowerCase().contains('rega') == true;
 
@@ -1252,6 +1291,7 @@ int _returnAvailableQuantity(
     _ReturnKind.smallBottle => 'smallBottle',
     _ReturnKind.euroPallet => 'euroPallet',
     _ReturnKind.gallon || _ReturnKind.damagedGallon => 'bottle189',
+    _ReturnKind.co2Bottle => 'co2Bottle',
     _ => '',
   };
   return key.isEmpty ? 0 : _int(availability[key]);
@@ -1379,6 +1419,7 @@ class _ReturnRow extends StatelessWidget {
       _ReturnKind.smallBottleDeposit => 'Kaucja za brakujące butelki',
       _ReturnKind.euroPallet => 'Palety EURO',
       _ReturnKind.gallon => 'Butle 18,9 l',
+      _ReturnKind.co2Bottle => 'Butle CO2',
       _ReturnKind.damagedGallon => 'Uszkodzone butle 18,9 l',
       _ReturnKind.other => product['name']?.toString() ?? 'Zwrot',
     };

@@ -127,10 +127,33 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
                               title: Text(
                                 documents[index]['number'].toString(),
                               ),
-                              subtitle: Text(
-                                (_map(documents[index]['client'])?['name'] ??
-                                        '')
-                                    .toString(),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    (_map(
+                                              documents[index]['client'],
+                                            )?['name'] ??
+                                            '')
+                                        .toString(),
+                                  ),
+                                  Text(
+                                    '${documents[index]['email_sent_at'] ?? ''}'
+                                            .trim()
+                                            .isNotEmpty
+                                        ? 'Wysłano: ${(documents[index]['email_recipients'] as List<dynamic>? ?? const <dynamic>[]).join(', ')}'
+                                        : 'Nie wysłano',
+                                    style: TextStyle(
+                                      color:
+                                          '${documents[index]['email_sent_at'] ?? ''}'
+                                              .trim()
+                                              .isNotEmpty
+                                          ? Colors.green.shade700
+                                          : WntColors.error,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
                               ),
                               trailing: _busyId == _int(documents[index]['id'])
                                   ? const SizedBox.square(

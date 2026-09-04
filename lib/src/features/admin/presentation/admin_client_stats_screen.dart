@@ -479,6 +479,7 @@ class _AdminClientStatsScreenState
         runSpacing: 10,
         children: [
           _Metric('Butle 18,9 l', _number(totals['bottles_189_balance'])),
+          _Metric('Butle CO2', _number(totals['co2_bottles_balance'])),
           _Metric('Transportery', _number(totals['transporters_balance'])),
           if (_double(totals['euro_pallets_balance']) > 0)
             _Metric('Palety EURO', _number(totals['euro_pallets_balance'])),

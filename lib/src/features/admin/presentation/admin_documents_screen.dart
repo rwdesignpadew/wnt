@@ -553,13 +553,36 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                           ? document['title'].toString()
                           : 'Dokument bez numeru',
                     ),
-                    subtitle: Text(
-                      '${document['type'] == 'invoice'
-                          ? 'Faktura VAT'
-                          : document['type'] == 'pz'
-                          ? 'PZ'
-                          : 'WZ'} · '
-                      '${document['display_date'] ?? ''} · ${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${document['type'] == 'invoice'
+                              ? 'Faktura VAT'
+                              : document['type'] == 'pz'
+                              ? 'PZ'
+                              : 'WZ'} · '
+                          '${document['display_date'] ?? ''} · ${document['subtitle'] ?? ''} · ${document['meta'] ?? ''}',
+                        ),
+                        if (document['type'] == 'wz' ||
+                            document['type'] == 'pz')
+                          Text(
+                            '${document['email_sent_at'] ?? ''}'
+                                    .trim()
+                                    .isNotEmpty
+                                ? 'Wysłano: ${(document['email_recipients'] as List<dynamic>? ?? const <dynamic>[]).join(', ')}'
+                                : 'Nie wysłano',
+                            style: TextStyle(
+                              color:
+                                  '${document['email_sent_at'] ?? ''}'
+                                      .trim()
+                                      .isNotEmpty
+                                  ? Colors.green.shade700
+                                  : WntColors.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
                     ),
                     trailing: _busy == _int(document['id'])
                         ? const SizedBox.square(
