@@ -582,6 +582,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         .where(
           (product) =>
               _isAlwaysVisibleReturn(product) ||
+              _returnKind(product) == _ReturnKind.co2Bottle ||
               _returnKind(product) == _ReturnKind.damagedGallon ||
               _returnAvailableQuantity(product, returnAvailability) > 0,
         )
@@ -1325,7 +1326,10 @@ int _returnMaximum(
   Map<String, dynamic> product,
   Map<String, dynamic> availability,
 ) {
-  if (_isAlwaysVisibleReturn(product)) return 9999;
+  if (_isAlwaysVisibleReturn(product) ||
+      _returnKind(product) == _ReturnKind.co2Bottle) {
+    return 9999;
+  }
   return _returnAvailableQuantity(product, availability);
 }
 
