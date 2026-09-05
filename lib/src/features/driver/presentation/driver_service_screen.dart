@@ -1253,6 +1253,12 @@ enum _ReturnKind {
 
 _ReturnKind _returnKind(Map<String, dynamic> product) {
   final name = _normalizedProductName(product);
+  // CO2 exchange is a sale/service selected for the driver, not a returned
+  // container. It must remain in the product catalog even though its name
+  // starts with "Butla".
+  if (name.contains('co2') && name.contains('wymian')) {
+    return _ReturnKind.other;
+  }
   // "Dystrybutor" contains the letters "but". Checking only that fragment
   // classified every dispenser as a small-bottle return and removed it from
   // both the sales list and the rental-return section.
