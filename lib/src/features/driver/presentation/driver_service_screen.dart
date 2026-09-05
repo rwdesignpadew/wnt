@@ -561,11 +561,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final returnAvailability =
         _map(widget.document['return_availability']) ?? const {};
     // Products assigned by the administrator to this exact client location.
-    // `available_product_ids` is kept only as a compatibility fallback for
-    // older API responses; it must not be confused with the driver's catalog.
+    // Only products assigned to this exact location belong in the initial
+    // section. The driver's remaining catalog is revealed explicitly below.
     final assignedIds = _intSet(
-      widget.document['client_assigned_product_ids'] ??
-          widget.document['available_product_ids'],
+      widget.document['client_assigned_product_ids'],
     );
     final itemsIds = _list(
       widget.document['items'],
