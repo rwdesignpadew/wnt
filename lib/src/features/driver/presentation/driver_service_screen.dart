@@ -606,9 +606,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final remaining = saleProducts
         .where((product) => !primary.contains(product))
         .toList();
-    final productPool = _showAll || primary.isEmpty
-        ? [...primary, ...remaining]
-        : primary;
+    // Never expand the driver's entire catalog automatically. Products
+    // assigned to this client/location are shown first; the rest of the
+    // catalog enabled for the driver requires an explicit action.
+    final productPool = _showAll ? [...primary, ...remaining] : primary;
     final visible = productPool
         .where(
           (product) => '${product['name']}'.toLowerCase().contains(
@@ -747,12 +748,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   ),
                   if (index < visible.length - 1) const Divider(),
                 ],
-                if (!_showAll && primary.isNotEmpty && remaining.isNotEmpty)
+                if (!_showAll && remaining.isNotEmpty)
                   TextButton.icon(
                     onPressed: () => setState(() => _showAll = true),
                     icon: const Icon(Icons.expand_more),
                     label: Text(
-                      'Pokaż wszystkie produkty (${remaining.length})',
+                      'Pokaż więcej produktów (${remaining.length})',
                     ),
                   ),
               ],
