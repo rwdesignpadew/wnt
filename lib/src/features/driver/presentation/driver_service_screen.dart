@@ -132,7 +132,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final existingCash =
         double.tryParse('${widget.document['cash_collected'] ?? ''}') ?? 0;
     if (existingCash > 0) _cash.text = existingCash.toStringAsFixed(2);
-    _notes.text = widget.document['notes']?.toString().trim() ?? '';
+    // Uwagi wpisane podczas obsługi są jednorazowe. Przy kolejnej obsłudze
+    // dokument ma startować z pustym polem; istniejące uwagi wczytujemy tylko
+    // podczas edycji już wystawionego WZ.
+    _notes.text = widget.document['status']?.toString() == 'completed'
+        ? widget.document['notes']?.toString().trim() ?? ''
+        : '';
     _signedBy.text = widget.document['signed_by']?.toString().trim() ?? '';
     _sanitization = _map(widget.document['sanitization']);
   }
@@ -154,11 +159,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     if (task == null || _completedSanitizationUnits.isEmpty) return;
     setState(() => _savingSanitization = true);
     try {
-      final token = ref.read(authControllerProvider).session!.token;
+      final session = ref.read(authControllerProvider).session!;
       final response = await ref
           .read(driverRepositoryProvider)
           .completeSanitization(
-            token: token,
+            token: session.token,
+            userId: session.user.id,
             documentId: _int(widget.document['id']),
             sanitizationId: _int(task['id']),
             completedDispenserCount: _completedSanitizationUnits.length,
@@ -243,11 +249,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     }
     setState(() => _saving = true);
     try {
-      final token = ref.read(authControllerProvider).session!.token;
+      final session = ref.read(authControllerProvider).session!;
+      final token = session.token;
       final response = await ref
           .read(driverRepositoryProvider)
           .complete(
             token: token,
+            userId: session.user.id,
             documentId: _int(widget.document['id']),
             quantities: _quantities,
             packageQuantities: _packageQuantities,
@@ -272,6 +280,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       if (!mounted) return;
       ref.invalidate(driverRouteProvider);
       widget.document['status'] = 'completed';
+      if (response['queued_offline'] == true) {
+        widget.document['offline_sync_status'] = 'pending';
+        _message(
+          response['message']?.toString() ??
+              'Obsługa zapisana offline. Zostanie wysłana po odzyskaniu internetu.',
+        );
+        Navigator.of(context).pop(true);
+        return;
+      }
       final savedDocument = _map(response['document']) ?? widget.document;
       final documentId = _int(savedDocument['id'] ?? widget.document['id']);
       final number = savedDocument['number']?.toString() ?? 'WZ';
@@ -563,9 +580,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     // Products assigned by the administrator to this exact client location.
     // Only products assigned to this exact location belong in the initial
     // section. The driver's remaining catalog is revealed explicitly below.
-    final assignedIds = _intSet(
-      widget.document['client_assigned_product_ids'],
-    );
+    final assignedIds = _intSet(widget.document['client_assigned_product_ids']);
     final itemsIds = _list(
       widget.document['items'],
     ).map((e) => _int(e['product_id'])).toSet();
@@ -630,7 +645,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ? '$clientName - $locationName'
         : clientName;
     final totalNet =
-        widget.products.fold<double>(0, (sum, product) {
+        widget.products.where(_isBillableProduct).fold<double>(0, (
+          sum,
+          product,
+        ) {
           return sum +
               (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
         }) +
@@ -642,7 +660,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
         );
     final total =
-        widget.products.fold<double>(0, (sum, product) {
+        widget.products.where(_isBillableProduct).fold<double>(0, (
+          sum,
+          product,
+        ) {
           return sum +
               (_quantities[_int(product['id'])] ?? 0) *
                   _productGrossPrice(product);
@@ -752,9 +773,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   TextButton.icon(
                     onPressed: () => setState(() => _showAll = true),
                     icon: const Icon(Icons.expand_more),
-                    label: Text(
-                      'Pokaż więcej produktów (${remaining.length})',
-                    ),
+                    label: Text('Pokaż więcej produktów (${remaining.length})'),
                   ),
               ],
             ),
@@ -1295,6 +1314,18 @@ bool _isReturnProduct(Map<String, dynamic> product) =>
     (_normalizedProductName(product).contains('zwrot') &&
         (_normalizedProductName(product).contains('but') ||
             _normalizedProductName(product).contains('transporter')));
+
+// Zwroty opakowań i sprzętu tworzą PZ i nie zwiększają kwoty pobieranej od
+// klienta. Płatne pozostają wyłącznie kaucje za brakujące opakowania oraz
+// opłaty za uszkodzone butle.
+bool _isBillableProduct(Map<String, dynamic> product) {
+  final kind = _returnKind(product);
+  if (kind == _ReturnKind.smallBottleDeposit ||
+      kind == _ReturnKind.damagedGallon) {
+    return true;
+  }
+  return !_isReturnProduct(product);
+}
 
 bool _isRackName(Object? value) =>
     value?.toString().trim().toLowerCase().contains('rega') == true;
