@@ -164,7 +164,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           .read(driverRepositoryProvider)
           .completeSanitization(
             token: session.token,
-            userId: session.user.id,
             documentId: _int(widget.document['id']),
             sanitizationId: _int(task['id']),
             completedDispenserCount: _completedSanitizationUnits.length,
@@ -255,7 +254,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           .read(driverRepositoryProvider)
           .complete(
             token: token,
-            userId: session.user.id,
             documentId: _int(widget.document['id']),
             quantities: _quantities,
             packageQuantities: _packageQuantities,
