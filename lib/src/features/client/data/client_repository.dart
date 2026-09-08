@@ -39,6 +39,13 @@ class ClientRepository {
     );
   }
 
+  Future<ApiDownload> documentPreview(String token, int id) {
+    return _api.download(
+      '/mobile/client/documents/$id/preview?type=pz',
+      token: token,
+    );
+  }
+
   Future<ApiDownload> externalDocumentPdf(String token, int id) {
     return _api.download(
       '/mobile/client/external-documents/$id/fakturownia',

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
+import '../../documents/presentation/html_document_screen.dart';
 import '../application/client_providers.dart';
 
 class ClientDocumentsScreen extends ConsumerStatefulWidget {
@@ -32,9 +34,27 @@ class _ClientDocumentsScreenState extends ConsumerState<ClientDocumentsScreen> {
     try {
       final token = ref.read(authControllerProvider).session!.token;
       final repository = ref.read(clientRepositoryProvider);
-      final download = document['source'] == 'fakturownia'
+      final type = (document['type'] ?? document['kind'] ?? '')
+          .toString()
+          .toLowerCase();
+      final download =
+          !save && type == 'pz' && document['source'] != 'fakturownia'
+          ? await repository.documentPreview(token, id)
+          : document['source'] == 'fakturownia'
           ? await repository.externalDocumentPdf(token, id)
           : await repository.documentPdf(token, id);
+      if (!save && download.contentType.contains('text/html')) {
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HtmlDocumentScreen(
+              html: utf8.decode(download.bytes),
+              title: document['number']?.toString() ?? 'PZ',
+            ),
+          ),
+        );
+        return;
+      }
       final directory = save
           ? (await getExternalStorageDirectory() ??
                 await getApplicationDocumentsDirectory())

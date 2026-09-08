@@ -323,6 +323,12 @@ class DriverRepository {
     }
   }
 
+  Future<ApiDownload> documentPreview(String token, int documentId) =>
+      _api.download(
+        '/mobile/driver/documents/$documentId/preview?type=pz',
+        token: token,
+      );
+
   Future<String> emailDocument(String token, int documentId) async {
     final response = await _api.post(
       '/mobile/driver/documents/$documentId/email',

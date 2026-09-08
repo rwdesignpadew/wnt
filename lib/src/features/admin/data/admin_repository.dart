@@ -232,6 +232,10 @@ class AdminRepository {
       _api.delete('/mobile/admin/external-documents/$id', token: token);
   Future<ApiDownload> documentPdf(String token, int id) =>
       _api.download('/mobile/admin/documents/$id/fakturownia', token: token);
+  Future<ApiDownload> documentPreview(String token, int id) => _api.download(
+    '/mobile/admin/documents/$id/preview?type=pz',
+    token: token,
+  );
   Future<ApiDownload> externalDocumentPdf(String token, int id) =>
       _api.download(
         '/mobile/admin/external-documents/$id/fakturownia',

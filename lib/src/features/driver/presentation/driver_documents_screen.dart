@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
+import '../../documents/presentation/html_document_screen.dart';
 import '../application/driver_providers.dart';
 import 'driver_service_screen.dart';
 
@@ -26,9 +28,25 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
     setState(() => _busyId = id);
     try {
       final token = ref.read(authControllerProvider).session!.token;
-      final pdf = await ref
-          .read(driverRepositoryProvider)
-          .documentPdf(token, id);
+      final type = (document['type'] ?? document['kind'] ?? '')
+          .toString()
+          .toLowerCase();
+      final repository = ref.read(driverRepositoryProvider);
+      final pdf = type == 'pz'
+          ? await repository.documentPreview(token, id)
+          : await repository.documentPdf(token, id);
+      if (pdf.contentType.contains('text/html')) {
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => HtmlDocumentScreen(
+              html: utf8.decode(pdf.bytes),
+              title: document['number']?.toString() ?? 'PZ',
+            ),
+          ),
+        );
+        return;
+      }
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}${Platform.pathSeparator}WZ-$id.pdf');
       await file.writeAsBytes(pdf.bytes, flush: true);

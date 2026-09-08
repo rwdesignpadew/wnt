@@ -303,7 +303,12 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     try {
       final token = ref.read(authControllerProvider).session!.token;
       final repository = ref.read(adminRepositoryProvider);
-      final pdf = document['source'] == 'fakturownia'
+      final type = (document['type'] ?? document['kind'] ?? '')
+          .toString()
+          .toLowerCase();
+      final pdf = type == 'pz' && document['source'] != 'fakturownia'
+          ? await repository.documentPreview(token, id)
+          : document['source'] == 'fakturownia'
           ? await repository.externalDocumentPdf(token, id)
           : await repository.documentPdf(token, id);
       if (pdf.contentType.contains('text/html')) {
