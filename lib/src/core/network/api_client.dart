@@ -103,22 +103,24 @@ class ApiClient {
             },
           )
           .timeout(AppConfig.requestTimeout);
-      final contentType = response.headers['content-type'] ?? '';
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _exception(
           _decodeJson(response.bodyBytes, response.statusCode),
           response.statusCode,
         );
       }
-      final isPdf = contentType.contains('pdf');
-      final isHtml = contentType.contains('text/html');
+      // Some document endpoints/proxies return a generic or incorrect
+      // Content-Type. Detect the actual payload so an HTML PZ preview is not
+      // passed to the PDF viewer as raw source.
+      final isPdf = _hasPdfSignature(response.bodyBytes);
+      final isHtml = _looksLikeDocumentHtml(response.bodyBytes);
       if (!isPdf && !isHtml) {
         throw const ApiException('Serwer nie zwrócił prawidłowego pliku PDF.');
       }
       if (isHtml) {
         return ApiDownload(
           bytes: response.bodyBytes,
-          contentType: contentType,
+          contentType: 'text/html; charset=utf-8',
           filename: _filename(response.headers['content-disposition']),
         );
       }
@@ -134,7 +136,7 @@ class ApiClient {
       }
       return ApiDownload(
         bytes: response.bodyBytes,
-        contentType: contentType,
+        contentType: 'application/pdf',
         filename: _filename(response.headers['content-disposition']),
       );
     } on TimeoutException {
@@ -149,6 +151,36 @@ class ApiClient {
     'Content-Type': 'application/json; charset=utf-8',
     if (token != null) 'Authorization': 'Bearer $token',
   };
+
+  bool _hasPdfSignature(Uint8List bytes) {
+    const signature = [0x25, 0x50, 0x44, 0x46];
+    return bytes.length >= signature.length &&
+        List.generate(
+          signature.length,
+          (index) => bytes[index] == signature[index],
+        ).every((matches) => matches);
+  }
+
+  bool _looksLikeDocumentHtml(Uint8List bytes) {
+    if (bytes.isEmpty) return false;
+    final sample = utf8
+        .decode(bytes.take(128 * 1024).toList(), allowMalformed: true)
+        .replaceFirst('\ufeff', '')
+        .trimLeft()
+        .toLowerCase();
+    final isHtml =
+        sample.startsWith('<!doctype html') ||
+        sample.startsWith('<html') ||
+        sample.contains('<body');
+    if (!isHtml) return false;
+
+    // Accept only our printable WZ/PZ view. A login/error page is also HTML,
+    // but must never be displayed as a document in the mobile application.
+    return sample.contains('id="invoicedocument"') ||
+        (sample.contains('class="invoice-shell"') &&
+            (sample.contains('wydanie zewnętrzne') ||
+                sample.contains('przyjęcie zewnętrzne')));
+  }
 
   Uri _uri(String path, [Map<String, String>? query]) {
     final normalized = path.startsWith('/') ? path : '/$path';

@@ -50,6 +50,27 @@ void main() {
     );
   });
 
+  test('przyjmuje firmowy podgląd PZ mimo błędnego typu PDF', () async {
+    const html = '''<!DOCTYPE html>
+<html><body><div class="invoice-shell" id="invoiceShell">
+<main class="invoice" id="invoiceDocument">
+<h1>Przyjęcie zewnętrzne (PZ) Nr PZ109</h1>
+</main></div></body></html>''';
+    final client = ApiClient(
+      client: MockClient(
+        (_) async => http.Response.bytes(
+          utf8.encode(html),
+          200,
+          headers: {'content-type': 'application/pdf'},
+        ),
+      ),
+    );
+
+    final download = await client.download('/document', token: 'token');
+    expect(download.contentType, startsWith('text/html'));
+    expect(utf8.decode(download.bytes), contains('invoiceDocument'));
+  });
+
   test('przyjmuje prawidłową sygnaturę PDF', () async {
     final client = ApiClient(
       client: MockClient(

@@ -10,7 +10,9 @@ import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
 import '../../documents/presentation/html_document_screen.dart';
+import '../../driver/application/driver_providers.dart';
 import '../../driver/presentation/driver_manual_wz_screen.dart';
+import '../../driver/presentation/driver_service_screen.dart';
 import '../application/admin_providers.dart';
 
 class AdminDocumentsScreen extends ConsumerStatefulWidget {
@@ -91,6 +93,44 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       MaterialPageRoute(builder: (_) => const DriverManualWzScreen()),
     );
     if (saved == true && mounted) await _refreshDocuments();
+  }
+
+  Future<void> _correctWz(Map<String, dynamic> document) async {
+    final documentId = _int(document['id']);
+    if (documentId < 1) return;
+    setState(() => _busy = documentId);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(driverRepositoryProvider)
+          .serviceDocument(token, documentId);
+      if (!mounted) return;
+      final rawDocument = response['document'];
+      final rawProducts = response['products'];
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DriverServiceScreen(
+            document: rawDocument is Map
+                ? rawDocument.cast<String, dynamic>()
+                : const <String, dynamic>{},
+            products: rawProducts is List
+                ? rawProducts
+                      .whereType<Map>()
+                      .map((item) => item.cast<String, dynamic>())
+                      .toList()
+                : const <Map<String, dynamic>>[],
+          ),
+        ),
+      );
+      if (mounted) await _refreshDocuments();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
   }
 
   Future<void> _selectInvoiceDocument(
@@ -625,18 +665,30 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                     : () => _open(document),
                                 icon: const Icon(Icons.visibility_outlined),
                               ),
-                              if (document['can_invoice'] == true ||
+                              if ((document['source'] == 'local' &&
+                                      document['type'] == 'wz' &&
+                                      _int(document['id']) > 0) ||
+                                  document['can_invoice'] == true ||
                                   document['can_delete'] == true)
                                 PopupMenuButton<String>(
                                   tooltip: 'Więcej działań',
                                   onSelected: (action) {
                                     if (action == 'invoice') {
                                       _invoice(document);
+                                    } else if (action == 'correct') {
+                                      _correctWz(document);
                                     } else if (action == 'delete') {
                                       _delete(document);
                                     }
                                   },
                                   itemBuilder: (_) => [
+                                    if (document['source'] == 'local' &&
+                                        document['type'] == 'wz' &&
+                                        _int(document['id']) > 0)
+                                      const PopupMenuItem(
+                                        value: 'correct',
+                                        child: Text('Koryguj WZ'),
+                                      ),
                                     if (document['can_invoice'] == true)
                                       const PopupMenuItem(
                                         value: 'invoice',
