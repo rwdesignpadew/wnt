@@ -164,6 +164,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           .read(driverRepositoryProvider)
           .completeSanitization(
             token: session.token,
+            userId: session.user.id,
             documentId: _int(widget.document['id']),
             sanitizationId: _int(task['id']),
             completedDispenserCount: _completedSanitizationUnits.length,
@@ -254,6 +255,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           .read(driverRepositoryProvider)
           .complete(
             token: token,
+            userId: session.user.id,
             documentId: _int(widget.document['id']),
             quantities: _quantities,
             packageQuantities: _packageQuantities,
@@ -682,6 +684,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final remainingDue = (priceToPay - balance).clamp(0, double.infinity);
     final received = double.tryParse(_cash.text.replaceAll(',', '.')) ?? 0;
     final difference = received - remainingDue;
+    final balanceAfterSettlement = balance + received - priceToPay;
 
     return Scaffold(
       appBar: AppBar(
@@ -1147,6 +1150,47 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                             : 'Rozliczono w całości',
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: WntColors.brandSoft,
+                        border: Border.all(
+                          color: WntColors.brand.withValues(alpha: 0.18),
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SettlementRow(
+                            label: 'Wartość produktów',
+                            value: '${priceToPay.toStringAsFixed(2)} zł',
+                          ),
+                          const SizedBox(height: 6),
+                          _SettlementRow(
+                            label: 'Pobrano gotówkę',
+                            value: '${received.toStringAsFixed(2)} zł',
+                          ),
+                          const Divider(height: 18),
+                          _SettlementRow(
+                            label: 'Saldo po rozliczeniu',
+                            value: balanceAfterSettlement > 0.005
+                                ? '+${balanceAfterSettlement.toStringAsFixed(2)} zł nadpłaty'
+                                : balanceAfterSettlement < -0.005
+                                ? '${balanceAfterSettlement.toStringAsFixed(2)} zł zaległości'
+                                : '0,00 zł',
+                            emphasize: true,
+                            color: balanceAfterSettlement > 0.005
+                                ? WntColors.success
+                                : balanceAfterSettlement < -0.005
+                                ? WntColors.error
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 12),
                   Container(
@@ -1384,6 +1428,39 @@ List<Map<String, dynamic>> _returnProductsForDisplay(
     }
   }
   return [...grouped.values, ...other];
+}
+
+class _SettlementRow extends StatelessWidget {
+  const _SettlementRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
+      color: color,
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Text(label, style: style)),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(value, textAlign: TextAlign.right, style: style),
+        ),
+      ],
+    );
+  }
 }
 
 class _ReturnSection extends StatelessWidget {

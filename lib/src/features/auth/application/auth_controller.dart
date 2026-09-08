@@ -61,7 +61,13 @@ class AuthController extends StateNotifier<AuthState> {
     state = session == null
         ? const AuthState.signedOut()
         : AuthState.signedIn(session);
-    if (session != null) await _push.register(session.token);
+    if (session != null) {
+      try {
+        await _push.register(session.token);
+      } catch (_) {
+        // Push registration is retried later and must not block offline login.
+      }
+    }
   }
 
   Future<bool> login(String email, String password) async {

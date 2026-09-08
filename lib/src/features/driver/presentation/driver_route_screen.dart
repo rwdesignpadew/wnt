@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,15 +8,48 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/driver_providers.dart';
+import '../domain/driver_product_classification.dart';
 import 'driver_service_screen.dart';
 import 'driver_navigation_screen.dart';
 import 'driver_manual_wz_screen.dart';
 
-class DriverRouteScreen extends ConsumerWidget {
+class DriverRouteScreen extends ConsumerStatefulWidget {
   const DriverRouteScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DriverRouteScreen> createState() => _DriverRouteScreenState();
+}
+
+class _DriverRouteScreenState extends ConsumerState<DriverRouteScreen>
+    with WidgetsBindingObserver {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) ref.invalidate(driverRouteProvider);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(driverRouteProvider);
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(authControllerProvider).session!;
     final route = ref.watch(driverRouteProvider);
     return route.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -23,6 +58,9 @@ class DriverRouteScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(driverRouteProvider),
       ),
       data: (data) {
+        final offline = data['_offline'] == true;
+        final pendingOperations = _int(data['_pending_operations']);
+        final syncError = data['_sync_error']?.toString();
         final documents = _list(data['documents']);
         final products = _list(data['products']);
         final routes = _list(data['routes']);
@@ -35,6 +73,62 @@ class DriverRouteScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               Text('Trasa', style: Theme.of(context).textTheme.headlineSmall),
+              if (offline || pendingOperations > 0) ...[
+                const SizedBox(height: 10),
+                Material(
+                  color: offline
+                      ? const Color(0xfffff3cd)
+                      : WntColors.successSoft,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          offline ? Icons.cloud_off : Icons.cloud_upload,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            offline
+                                ? 'Tryb offline. Operacje oczekujące: $pendingOperations'
+                                : 'Operacje oczekujące na synchronizację: $pendingOperations',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Synchronizuj',
+                          onPressed: () async {
+                            await ref
+                                .read(driverRepositoryProvider)
+                                .retryBlocked(session.user.id);
+                            ref.invalidate(driverRouteProvider);
+                          },
+                          icon: const Icon(Icons.sync),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (syncError != null && syncError.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Material(
+                  color: const Color(0xffffe8e8),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Nie udało się zsynchronizować: $syncError',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
               if (routes.length > 1) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
@@ -101,13 +195,16 @@ class DriverRouteScreen extends ConsumerWidget {
                           : () async {
                               final routeId = _int(selected?['id']);
                               if (routeId > 0) {
-                                final token = ref
+                                final session = ref
                                     .read(authControllerProvider)
-                                    .session!
-                                    .token;
+                                    .session!;
                                 await ref
                                     .read(driverRepositoryProvider)
-                                    .startRoute(token, routeId);
+                                    .startRoute(
+                                      session.token,
+                                      routeId,
+                                      userId: session.user.id,
+                                    );
                                 if (!context.mounted) return;
                               }
                               final activeCount = documents
@@ -221,10 +318,14 @@ class _StopCardState extends ConsumerState<_StopCard> {
   Future<void> _missed() async {
     setState(() => _busy = true);
     try {
-      final token = ref.read(authControllerProvider).session!.token;
+      final session = ref.read(authControllerProvider).session!;
       final message = await ref
           .read(driverRepositoryProvider)
-          .markMissed(token, _int(widget.document['id']));
+          .markMissed(
+            session.token,
+            _int(widget.document['id']),
+            userId: session.user.id,
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -257,7 +358,8 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final phone = location?['phone']?.toString().trim().isNotEmpty == true
         ? location!['phone'].toString()
         : client['phone']?.toString() ?? '';
-    final callAndAsk = widget.document['call_and_ask'] == true ||
+    final callAndAsk =
+        widget.document['call_and_ask'] == true ||
         widget.document['call_and_ask'] == 1;
     final driverNote = widget.document['driver_note']?.toString().trim() ?? '';
     final name = client['name']?.toString() ?? 'Klient';
@@ -267,8 +369,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final navigationDestination = _documentDestination(widget.document);
     final itemsToIssue = _list(widget.document['items']).where((item) {
       final quantity = _int(item['quantity']);
-      final name = item['product_name']?.toString().trim().toLowerCase() ?? '';
-      return quantity > 0 && !name.startsWith('zwrot ');
+      return quantity > 0 && !isDriverReturnItem(item);
     }).toList();
     final packagesToIssue = _list(
       widget.document['packages'],
@@ -418,7 +519,10 @@ class _StopCardState extends ConsumerState<_StopCard> {
               const SizedBox(height: 10),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7E6),
                   borderRadius: BorderRadius.circular(8),
@@ -426,7 +530,10 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.phone_in_talk_outlined, color: Color(0xFFB45309)),
+                    const Icon(
+                      Icons.phone_in_talk_outlined,
+                      color: Color(0xFFB45309),
+                    ),
                     const SizedBox(width: 9),
                     const Expanded(
                       child: Text(
@@ -442,9 +549,14 @@ class _StopCardState extends ConsumerState<_StopCard> {
                         tooltip: 'Zadzwoń',
                         color: const Color(0xFFB45309),
                         onPressed: () async {
-                          final normalized = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+                          final normalized = phone.replaceAll(
+                            RegExp(r'[^0-9+]'),
+                            '',
+                          );
                           if (normalized.isNotEmpty) {
-                            await launchUrl(Uri(scheme: 'tel', path: normalized));
+                            await launchUrl(
+                              Uri(scheme: 'tel', path: normalized),
+                            );
                           }
                         },
                         icon: const Icon(Icons.call),
@@ -457,7 +569,10 @@ class _StopCardState extends ConsumerState<_StopCard> {
               const SizedBox(height: 10),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(8),

@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/storage/session_store.dart';
 import '../domain/app_session.dart';
 
@@ -19,6 +20,12 @@ class AuthRepository {
       final session = AppSession(token: saved.token, user: user);
       await _store.write(session);
       return session;
+    } on ApiException catch (error) {
+      // No network is not an authentication failure. Keep the last verified
+      // session so the driver can open the cached route and work offline.
+      if (error.statusCode == null) return saved;
+      await _store.clear();
+      return null;
     } catch (_) {
       await _store.clear();
       return null;

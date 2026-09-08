@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -83,6 +84,8 @@ class ApiClient {
       return decoded;
     } on TimeoutException {
       throw const ApiException('Serwer nie odpowiedział w wymaganym czasie.');
+    } on SocketException {
+      throw const ApiException('Brak połączenia z serwerem Woda na telefon.');
     } on http.ClientException {
       throw const ApiException('Brak połączenia z serwerem Woda na telefon.');
     }
