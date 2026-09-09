@@ -17,7 +17,12 @@ class AuthRepository {
       final user = AppUser.fromJson(
         (response['user'] as Map).cast<String, dynamic>(),
       );
-      final session = AppSession(token: saved.token, user: user);
+      final session = AppSession(
+        token: saved.token,
+        user: user,
+        adminToken: saved.adminToken,
+        adminUser: saved.adminUser,
+      );
       await _store.write(session);
       return session;
     } on ApiException catch (error) {
@@ -92,6 +97,37 @@ class AuthRepository {
     } finally {
       await _store.clear();
     }
+  }
+
+  Future<AppSession> switchToDriver(
+    AppSession adminSession,
+    int driverId,
+  ) async {
+    final response = await _api.post(
+      '/mobile/admin/switch-to-driver/$driverId',
+      token: adminSession.token,
+    );
+    final driverSession = _sessionFromResponse(response);
+    final session = AppSession(
+      token: driverSession.token,
+      user: driverSession.user,
+      adminToken: adminSession.adminToken ?? adminSession.token,
+      adminUser: adminSession.adminUser ?? adminSession.user,
+    );
+    await _store.write(session);
+    return session;
+  }
+
+  Future<AppSession> switchToAdmin(AppSession driverSession) async {
+    if (!driverSession.canReturnToAdmin) {
+      throw const FormatException('Brak zapisanej sesji administratora.');
+    }
+    final session = AppSession(
+      token: driverSession.adminToken!,
+      user: driverSession.adminUser!,
+    );
+    await _store.write(session);
+    return session;
   }
 
   AppSession _sessionFromResponse(Map<String, dynamic> response) {

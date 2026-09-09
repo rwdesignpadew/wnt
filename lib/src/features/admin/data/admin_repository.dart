@@ -268,6 +268,45 @@ class AdminRepository {
   Future<Map<String, dynamic>> deleteProduct(String token, int id) =>
       _api.delete('/mobile/admin/products/$id', token: token);
 
+  Future<Map<String, dynamic>> balances(String token) =>
+      _api.get('/mobile/admin/balances', token: token);
+  Future<Map<String, dynamic>> updateBalance(
+    String token,
+    int clientId,
+    String type,
+    double amount,
+    String reason,
+  ) => _api.post(
+    '/mobile/admin/balances/$clientId',
+    token: token,
+    body: {'balance_type': type, 'amount': amount, 'reason': reason},
+  );
+  Future<Map<String, dynamic>> rentals(String token) =>
+      _api.get('/mobile/admin/rentals', token: token);
+  Future<Map<String, dynamic>> routeNotes(
+    String token, {
+    int? routeId,
+  }) => _api.get(
+    '/mobile/admin/route-notes${routeId == null ? '' : '?route_id=$routeId'}',
+    token: token,
+  );
+  Future<Map<String, dynamic>> saveRouteNote(
+    String token, {
+    required int routeId,
+    required int clientId,
+    int? locationId,
+    required String note,
+  }) => _api.post(
+    '/mobile/admin/route-notes',
+    token: token,
+    body: {
+      'delivery_route_id': routeId,
+      'client_id': clientId,
+      'client_location_id': locationId,
+      'note': note,
+    },
+  );
+
   static List<Map<String, dynamic>> _items(
     Map<String, dynamic> response, {
     String key = 'items',

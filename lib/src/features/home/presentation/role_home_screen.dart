@@ -101,7 +101,9 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
           if (session.user.role == UserRole.admin)
             _AdminNotificationsAction(
               unreadCount: _int(
-                ref.watch(adminNotificationsProvider).valueOrNull?['unread_count'],
+                ref
+                    .watch(adminNotificationsProvider)
+                    .valueOrNull?['unread_count'],
               ),
             ),
           IconButton(
@@ -218,9 +220,9 @@ class _AdminNotificationsAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     tooltip: 'Powiadomienia',
-    onPressed: () => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AdminNotificationsScreen()),
-    ),
+    onPressed: () => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AdminNotificationsScreen())),
     icon: Badge(
       isLabelVisible: unreadCount > 0,
       label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
@@ -235,7 +237,8 @@ class _DriverAccountScreen extends ConsumerWidget {
   const _DriverAccountScreen();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authControllerProvider).session!.user;
+    final session = ref.watch(authControllerProvider).session!;
+    final user = session.user;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -252,6 +255,15 @@ class _DriverAccountScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (session.canReturnToAdmin) ...[
+          FilledButton.icon(
+            onPressed: () =>
+                ref.read(authControllerProvider.notifier).switchToAdmin(),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            label: const Text('Wróć do trybu administratora'),
+          ),
+          const SizedBox(height: 12),
+        ],
         OutlinedButton.icon(
           onPressed: () => ref.read(authControllerProvider.notifier).logout(),
           icon: const Icon(Icons.logout_outlined),

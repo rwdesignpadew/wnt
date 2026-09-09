@@ -35,3 +35,15 @@ final adminDocumentsProvider = FutureProvider<List<Map<String, dynamic>>>(
 final adminProductsProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(adminRepositoryProvider).products(_token(ref)),
 );
+final adminBalancesProvider = FutureProvider<Map<String, dynamic>>(
+  (ref) => ref.watch(adminRepositoryProvider).balances(_token(ref)),
+);
+final adminRentalsProvider = FutureProvider<Map<String, dynamic>>(
+  (ref) => ref.watch(adminRepositoryProvider).rentals(_token(ref)),
+);
+final adminRouteNotesProvider =
+    FutureProvider.family<Map<String, dynamic>, int?>(
+      (ref, routeId) => ref
+          .watch(adminRepositoryProvider)
+          .routeNotes(_token(ref), routeId: routeId),
+    );

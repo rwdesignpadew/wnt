@@ -117,6 +117,38 @@ class AuthController extends StateNotifier<AuthState> {
   Future<String> recoverPassword(String email) =>
       _repository.recoverPassword(email);
 
+  Future<bool> switchToDriver(int driverId) async {
+    final session = state.session;
+    if (session == null || session.user.role != UserRole.admin) return false;
+    state = state.copyWith(busy: true, clearError: true);
+    try {
+      await _push.unregister(session.token);
+      final switched = await _repository.switchToDriver(session, driverId);
+      state = AuthState.signedIn(switched);
+      await _push.register(switched.token);
+      return true;
+    } catch (error) {
+      state = AuthState.signedIn(session).copyWith(error: error.toString());
+      return false;
+    }
+  }
+
+  Future<bool> switchToAdmin() async {
+    final session = state.session;
+    if (session == null || !session.canReturnToAdmin) return false;
+    state = state.copyWith(busy: true, clearError: true);
+    try {
+      await _push.unregister(session.token);
+      final switched = await _repository.switchToAdmin(session);
+      state = AuthState.signedIn(switched);
+      await _push.register(switched.token);
+      return true;
+    } catch (error) {
+      state = AuthState.signedIn(session).copyWith(error: error.toString());
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     final session = state.session;
     try {

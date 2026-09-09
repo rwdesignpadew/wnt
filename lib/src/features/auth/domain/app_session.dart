@@ -50,15 +50,37 @@ class AppUser {
 }
 
 class AppSession {
-  const AppSession({required this.token, required this.user});
+  const AppSession({
+    required this.token,
+    required this.user,
+    this.adminToken,
+    this.adminUser,
+  });
 
   factory AppSession.fromJson(Map<String, dynamic> json) => AppSession(
     token: json['token']?.toString() ?? '',
     user: AppUser.fromJson((json['user'] as Map).cast<String, dynamic>()),
+    adminToken: json['admin_token']?.toString(),
+    adminUser: json['admin_user'] is Map
+        ? AppUser.fromJson((json['admin_user'] as Map).cast<String, dynamic>())
+        : null,
   );
 
   final String token;
   final AppUser user;
+  final String? adminToken;
+  final AppUser? adminUser;
 
-  Map<String, dynamic> toJson() => {'token': token, 'user': user.toJson()};
+  bool get canReturnToAdmin =>
+      user.role == UserRole.driver &&
+      adminToken != null &&
+      adminToken!.isNotEmpty &&
+      adminUser?.role == UserRole.admin;
+
+  Map<String, dynamic> toJson() => {
+    'token': token,
+    'user': user.toJson(),
+    if (adminToken != null) 'admin_token': adminToken,
+    if (adminUser != null) 'admin_user': adminUser!.toJson(),
+  };
 }

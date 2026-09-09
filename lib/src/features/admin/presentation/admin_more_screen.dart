@@ -10,6 +10,7 @@ import 'admin_clients_screen.dart';
 import 'admin_administrators_screen.dart';
 import 'admin_driver_statistics_screen.dart';
 import 'admin_settings_edit_screen.dart';
+import 'admin_management_screens.dart';
 
 class AdminMoreScreen extends ConsumerWidget {
   const AdminMoreScreen({super.key});
@@ -22,6 +23,54 @@ class AdminMoreScreen extends ConsumerWidget {
       Card(
         child: Column(
           children: [
+            ListTile(
+              leading: const Icon(
+                Icons.account_balance_wallet_outlined,
+                color: WntColors.brand,
+              ),
+              title: const Text('Salda klientów'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminBalancesScreen()),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(
+                Icons.water_drop_outlined,
+                color: WntColors.brand,
+              ),
+              title: const Text('Dzierżawy'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminRentalsScreen()),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(
+                Icons.sticky_note_2_outlined,
+                color: WntColors.brand,
+              ),
+              title: const Text('Uwagi do tras'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AdminRouteNotesScreen(),
+                ),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(
+                Icons.local_shipping_outlined,
+                color: WntColors.brand,
+              ),
+              title: const Text('Przełącz na tryb kierowcy'),
+              trailing: const Icon(Icons.swap_horiz),
+              onTap: () => _selectDriverMode(context, ref),
+            ),
+            const Divider(),
             if (ref
                 .watch(authControllerProvider)
                 .session!
@@ -142,6 +191,38 @@ class AdminMoreScreen extends ConsumerWidget {
       ),
     ],
   );
+}
+
+Future<void> _selectDriverMode(BuildContext context, WidgetRef ref) async {
+  final data = await ref.read(adminOperationsProvider.future);
+  if (!context.mounted) return;
+  final drivers = data['drivers'] is List
+      ? (data['drivers'] as List).whereType<Map>().toList()
+      : const <Map>[];
+  final id = await showModalBottomSheet<int>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          const ListTile(title: Text('Wybierz konto kierowcy')),
+          ...drivers.map(
+            (driver) => ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: Text('${driver['title'] ?? ''}'),
+              subtitle: Text('${driver['subtitle'] ?? ''}'),
+              onTap: () =>
+                  Navigator.pop(context, int.tryParse('${driver['id']}')),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (id != null) {
+    await ref.read(authControllerProvider.notifier).switchToDriver(id);
+  }
 }
 
 PreferredSizeWidget _adminNestedHeader(
@@ -1194,15 +1275,15 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.icon(
-                  onPressed: saving ? null : _save,
-                  icon: saving
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_outlined),
-                  label: const Text('Zapisz obsługę zamówienia'),
-                ),
+                      onPressed: saving ? null : _save,
+                      icon: saving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: const Text('Zapisz obsługę zamówienia'),
+                    ),
                   ),
                 ],
               ),
