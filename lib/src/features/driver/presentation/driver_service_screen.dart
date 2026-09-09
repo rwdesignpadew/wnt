@@ -863,6 +863,52 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ],
           if (_sanitization != null) ...[
             const SizedBox(height: 14),
+            Builder(
+              builder: (context) {
+                final sanitation = _sanitization!;
+                final overdue = sanitation['is_overdue'] == true ||
+                    '${sanitation['status']}' == 'overdue';
+                final onRequest = sanitation['is_on_request'] == true;
+                final accent = overdue ? WntColors.danger : WntColors.warning;
+                final scheduled = '${sanitation['scheduled_date'] ?? ''}'.trim();
+                final locationNotes =
+                    '${sanitation['location_notes'] ?? ''}'.trim();
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .10),
+                    border: Border.all(color: accent.withValues(alpha: .45)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        onRequest
+                            ? 'Sanityzacja na życzenie'
+                            : overdue
+                                ? 'Sanityzacja po terminie'
+                                : 'Sanityzacja do wykonania',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${_int(sanitation['dispenser_count'])} szt.${scheduled.isEmpty ? '' : ' · termin $scheduled'}',
+                      ),
+                      if (locationNotes.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(locationNotes),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
