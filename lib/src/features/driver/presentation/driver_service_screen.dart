@@ -869,7 +869,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 final overdue = sanitation['is_overdue'] == true ||
                     '${sanitation['status']}' == 'overdue';
                 final onRequest = sanitation['is_on_request'] == true;
-                final accent = overdue ? WntColors.danger : WntColors.warning;
+                final accent = overdue ? WntColors.error : WntColors.warning;
                 final scheduled = '${sanitation['scheduled_date'] ?? ''}'.trim();
                 final locationNotes =
                     '${sanitation['location_notes'] ?? ''}'.trim();
