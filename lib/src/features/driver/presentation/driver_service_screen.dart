@@ -49,7 +49,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
-  bool _savingSanitization = false;
   bool _showSanitization = false;
   Map<String, dynamic>? _sanitization;
   final Set<int> _completedSanitizationUnits = {};
@@ -154,35 +153,6 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     super.dispose();
   }
 
-  Future<void> _saveSanitization() async {
-    final task = _sanitization;
-    if (task == null || _completedSanitizationUnits.isEmpty) return;
-    setState(() => _savingSanitization = true);
-    try {
-      final session = ref.read(authControllerProvider).session!;
-      final response = await ref
-          .read(driverRepositoryProvider)
-          .completeSanitization(
-            token: session.token,
-            userId: session.user.id,
-            documentId: _int(widget.document['id']),
-            sanitizationId: _int(task['id']),
-            completedDispenserCount: _completedSanitizationUnits.length,
-            intervalDays: _int(task['next_interval_days']) == 0
-                ? 180
-                : _int(task['next_interval_days']),
-            resultNotes: _sanitizationNotes.text.trim(),
-          );
-      if (!mounted) return;
-      setState(() => _sanitization = null);
-      _message(response['message']?.toString() ?? 'Sanityzacja zapisana.');
-    } catch (error) {
-      if (mounted) _message('$error', error: true);
-    } finally {
-      if (mounted) setState(() => _savingSanitization = false);
-    }
-  }
-
   void _restoreTransporterBottleCount() {
     final transporter = _productForReturnKind(_ReturnKind.transporter);
     final bottles = _productForReturnKind(_ReturnKind.smallBottle);
@@ -239,6 +209,25 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   Future<void> _save() async {
+    final sanitization = _sanitization;
+    final sanitizationSelected = _showSanitization && sanitization != null;
+    if (sanitizationSelected && _completedSanitizationUnits.isEmpty) {
+      _message('Wybierz wykonane dystrybutory do sanityzacji.', error: true);
+      return;
+    }
+    final sanitizationId = sanitizationSelected
+        ? _int(sanitization['id'])
+        : null;
+    final sanitizationCount = sanitizationSelected
+        ? _completedSanitizationUnits.length
+        : null;
+    final configuredInterval = sanitizationSelected
+        ? _int(sanitization['next_interval_days'])
+        : 0;
+    final sanitizationInterval = sanitizationSelected
+        ? (configuredInterval == 0 ? 180 : configuredInterval)
+        : null;
+
     if (_signedBy.text.trim().isEmpty) {
       _message('Wpisz imię i nazwisko osoby odbierającej.', error: true);
       return;
@@ -280,6 +269,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         customerRequestsInvoice: _customerRequestsInvoice,
         correction: correction,
         rentalReturns: rentalReturns,
+        sanitizationSelected: sanitizationSelected,
+        sanitizationId: sanitizationId,
+        sanitizationCompletedDispenserCount: sanitizationCount,
+        sanitizationNextIntervalDays: sanitizationInterval,
+        sanitizationResultNotes: sanitizationSelected
+            ? _sanitizationNotes.text.trim()
+            : null,
         type: type,
       );
 
@@ -460,6 +456,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         customerRequestsInvoice: _customerRequestsInvoice,
         correction: correction,
         rentalReturns: rentalReturns,
+        sanitizationSelected: sanitizationSelected,
+        sanitizationId: sanitizationId,
+        sanitizationCompletedDispenserCount: sanitizationCount,
+        sanitizationNextIntervalDays: sanitizationInterval,
+        sanitizationResultNotes: sanitizationSelected
+            ? _sanitizationNotes.text.trim()
+            : null,
       );
       if (!mounted) return;
       ref.invalidate(driverRouteProvider);
@@ -1103,20 +1106,16 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
+                    Container(
                       width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed:
-                            _savingSanitization ||
-                                _completedSanitizationUnits.isEmpty
-                            ? null
-                            : _saveSanitization,
-                        icon: const Icon(Icons.cleaning_services_outlined),
-                        label: Text(
-                          _savingSanitization
-                              ? 'Zapisywanie...'
-                              : 'Zapisz sanityzację',
-                        ),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: WntColors.brand.withValues(alpha: .08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Sanityzacja zostanie dodana do tego samego WZ po naciśnięciu „Generuj WZ i sprawdź”.',
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],

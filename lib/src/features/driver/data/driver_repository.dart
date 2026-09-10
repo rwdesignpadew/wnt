@@ -162,6 +162,11 @@ class DriverRepository {
     bool customerRequestsInvoice = false,
     bool correction = false,
     List<Map<String, dynamic>> rentalReturns = const [],
+    bool sanitizationSelected = false,
+    int? sanitizationId,
+    int? sanitizationCompletedDispenserCount,
+    int? sanitizationNextIntervalDays,
+    String? sanitizationResultNotes,
   }) async {
     final operationId = _operationId(userId, documentId, 'complete');
     final body = <String, dynamic>{
@@ -178,6 +183,12 @@ class DriverRepository {
       'customer_requests_invoice': customerRequestsInvoice,
       'correction': correction,
       'rental_returns': rentalReturns,
+      'sanitization_selected': sanitizationSelected,
+      'sanitization_id': ?sanitizationId,
+      'sanitization_completed_dispenser_count':
+          ?sanitizationCompletedDispenserCount,
+      'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
+      'sanitization_result_notes': ?sanitizationResultNotes,
     };
     try {
       return await _api.post(
@@ -217,6 +228,11 @@ class DriverRepository {
     bool customerRequestsInvoice = false,
     bool correction = false,
     List<Map<String, dynamic>> rentalReturns = const [],
+    bool sanitizationSelected = false,
+    int? sanitizationId,
+    int? sanitizationCompletedDispenserCount,
+    int? sanitizationNextIntervalDays,
+    String? sanitizationResultNotes,
     String type = 'wz',
   }) => _api.download(
     '/mobile/driver/documents/$documentId/completion-preview?type=$type',
@@ -234,6 +250,12 @@ class DriverRepository {
       'customer_requests_invoice': customerRequestsInvoice,
       'correction': correction,
       'rental_returns': rentalReturns,
+      'sanitization_selected': sanitizationSelected,
+      'sanitization_id': ?sanitizationId,
+      'sanitization_completed_dispenser_count':
+          ?sanitizationCompletedDispenserCount,
+      'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
+      'sanitization_result_notes': ?sanitizationResultNotes,
     },
   );
 
