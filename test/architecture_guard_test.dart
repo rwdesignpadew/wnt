@@ -96,4 +96,28 @@ void main() {
       }
     }
   });
+
+  test('podglad WZ nie zapisuje dokumentu przed wyborem kierowcy', () {
+    final source = File(
+      'lib/src/features/driver/presentation/driver_service_screen.dart',
+    ).readAsStringSync();
+    final review = source.indexOf(
+      'final reviewAction = await _reviewBeforeSave();',
+    );
+    final complete = source.indexOf('.complete(', review);
+
+    expect(review, greaterThan(-1));
+    expect(complete, greaterThan(review));
+    expect(
+      source,
+      contains("if (reviewAction != 'save' && reviewAction != 'send') return;"),
+    );
+    expect(source, contains("pop('cancel')"));
+    expect(source, contains("pop('save')"));
+    expect(source, contains("pop('send')"));
+    expect(
+      source,
+      contains('nie zostanie zapisana, dopóki nie wybierzesz „Zapisz”'),
+    );
+  });
 }

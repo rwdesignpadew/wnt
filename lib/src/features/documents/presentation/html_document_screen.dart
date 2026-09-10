@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class HtmlDocumentScreen extends StatefulWidget {
-  const HtmlDocumentScreen({required this.html, required this.title, super.key});
+  const HtmlDocumentScreen({
+    required this.html,
+    required this.title,
+    this.bottomNavigationBar,
+    super.key,
+  });
 
   final String html;
   final String title;
+  final Widget? bottomNavigationBar;
 
   @override
   State<HtmlDocumentScreen> createState() => _HtmlDocumentScreenState();
@@ -27,5 +33,6 @@ class _HtmlDocumentScreenState extends State<HtmlDocumentScreen> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.title)),
     body: SafeArea(child: WebViewWidget(controller: _controller)),
+    bottomNavigationBar: widget.bottomNavigationBar,
   );
 }
