@@ -105,12 +105,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         : 'transfer';
     final client = _map(widget.document['client']) ?? const {};
     final forcedGross =
-        widget.document['is_company'] == true ||
-        client['recurring_invoice_enabled'] == true;
+        _isCompanyDocument(widget.document) ||
+        _flag(client['recurring_invoice_enabled']);
     _customerRequestsInvoice =
         forcedGross ||
         (widget.document['status'] == 'completed' &&
-            widget.document['customer_requests_invoice'] == true);
+            _flag(widget.document['customer_requests_invoice']));
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
@@ -570,8 +570,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   @override
   Widget build(BuildContext context) {
     final client = _map(widget.document['client']) ?? const {};
-    final recurringInvoice = client['recurring_invoice_enabled'] == true;
-    final isCompany = widget.document['is_company'] == true;
+    final recurringInvoice = _flag(client['recurring_invoice_enabled']);
+    final isCompany = _isCompanyDocument(widget.document);
     final useGross = isCompany || recurringInvoice || _customerRequestsInvoice;
     final hideTransferPrices = _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
@@ -1841,6 +1841,19 @@ List<Map<String, dynamic>> _list(dynamic value) => value is List
     : const [];
 Map<String, dynamic>? _map(dynamic value) =>
     value is Map ? value.cast<String, dynamic>() : null;
+bool _flag(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  final normalized = '${value ?? ''}'.trim().toLowerCase();
+  return normalized == '1' || normalized == 'true' || normalized == 'yes';
+}
+
+bool _isCompanyDocument(Map<String, dynamic> document) {
+  final client = _map(document['client']) ?? const <String, dynamic>{};
+  return _flag(document['is_company']) ||
+      '${client['invoice_nip'] ?? ''}'.trim().isNotEmpty;
+}
+
 Set<int> _intSet(dynamic value) =>
     value is List ? value.map(_int).toSet() : <int>{};
 int _int(dynamic value) => int.tryParse('$value') ?? 0;

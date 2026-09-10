@@ -70,6 +70,60 @@ void main() {
     },
   );
 
+  testWidgets('klient gotówkowy z NIP-em zawsze widzi cenę brutto', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: WntTheme.light(),
+          home: DriverServiceScreen(
+            document: {
+              'id': 1027,
+              'status': 'planned',
+              // API może przekazać flagę liczbowo; NIP pozostaje źródłem prawdy.
+              'is_company': 0,
+              'payment_method': 'cash',
+              'debt_amount': 0,
+              'credit_amount': 0,
+              'available_product_ids': [72],
+              'product_prices': {'72': 21},
+              'items': [
+                {'product_id': 72, 'quantity': 1},
+              ],
+              'client': {
+                'name': 'Sklep Cmolas Kris',
+                'invoice_nip': '1234567890',
+                'recurring_invoice_enabled': 1,
+              },
+            },
+            products: const [
+              {
+                'id': 72,
+                'name': 'WYSOWIANKA Kiwi 0,3l (24 szt)',
+                'unit': 'szt.',
+                'default_price': 24.39,
+                'vat_rate': 23,
+                'kind': 'product',
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('25.83 zł'), findsWidgets);
+    expect(find.text('Cena do zapłaty: 25.83 zł'), findsOneWidget);
+    expect(find.text('Klient chce fakturę VAT'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   test('bieżące trasy mają dzisiejszą datę przed przyszłymi', () {
     final source = File(
       'lib/src/features/admin/presentation/admin_routes_screen.dart',
