@@ -204,6 +204,39 @@ class DriverRepository {
     }
   }
 
+  Future<ApiDownload> completionPreview({
+    required String token,
+    required int documentId,
+    required Map<int, int> quantities,
+    Map<int, int> packageQuantities = const {},
+    required String paymentMethod,
+    required String signatureData,
+    required String signedBy,
+    String? notes,
+    double? cashCollected,
+    bool customerRequestsInvoice = false,
+    bool correction = false,
+    List<Map<String, dynamic>> rentalReturns = const [],
+    String type = 'wz',
+  }) => _api.download(
+    '/mobile/driver/documents/$documentId/completion-preview?type=$type',
+    token: token,
+    body: {
+      'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
+      'package_quantities': packageQuantities.map(
+        (id, quantity) => MapEntry('$id', quantity),
+      ),
+      'payment_method': paymentMethod,
+      'signature_data': signatureData,
+      'signed_by': signedBy,
+      'notes': notes,
+      'cash_collected': cashCollected,
+      'customer_requests_invoice': customerRequestsInvoice,
+      'correction': correction,
+      'rental_returns': rentalReturns,
+    },
+  );
+
   Future<int> pendingCount(int userId) async =>
       (await _offlineStore.readQueue(userId)).length;
 

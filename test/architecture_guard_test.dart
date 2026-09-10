@@ -97,27 +97,26 @@ void main() {
     }
   });
 
-  test('podglad WZ nie zapisuje dokumentu przed wyborem kierowcy', () {
-    final source = File(
+  test('podglad WZ i PZ jest PDF-em przed zapisem dokumentu', () {
+    final screen = File(
       'lib/src/features/driver/presentation/driver_service_screen.dart',
     ).readAsStringSync();
-    final review = source.indexOf(
-      'final reviewAction = await _reviewBeforeSave();',
+    final repository = File(
+      'lib/src/features/driver/data/driver_repository.dart',
+    ).readAsStringSync();
+    final preview = screen.indexOf("final wzPreview = await preview('wz');");
+    final complete = screen.indexOf(
+      'final response = await repository.complete(',
+      preview,
     );
-    final complete = source.indexOf('.complete(', review);
 
-    expect(review, greaterThan(-1));
-    expect(complete, greaterThan(review));
-    expect(
-      source,
-      contains("if (reviewAction != 'save' && reviewAction != 'send') return;"),
-    );
-    expect(source, contains("pop('cancel')"));
-    expect(source, contains("pop('save')"));
-    expect(source, contains("pop('send')"));
-    expect(
-      source,
-      contains('nie zostanie zapisana, dopóki nie wybierzesz „Zapisz”'),
-    );
+    expect(preview, greaterThan(-1));
+    expect(complete, greaterThan(preview));
+    expect(screen, contains('PdfDocumentScreen('));
+    expect(screen, contains("final pzPreview = await preview('pz');"));
+    expect(screen, contains("pop('cancel')"));
+    expect(screen, contains("pop('save')"));
+    expect(screen, contains("pop('send')"));
+    expect(repository, contains('/completion-preview?type=\$type'));
   });
 }

@@ -91,18 +91,22 @@ class ApiClient {
     }
   }
 
-  Future<ApiDownload> download(String path, {required String token}) async {
+  Future<ApiDownload> download(
+    String path, {
+    required String token,
+    Map<String, dynamic>? body,
+  }) async {
     try {
-      final response = await _client
-          .get(
-            _uri(path),
-            headers: {
-              ..._headers(token),
-              'Accept':
-                  'application/pdf, application/octet-stream, application/json',
-            },
-          )
+      final request = http.Request(body == null ? 'GET' : 'POST', _uri(path));
+      request.headers.addAll({
+        ..._headers(token),
+        'Accept': 'application/pdf, application/octet-stream, application/json',
+      });
+      if (body != null) request.body = jsonEncode(body);
+      final streamed = await _client
+          .send(request)
           .timeout(AppConfig.requestTimeout);
+      final response = await http.Response.fromStream(streamed);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _exception(
           _decodeJson(response.bodyBytes, response.statusCode),
@@ -141,6 +145,8 @@ class ApiClient {
       );
     } on TimeoutException {
       throw const ApiException('Pobieranie dokumentu trwało zbyt długo.');
+    } on SocketException {
+      throw const ApiException('Nie udało się pobrać dokumentu.');
     } on http.ClientException {
       throw const ApiException('Nie udało się pobrać dokumentu.');
     }

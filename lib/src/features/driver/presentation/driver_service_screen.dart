@@ -1,15 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../documents/presentation/html_document_screen.dart';
+import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/driver_providers.dart';
 import '../domain/driver_product_classification.dart';
 import 'driver_navigation_screen.dart';
@@ -246,44 +248,215 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       return;
     }
 
-    final reviewAction = await _reviewBeforeSave();
-    if (!mounted) return;
-    if (reviewAction == 'cancel') {
-      Navigator.of(context).pop(false);
-      return;
-    }
-    if (reviewAction != 'save' && reviewAction != 'send') return;
-
     setState(() => _saving = true);
+    final temporaryPaths = <String>[];
     try {
       final session = ref.read(authControllerProvider).session!;
       final token = session.token;
-      final response = await ref
-          .read(driverRepositoryProvider)
-          .complete(
-            token: token,
-            userId: session.user.id,
-            documentId: _int(widget.document['id']),
-            quantities: _quantities,
-            packageQuantities: _packageQuantities,
-            paymentMethod: _paymentMethod,
-            signatureData: _signatureData!,
-            signedBy: _signedBy.text.trim(),
-            notes: _notes.text.trim(),
-            cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
-            customerRequestsInvoice: _customerRequestsInvoice,
-            correction: widget.document['status']?.toString() == 'completed',
-            rentalReturns: [
-              for (final entry in _rentalReturns.entries)
-                if (entry.value > 0)
-                  {
-                    'rental_item_id': entry.key,
-                    'quantity': entry.value,
-                    'damaged': _damagedRentalIds.contains(entry.key),
-                    'damage_description': _damageNotes[entry.key]?.text.trim(),
-                  },
-            ],
-          );
+      final repository = ref.read(driverRepositoryProvider);
+      final documentId = _int(widget.document['id']);
+      final correction = widget.document['status']?.toString() == 'completed';
+      final rentalReturns = [
+        for (final entry in _rentalReturns.entries)
+          if (entry.value > 0)
+            {
+              'rental_item_id': entry.key,
+              'quantity': entry.value,
+              'damaged': _damagedRentalIds.contains(entry.key),
+              'damage_description': _damageNotes[entry.key]?.text.trim(),
+            },
+      ];
+
+      Future<dynamic> preview(String type) => repository.completionPreview(
+        token: token,
+        documentId: documentId,
+        quantities: _quantities,
+        packageQuantities: _packageQuantities,
+        paymentMethod: _paymentMethod,
+        signatureData: _signatureData!,
+        signedBy: _signedBy.text.trim(),
+        notes: _notes.text.trim(),
+        cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
+        customerRequestsInvoice: _customerRequestsInvoice,
+        correction: correction,
+        rentalReturns: rentalReturns,
+        type: type,
+      );
+
+      final wzPreview = await preview('wz');
+      final directory = await getTemporaryDirectory();
+      final wzFile = File(
+        '${directory.path}${Platform.pathSeparator}WZ-preview-$documentId.pdf',
+      );
+      await wzFile.writeAsBytes(wzPreview.bytes, flush: true);
+      temporaryPaths.add(wzFile.path);
+
+      final hasReturnPz =
+          _returnQuantities.values.any((quantity) => quantity > 0) ||
+          _rentalReturns.values.any((quantity) => quantity > 0);
+      String? pzPath;
+      if (hasReturnPz) {
+        final pzPreview = await preview('pz');
+        final pzFile = File(
+          '${directory.path}${Platform.pathSeparator}PZ-preview-$documentId.pdf',
+        );
+        await pzFile.writeAsBytes(pzPreview.bytes, flush: true);
+        temporaryPaths.add(pzFile.path);
+        pzPath = pzFile.path;
+      }
+
+      if (!mounted) return;
+      final plannedRecipients =
+          (widget.document['email_recipients_planned'] as List<dynamic>? ??
+                  const <dynamic>[])
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .toList();
+      final recipientText = plannedRecipients.isEmpty
+          ? 'Nie wybrano adresu e-mail'
+          : plannedRecipients.join(', ');
+      final reviewAction = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (reviewContext) => PdfDocumentScreen(
+            path: wzFile.path,
+            title: correction ? 'Podgląd korekty WZ' : 'Podgląd WZ',
+            bottomNavigationBar: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: WntColors.line)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: WntColors.brand.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'WZ: $recipientText',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          if (hasReturnPz) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'PZ: $recipientText',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (pzPath != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await Navigator.of(reviewContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => PdfDocumentScreen(
+                                path: pzPath!,
+                                title: 'Podgląd PZ',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: const Text('Pokaż PZ'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                Navigator.of(reviewContext).pop('cancel'),
+                            icon: const Icon(Icons.close),
+                            label: Text(
+                              correction ? 'Anuluj korektę' : 'Anuluj WZ',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                Navigator.of(reviewContext).pop('edit'),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Cofnij i popraw'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: () =>
+                                Navigator.of(reviewContext).pop('save'),
+                            icon: const Icon(Icons.save_outlined),
+                            label: Text(
+                              correction ? 'Zapisz korektę' : 'Zapisz WZ',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                Navigator.of(reviewContext).pop('send'),
+                            icon: const Icon(Icons.send_outlined),
+                            label: const Text('Zapisz i wyślij'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      if (!mounted) return;
+      if (reviewAction == 'cancel') {
+        Navigator.of(context).pop(false);
+        return;
+      }
+      if (reviewAction != 'save' && reviewAction != 'send') {
+        _message('Wrócono do edycji WZ. Nic nie zostało zapisane.');
+        return;
+      }
+
+      final response = await repository.complete(
+        token: token,
+        userId: session.user.id,
+        documentId: documentId,
+        quantities: _quantities,
+        packageQuantities: _packageQuantities,
+        paymentMethod: _paymentMethod,
+        signatureData: _signatureData!,
+        signedBy: _signedBy.text.trim(),
+        notes: _notes.text.trim(),
+        cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
+        customerRequestsInvoice: _customerRequestsInvoice,
+        correction: correction,
+        rentalReturns: rentalReturns,
+      );
       if (!mounted) return;
       ref.invalidate(driverRouteProvider);
       widget.document['status'] = 'completed';
@@ -296,13 +469,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         Navigator.of(context).pop(true);
         return;
       }
+
       final savedDocument = _map(response['document']) ?? widget.document;
-      final documentId = _int(savedDocument['id'] ?? widget.document['id']);
+      final savedDocumentId = _int(savedDocument['id'] ?? documentId);
       if (reviewAction == 'send') {
         try {
-          final message = await ref
-              .read(driverRepositoryProvider)
-              .emailDocument(token, documentId);
+          final message = await repository.emailDocument(
+            token,
+            savedDocumentId,
+          );
           if (!mounted) return;
           _message(message);
         } catch (error) {
@@ -319,188 +494,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     } catch (error) {
       _message('$error', error: true);
     } finally {
+      for (final path in temporaryPaths) {
+        await PdfDocumentScreen.removeTemporary(path);
+      }
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  Future<String?> _reviewBeforeSave() {
-    final correction = widget.document['status']?.toString() == 'completed';
-
-    return Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (reviewContext) => HtmlDocumentScreen(
-          html: _reviewHtml(),
-          title: correction ? 'Podgląd korekty WZ' : 'Podgląd WZ',
-          bottomNavigationBar: SafeArea(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: WntColors.line)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton.icon(
-                          onPressed: () =>
-                              Navigator.of(reviewContext).pop('cancel'),
-                          icon: const Icon(Icons.close),
-                          label: Text(
-                            correction ? 'Anuluj korektę' : 'Anuluj WZ',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.of(reviewContext).pop('edit'),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Cofnij i popraw'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () =>
-                              Navigator.of(reviewContext).pop('save'),
-                          icon: const Icon(Icons.save_outlined),
-                          label: Text(
-                            correction ? 'Zapisz korektę' : 'Zapisz WZ',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.of(reviewContext).pop('send'),
-                          icon: const Icon(Icons.send_outlined),
-                          label: const Text('Zapisz i wyślij'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _reviewHtml() {
-    const htmlEscape = HtmlEscape(HtmlEscapeMode.element);
-    String escape(Object? value) => htmlEscape.convert('${value ?? ''}');
-    String money(num value) => '${value.toStringAsFixed(2)} zł';
-
-    final client = _map(widget.document['client']) ?? const {};
-    final location = _map(widget.document['location']);
-    final useGross =
-        _isCompanyDocument(widget.document) ||
-        _flag(client['recurring_invoice_enabled']) ||
-        _customerRequestsInvoice;
-    final rows = <String>[];
-    var total = 0.0;
-
-    for (final product in widget.products) {
-      final quantity = _quantities[_int(product['id'])] ?? 0;
-      if (quantity < 1) continue;
-      final isBillable = _isBillableProduct(product);
-      final unitPrice = isBillable
-          ? (useGross ? _productGrossPrice(product) : _productPrice(product))
-          : 0.0;
-      final lineTotal = unitPrice * quantity;
-      if (isBillable) total += lineTotal;
-      rows.add('''
-        <tr>
-          <td>${escape(product['name'])}</td>
-          <td class="number">$quantity</td>
-          <td class="number">${isBillable ? escape(money(unitPrice)) : '—'}</td>
-          <td class="number">${isBillable ? escape(money(lineTotal)) : '—'}</td>
-        </tr>
-      ''');
-    }
-
-    for (final packageItem in _list(widget.document['packages'])) {
-      final quantity = _packageQuantities[_int(packageItem['id'])] ?? 0;
-      if (quantity < 1) continue;
-      final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
-      final vat = double.tryParse('${packageItem['vat_rate'] ?? 23}') ?? 23;
-      final unitPrice = useGross ? net * (1 + vat / 100) : net;
-      final lineTotal = unitPrice * quantity;
-      total += lineTotal;
-      rows.add('''
-        <tr>
-          <td>${escape(packageItem['name'] ?? 'Pakiet')}</td>
-          <td class="number">$quantity</td>
-          <td class="number">${escape(money(unitPrice))}</td>
-          <td class="number">${escape(money(lineTotal))}</td>
-        </tr>
-      ''');
-    }
-
-    final signature = _signatureData == null
-        ? ''
-        : '<img class="signature" src="${escape(_signatureData)}" alt="Podpis klienta">';
-    final notes = escape(_notes.text.trim()).replaceAll('\n', '<br>');
-    final correction = widget.document['status']?.toString() == 'completed';
-    final clientName = escape(client['name'] ?? 'Klient');
-    final locationName = escape(location?['name']);
-    final address = escape(
-      location?['address'] ?? widget.document['delivery_address'],
-    );
-    final priceKind = useGross ? 'brutto' : 'netto';
-
-    return '''<!doctype html>
-<html lang="pl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 18px; background: #eef1f6; color: #172033; font: 14px Arial, sans-serif; }
-    main { max-width: 760px; margin: 0 auto; padding: 22px; background: white; border-radius: 16px; box-shadow: 0 3px 16px rgba(16,24,40,.08); }
-    .warning { margin-bottom: 18px; padding: 12px; border: 1px solid #f5b942; border-radius: 10px; background: #fff8e6; color: #7a4b00; font-weight: 700; }
-    h1 { margin: 0 0 5px; font-size: 25px; }
-    .muted { color: #667085; }
-    .client { margin: 20px 0; padding: 14px; border: 1px solid #d9deea; border-radius: 10px; line-height: 1.55; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { padding: 10px 7px; border-bottom: 1px solid #e7eaf0; text-align: left; vertical-align: top; }
-    th { background: #f7f8fb; font-size: 12px; text-transform: uppercase; }
-    .number { text-align: right; white-space: nowrap; }
-    .total { margin-top: 16px; padding-top: 14px; border-top: 2px solid #172033; text-align: right; font-size: 20px; font-weight: 800; }
-    .details { display: grid; gap: 10px; margin-top: 20px; }
-    .detail { padding: 12px; border: 1px solid #e0e4ec; border-radius: 10px; }
-    .signature { display: block; max-width: 280px; max-height: 110px; margin-top: 8px; }
-  </style>
-</head>
-<body>
-<main>
-  <div class="warning">To jest podgląd. ${correction ? 'Korekta' : 'WZ'} nie zostanie zapisana, dopóki nie wybierzesz „Zapisz”.</div>
-  <h1>${correction ? 'Podgląd korekty WZ' : 'Podgląd WZ'}</h1>
-  <div class="muted">Numer zostanie nadany dopiero podczas zapisu.</div>
-  <div class="client"><strong>$clientName</strong>${locationName.isEmpty ? '' : '<br>$locationName'}${address.isEmpty ? '' : '<br>$address'}</div>
-  <table>
-    <thead><tr><th>Produkt</th><th class="number">Ilość</th><th class="number">Cena $priceKind</th><th class="number">Wartość</th></tr></thead>
-    <tbody>${rows.isEmpty ? '<tr><td colspan="4">Brak pozycji.</td></tr>' : rows.join()}</tbody>
-  </table>
-  <div class="total">Razem: ${escape(money(total))} $priceKind</div>
-  <div class="details">
-    <div class="detail"><strong>Odbiorca:</strong> ${escape(_signedBy.text.trim())}$signature</div>
-    ${notes.isEmpty ? '' : '<div class="detail"><strong>Uwagi:</strong><br>$notes</div>'}
-  </div>
-</main>
-</body>
-</html>''';
   }
 
   Future<void> _captureSignature() async {
@@ -964,13 +962,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             Builder(
               builder: (context) {
                 final sanitation = _sanitization!;
-                final overdue = sanitation['is_overdue'] == true ||
+                final overdue =
+                    sanitation['is_overdue'] == true ||
                     '${sanitation['status']}' == 'overdue';
                 final onRequest = sanitation['is_on_request'] == true;
                 final accent = overdue ? WntColors.error : WntColors.warning;
-                final scheduled = '${sanitation['scheduled_date'] ?? ''}'.trim();
-                final locationNotes =
-                    '${sanitation['location_notes'] ?? ''}'.trim();
+                final scheduled = '${sanitation['scheduled_date'] ?? ''}'
+                    .trim();
+                final locationNotes = '${sanitation['location_notes'] ?? ''}'
+                    .trim();
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
@@ -986,8 +986,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                         onRequest
                             ? 'Sanityzacja na życzenie'
                             : overdue
-                                ? 'Sanityzacja po terminie'
-                                : 'Sanityzacja do wykonania',
+                            ? 'Sanityzacja po terminie'
+                            : 'Sanityzacja do wykonania',
                         style: TextStyle(
                           color: accent,
                           fontWeight: FontWeight.w800,

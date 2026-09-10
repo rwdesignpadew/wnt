@@ -89,4 +89,30 @@ void main() {
     expect(download.filename, 'WZ1836.pdf');
     expect(utf8.decode(download.bytes), startsWith('%PDF'));
   });
+
+  test('wysyła dane POST przy generowaniu podglądu PDF', () async {
+    final client = ApiClient(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.headers['authorization'], 'Bearer token');
+        expect(jsonDecode(request.body), {
+          'quantities': {'70': 3},
+        });
+        return http.Response.bytes(
+          utf8.encode('%PDF-1.7\n%%EOF'),
+          200,
+          headers: {'content-type': 'application/pdf'},
+        );
+      }),
+    );
+
+    final download = await client.download(
+      '/document-preview',
+      token: 'token',
+      body: {
+        'quantities': {'70': 3},
+      },
+    );
+    expect(download.contentType, 'application/pdf');
+  });
 }
