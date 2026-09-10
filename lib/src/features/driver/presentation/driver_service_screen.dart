@@ -409,7 +409,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                                 Navigator.of(reviewContext).pop('save'),
                             icon: const Icon(Icons.save_outlined),
                             label: Text(
-                              correction ? 'Zapisz korektę' : 'Zapisz WZ',
+                              correction
+                                  ? 'Zapisz korektę'
+                                  : hasReturnPz
+                                  ? 'Zapisz WZ i PZ'
+                                  : 'Zapisz WZ',
                             ),
                           ),
                         ),
