@@ -346,6 +346,13 @@ class _StopCardState extends ConsumerState<_StopCard> {
   Widget build(BuildContext context) {
     final client = _map(widget.document['client']) ?? const {};
     final location = _map(widget.document['location']);
+    final sanitization = _map(widget.document['sanitization']);
+    final sanitizationOverdue =
+        sanitization?['is_overdue'] == true ||
+        sanitization?['status']?.toString() == 'overdue';
+    final sanitizationOnRequest = sanitization?['is_on_request'] == true;
+    final sanitizationCount = _int(sanitization?['dispenser_count']);
+    final sanitizationDate = '${sanitization?['scheduled_date'] ?? ''}'.trim();
     final status = widget.document['status']?.toString() ?? 'planned';
     final completed = status == 'completed';
     final missed =
@@ -452,6 +459,65 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
               ],
             ),
+            if (sanitization != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                decoration: BoxDecoration(
+                  color: sanitizationOverdue
+                      ? WntColors.errorSoft
+                      : WntColors.warningSoft,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: sanitizationOverdue
+                        ? WntColors.error
+                        : WntColors.warning,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.cleaning_services_outlined,
+                      color: sanitizationOverdue
+                          ? WntColors.error
+                          : WntColors.warning,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sanitizationOnRequest
+                                ? 'Sanityzacja na żądanie'
+                                : sanitizationOverdue
+                                ? 'Zaległa sanityzacja'
+                                : 'Sanityzacja do wykonania',
+                            style: TextStyle(
+                              color: sanitizationOverdue
+                                  ? WntColors.error
+                                  : WntColors.warning,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$sanitizationCount ${sanitizationCount == 1 ? 'dystrybutor' : 'dystrybutorów'}'
+                            '${sanitizationDate.isEmpty ? '' : ' · termin $sanitizationDate'}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (packagesToIssue.isNotEmpty || itemsToIssue.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(

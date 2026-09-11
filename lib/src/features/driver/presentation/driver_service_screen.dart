@@ -104,6 +104,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         : 'transfer';
     final client = _map(widget.document['client']) ?? const {};
     final forcedGross =
+        _flag(widget.document['prices_include_vat']) ||
         _isCompanyDocument(widget.document) ||
         _flag(client['recurring_invoice_enabled']);
     _customerRequestsInvoice =
@@ -675,9 +676,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final client = _map(widget.document['client']) ?? const {};
     final recurringInvoice = _flag(client['recurring_invoice_enabled']);
     final isCompany = _isCompanyDocument(widget.document);
-    final useGross = isCompany || recurringInvoice || _customerRequestsInvoice;
+    final useGross =
+        _flag(widget.document['prices_include_vat']) ||
+        isCompany ||
+        recurringInvoice ||
+        _customerRequestsInvoice;
     final hideTransferPrices = _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
+    final permanentDocumentNotes = '${widget.document['document_notes'] ?? ''}'
+        .trim();
     final returnAvailability =
         _map(widget.document['return_availability']) ?? const {};
     // Products assigned by the administrator to this exact client location.
@@ -991,7 +998,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     children: [
                       Text(
                         onRequest
-                            ? 'Sanityzacja na życzenie'
+                            ? 'Sanityzacja na żądanie'
                             : overdue
                             ? 'Sanityzacja po terminie'
                             : 'Sanityzacja do wykonania',
@@ -1368,13 +1375,57 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (widget.document['status']?.toString() != 'completed' &&
+                      permanentDocumentNotes.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        border: Border.all(color: const Color(0xFF3B82F6)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.description_outlined,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Stałe uwagi do WZ/FV',
+                                  style: TextStyle(
+                                    color: Color(0xFF1E3A8A),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  permanentDocumentNotes,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1E3A8A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextField(
                     controller: _notes,
                     onTapOutside: (_) => FocusScope.of(context).unfocus(),
                     minLines: 2,
                     maxLines: 4,
                     decoration: const InputDecoration(
-                      labelText: 'Uwagi do WZ',
+                      labelText: 'Dodatkowe uwagi do WZ',
                       hintText:
                           'Np. numer magazynu lub informacja dla odbiorcy',
                     ),

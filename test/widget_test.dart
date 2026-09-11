@@ -88,11 +88,13 @@ void main() {
               'status': 'planned',
               // API może przekazać flagę liczbowo; NIP pozostaje źródłem prawdy.
               'is_company': 0,
+              'prices_include_vat': true,
               'payment_method': 'cash',
               'debt_amount': 0,
               'credit_amount': 0,
               'available_product_ids': [72],
               'product_prices': {'72': 21},
+              'document_notes': 'Wjazd od strony magazynu.',
               'items': [
                 {'product_id': 72, 'quantity': 1},
               ],
@@ -121,7 +123,19 @@ void main() {
     expect(find.text('25.83 zł'), findsWidgets);
     expect(find.text('Cena do zapłaty: 25.83 zł'), findsOneWidget);
     expect(find.text('Klient chce fakturę VAT'), findsNothing);
+    expect(find.text('Stałe uwagi do WZ/FV'), findsOneWidget);
+    expect(find.text('Wjazd od strony magazynu.'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('karta trasy kierowcy pokazuje zaplanowaną sanityzację', () {
+    final source = File(
+      'lib/src/features/driver/presentation/driver_route_screen.dart',
+    ).readAsStringSync();
+    expect(source, contains("widget.document['sanitization']"));
+    expect(source, contains('Zaległa sanityzacja'));
+    expect(source, contains('Sanityzacja na żądanie'));
+    expect(source, contains('Sanityzacja do wykonania'));
   });
 
   test('bieżące trasy mają dzisiejszą datę przed przyszłymi', () {
