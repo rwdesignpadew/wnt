@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/network/api_exception.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
@@ -280,158 +281,170 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         type: type,
       );
 
-      final wzPreview = await preview('wz');
-      final directory = await getTemporaryDirectory();
-      final wzFile = File(
-        '${directory.path}${Platform.pathSeparator}WZ-preview-$documentId.pdf',
-      );
-      await wzFile.writeAsBytes(wzPreview.bytes, flush: true);
-      temporaryPaths.add(wzFile.path);
-
       final hasReturnPz =
           _returnQuantities.values.any((quantity) => quantity > 0) ||
           _rentalReturns.values.any((quantity) => quantity > 0);
-      String? pzPath;
-      if (hasReturnPz) {
-        final pzPreview = await preview('pz');
-        final pzFile = File(
-          '${directory.path}${Platform.pathSeparator}PZ-preview-$documentId.pdf',
+      String? reviewAction;
+      try {
+        final wzPreview = await preview('wz');
+        final directory = await getTemporaryDirectory();
+        final wzFile = File(
+          '${directory.path}${Platform.pathSeparator}WZ-preview-$documentId.pdf',
         );
-        await pzFile.writeAsBytes(pzPreview.bytes, flush: true);
-        temporaryPaths.add(pzFile.path);
-        pzPath = pzFile.path;
-      }
+        await wzFile.writeAsBytes(wzPreview.bytes, flush: true);
+        temporaryPaths.add(wzFile.path);
 
-      if (!mounted) return;
-      final plannedRecipients =
-          (widget.document['email_recipients_planned'] as List<dynamic>? ??
-                  const <dynamic>[])
-              .map((value) => value.toString().trim())
-              .where((value) => value.isNotEmpty)
-              .toList();
-      final recipientText = plannedRecipients.isEmpty
-          ? 'Nie wybrano adresu e-mail'
-          : plannedRecipients.join(', ');
-      final reviewAction = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (reviewContext) => PdfDocumentScreen(
-            path: wzFile.path,
-            title: correction ? 'Podgląd korekty WZ' : 'Podgląd WZ',
-            bottomNavigationBar: SafeArea(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(top: BorderSide(color: WntColors.line)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: WntColors.brand.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'WZ: $recipientText',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          if (hasReturnPz) ...[
-                            const SizedBox(height: 4),
+        String? pzPath;
+        if (hasReturnPz) {
+          final pzPreview = await preview('pz');
+          final pzFile = File(
+            '${directory.path}${Platform.pathSeparator}PZ-preview-$documentId.pdf',
+          );
+          await pzFile.writeAsBytes(pzPreview.bytes, flush: true);
+          temporaryPaths.add(pzFile.path);
+          pzPath = pzFile.path;
+        }
+
+        if (!mounted) return;
+        final plannedRecipients =
+            (widget.document['email_recipients_planned'] as List<dynamic>? ??
+                    const <dynamic>[])
+                .map((value) => value.toString().trim())
+                .where((value) => value.isNotEmpty)
+                .toList();
+        final recipientText = plannedRecipients.isEmpty
+            ? 'Nie wybrano adresu e-mail'
+            : plannedRecipients.join(', ');
+        reviewAction = await Navigator.of(context).push<String>(
+          MaterialPageRoute(
+            builder: (reviewContext) => PdfDocumentScreen(
+              path: wzFile.path,
+              title: correction ? 'Podgląd korekty WZ' : 'Podgląd WZ',
+              bottomNavigationBar: SafeArea(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(top: BorderSide(color: WntColors.line)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: WntColors.brand.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              'PZ: $recipientText',
+                              'WZ: $recipientText',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
+                            if (hasReturnPz) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'PZ: $recipientText',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (pzPath != null) ...[
+                      if (pzPath != null) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await Navigator.of(reviewContext).push(
+                              MaterialPageRoute(
+                                builder: (_) => PdfDocumentScreen(
+                                  path: pzPath!,
+                                  title: 'Podgląd PZ',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.receipt_long_outlined),
+                          label: const Text('Pokaż PZ'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          await Navigator.of(reviewContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => PdfDocumentScreen(
-                                path: pzPath!,
-                                title: 'Podgląd PZ',
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(reviewContext).pop('cancel'),
+                              icon: const Icon(Icons.close),
+                              label: Text(
+                                correction ? 'Anuluj korektę' : 'Anuluj WZ',
                               ),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.receipt_long_outlined),
-                        label: const Text('Pokaż PZ'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(reviewContext).pop('edit'),
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Cofnij i popraw'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: () =>
+                                  Navigator.of(reviewContext).pop('save'),
+                              icon: const Icon(Icons.save_outlined),
+                              label: Text(
+                                correction
+                                    ? 'Zapisz korektę'
+                                    : hasReturnPz
+                                    ? 'Zapisz WZ i PZ'
+                                    : 'Zapisz WZ',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(reviewContext).pop('send'),
+                              icon: const Icon(Icons.send_outlined),
+                              label: const Text('Zapisz i wyślij'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton.icon(
-                            onPressed: () =>
-                                Navigator.of(reviewContext).pop('cancel'),
-                            icon: const Icon(Icons.close),
-                            label: Text(
-                              correction ? 'Anuluj korektę' : 'Anuluj WZ',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () =>
-                                Navigator.of(reviewContext).pop('edit'),
-                            icon: const Icon(Icons.edit_outlined),
-                            label: const Text('Cofnij i popraw'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: () =>
-                                Navigator.of(reviewContext).pop('save'),
-                            icon: const Icon(Icons.save_outlined),
-                            label: Text(
-                              correction
-                                  ? 'Zapisz korektę'
-                                  : hasReturnPz
-                                  ? 'Zapisz WZ i PZ'
-                                  : 'Zapisz WZ',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () =>
-                                Navigator.of(reviewContext).pop('send'),
-                            icon: const Icon(Icons.send_outlined),
-                            label: const Text('Zapisz i wyślij'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
+        );
+      } on ApiException catch (error) {
+        if (error.statusCode != null) rethrow;
+        if (!mounted) return;
+        reviewAction = await _showOfflineDocumentReview(
+          hasReturnPz: hasReturnPz,
+          correction: correction,
+        );
+      }
 
       if (!mounted) return;
       if (reviewAction == 'cancel') {
@@ -468,7 +481,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       if (!mounted) return;
       ref.invalidate(driverRouteProvider);
       widget.document['status'] = 'completed';
-      if (response['queued_offline'] == true) {
+      if (response['queued_offline'] == true ||
+          response['queued_for_sync'] == true) {
         widget.document['offline_sync_status'] = 'pending';
         _message(
           response['message']?.toString() ??
@@ -1475,6 +1489,171 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     );
   }
 
+  Future<String?> _showOfflineDocumentReview({
+    required bool hasReturnPz,
+    required bool correction,
+  }) async {
+    final client = _map(widget.document['client']) ?? const {};
+    final location = _map(widget.document['location']);
+    final wzLines = <String>[];
+    final pzLines = <String>[];
+
+    for (final product in widget.products) {
+      final quantity = _quantities[_int(product['id'])] ?? 0;
+      if (quantity > 0 && _isBillableProduct(product)) {
+        wzLines.add('${product['name']} — $quantity szt.');
+      }
+      final returned = _returnQuantities[_int(product['id'])] ?? 0;
+      if (returned > 0 &&
+          _returnKind(product) != _ReturnKind.smallBottleDeposit) {
+        pzLines.add('${product['name']} — $returned szt.');
+      }
+    }
+    for (final packageItem in _list(widget.document['packages'])) {
+      final quantity = _packageQuantities[_int(packageItem['id'])] ?? 0;
+      if (quantity > 0) {
+        wzLines.add('${packageItem['name']} — $quantity szt.');
+      }
+    }
+    if (_showSanitization && _completedSanitizationUnits.isNotEmpty) {
+      wzLines.add('Sanityzacja — ${_completedSanitizationUnits.length} szt.');
+    }
+    final rentals = _list(widget.document['rental_items']);
+    for (final entry in _selectedRentalReturns()) {
+      final rental = rentals.where((item) => _int(item['id']) == entry.key);
+      final name = rental.isEmpty
+          ? 'Sprzęt z dzierżawy'
+          : rental.first['product_name']?.toString() ?? 'Sprzęt z dzierżawy';
+      pzLines.add('$name — ${entry.value} szt.');
+    }
+
+    final clientName = client['name']?.toString().trim().isNotEmpty == true
+        ? client['name'].toString().trim()
+        : 'Klient';
+    final locationName = location?['name']?.toString().trim() ?? '';
+    final address =
+        (location?['address'] ?? widget.document['delivery_address'])
+            ?.toString()
+            .trim();
+
+    if (!mounted) return null;
+    return Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (reviewContext) => Scaffold(
+          backgroundColor: WntColors.canvas,
+          appBar: AppBar(
+            title: Text(correction ? 'Korekta lokalna' : 'Dokument lokalny'),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: WntColors.warningSoft,
+                  border: Border.all(color: WntColors.warning),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Brak internetu — zapis lokalny',
+                      style: TextStyle(
+                        color: WntColors.warning,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Numer nie jest jeszcze nadany. Po odzyskaniu połączenia serwer pobierze bieżący numer i potwierdzi WZ oraz wymagany PZ. Do tego czasu zapis pozostanie na tym telefonie.',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _Section(
+                title: clientName,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (locationName.isNotEmpty) Text(locationName),
+                    if (address?.isNotEmpty == true) Text(address!),
+                    const SizedBox(height: 8),
+                    Text('Odbiorca: ${_signedBy.text.trim()}'),
+                    if (_notes.text.trim().isNotEmpty)
+                      Text('Uwagi: ${_notes.text.trim()}'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _Section(
+                title: 'WZ — oczekuje na numer',
+                child: _OfflineReviewLines(lines: wzLines),
+              ),
+              if (hasReturnPz) ...[
+                const SizedBox(height: 12),
+                _Section(
+                  title: 'PZ — oczekuje na numer',
+                  child: _OfflineReviewLines(lines: pzLines),
+                ),
+              ],
+            ],
+          ),
+          bottomNavigationBar: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: WntColors.line)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () =>
+                              Navigator.of(reviewContext).pop('cancel'),
+                          child: const Text('Anuluj'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () =>
+                              Navigator.of(reviewContext).pop('edit'),
+                          child: const Text('Cofnij i popraw'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.of(reviewContext).pop('save'),
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(
+                      hasReturnPz
+                          ? 'Zapisz lokalnie WZ i PZ'
+                          : 'Zapisz lokalnie WZ',
+                    ),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Iterable<MapEntry<int, int>> _selectedRentalReturns() =>
+      _rentalReturns.entries.where((entry) => entry.value > 0);
+
   double _productPrice(Map<String, dynamic> product) {
     final prices = _map(widget.document['product_prices']);
     return double.tryParse(
@@ -1773,6 +1952,32 @@ class _ReturnRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OfflineReviewLines extends StatelessWidget {
+  const _OfflineReviewLines({required this.lines});
+
+  final List<String> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    if (lines.isEmpty) {
+      return const Text(
+        'Brak pozycji magazynowych.',
+        style: TextStyle(color: WntColors.muted),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < lines.length; index++) ...[
+          Text(lines[index]),
+          if (index < lines.length - 1) const Divider(height: 18),
+        ],
+      ],
     );
   }
 }

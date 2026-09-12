@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -77,4 +78,70 @@ void main() {
     expect(operation.containsKey('blocked'), isFalse);
     expect(operation.containsKey('last_error'), isFalse);
   });
+
+  test(
+    'damaged primary queue is recovered from the last complete backup',
+    () async {
+      await store.writeQueue(7, [
+        {'operation_id': 'operation-1'},
+      ]);
+      await store.writeQueue(7, [
+        {'operation_id': 'operation-1'},
+        {'operation_id': 'operation-2'},
+      ]);
+
+      final queueFile = File(
+        '${directory.path}${Platform.pathSeparator}offline'
+        '${Platform.pathSeparator}driver_queue_7.json',
+      );
+      await queueFile.writeAsString('{przerwany zapis');
+
+      final reopened = OfflineStore(supportDirectory: () async => directory);
+      final recovered = await reopened.readQueue(7);
+
+      expect(recovered.map((item) => item['operation_id']), ['operation-1']);
+    },
+  );
+
+  test(
+    'a complete temporary queue wins after an interrupted atomic replace',
+    () async {
+      await store.writeQueue(7, [
+        {'operation_id': 'operation-1'},
+      ]);
+      final queueFile = File(
+        '${directory.path}${Platform.pathSeparator}offline'
+        '${Platform.pathSeparator}driver_queue_7.json',
+      );
+      await File('${queueFile.path}.tmp').writeAsString(
+        jsonEncode([
+          {'operation_id': 'operation-1'},
+          {'operation_id': 'operation-2'},
+        ]),
+      );
+
+      final reopened = OfflineStore(supportDirectory: () async => directory);
+      final recovered = await reopened.readQueue(7);
+
+      expect(recovered.map((item) => item['operation_id']), [
+        'operation-1',
+        'operation-2',
+      ]);
+    },
+  );
+
+  test(
+    'removing an acknowledged operation never drops a concurrent enqueue',
+    () async {
+      await store.enqueue(7, {'operation_id': 'operation-1'});
+
+      await Future.wait([
+        store.removeOperation(7, 'operation-1'),
+        store.enqueue(7, {'operation_id': 'operation-2'}),
+      ]);
+
+      final queue = await store.readQueue(7);
+      expect(queue.map((item) => item['operation_id']), ['operation-2']);
+    },
+  );
 }

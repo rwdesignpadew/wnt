@@ -67,7 +67,13 @@ class DriverRepository {
       );
       return response['message']?.toString() ?? 'Punkt został pominięty.';
     } on ApiException catch (error) {
-      if (error.statusCode != null) rethrow;
+      final operationStatus = error.payload['operation_status']?.toString();
+      final canRetry =
+          error.statusCode == null ||
+          (error.statusCode ?? 0) >= 500 ||
+          operationStatus == 'processing' ||
+          operationStatus == 'uncertain';
+      if (!canRetry) rethrow;
       await _enqueue(
         userId: userId,
         operationId: operationId,
@@ -194,13 +200,36 @@ class DriverRepository {
       'sanitization_result_notes': ?sanitizationResultNotes,
     };
     try {
-      return await _api.post(
+      final response = await _api.post(
         '/mobile/driver/documents/$documentId/complete',
         token: token,
         body: body,
       );
+      if (_completionConfirmed(response)) return response;
+
+      await _enqueue(
+        userId: userId,
+        operationId: operationId,
+        path: '/mobile/driver/documents/$documentId/complete',
+        body: body,
+        documentId: documentId,
+        kind: 'complete',
+      );
+      await _offlineStore.markDocumentPending(userId, documentId);
+      return {
+        ...response,
+        'queued_for_sync': true,
+        'message':
+            'WZ zapisany bezpiecznie. Oczekuje na potwierdzenie numeru i dokumentów w Fakturowni.',
+      };
     } on ApiException catch (error) {
-      if (error.statusCode != null) rethrow;
+      final operationStatus = error.payload['operation_status']?.toString();
+      final canRetry =
+          error.statusCode == null ||
+          (error.statusCode ?? 0) >= 500 ||
+          operationStatus == 'processing' ||
+          operationStatus == 'uncertain';
+      if (!canRetry) rethrow;
       await _enqueue(
         userId: userId,
         operationId: operationId,
@@ -268,39 +297,146 @@ class DriverRepository {
   Future<int> synchronize(String token, int userId) async {
     final queue = await _offlineStore.readQueue(userId);
     if (queue.isEmpty) return 0;
-    final remaining = <Map<String, dynamic>>[];
     var synchronized = 0;
     for (final operation in queue) {
       if (operation['blocked'] == true) {
-        remaining.add(operation);
         continue;
       }
+      final operationId = operation['operation_id']?.toString() ?? '';
+      if (operationId.isEmpty) continue;
       try {
-        await _api.send(
+        final response = await _api.send(
           operation['method']?.toString() ?? 'POST',
           operation['path']?.toString() ?? '',
           token: token,
           body: (operation['body'] as Map?)?.cast<String, dynamic>(),
         );
+        if (operation['kind']?.toString() == 'complete') {
+          final documentId = int.tryParse('${operation['document_id']}') ?? 0;
+          final confirmed = await _confirmCompletedDocument(
+            token,
+            documentId,
+            response,
+          );
+          if (!confirmed) {
+            await _offlineStore.updateOperation(userId, operationId, {
+              'attempts': (int.tryParse('${operation['attempts']}') ?? 0) + 1,
+              'awaiting_confirmation': true,
+              'last_error':
+                  'Serwer zapisał obsługę, ale WZ/PZ nie są jeszcze potwierdzone w Fakturowni.',
+              'last_attempt_at': DateTime.now().toUtc().toIso8601String(),
+            });
+            continue;
+          }
+        }
+        await _offlineStore.removeOperation(userId, operationId);
         synchronized++;
       } on ApiException catch (error) {
-        final updated = <String, dynamic>{
-          ...operation,
+        final operationStatus = error.payload['operation_status']?.toString();
+        if (operation['kind']?.toString() == 'complete' &&
+            operationStatus == 'uncertain') {
+          final recovery = await _recoverUncertainCompletion(
+            token,
+            userId,
+            operation,
+          );
+          if (recovery == 1) {
+            await _offlineStore.removeOperation(userId, operationId);
+            synchronized++;
+            continue;
+          }
+          if (recovery == 2) continue;
+        }
+        final canRetry =
+            error.statusCode == null ||
+            (error.statusCode ?? 0) >= 500 ||
+            operationStatus == 'processing' ||
+            operationStatus == 'uncertain';
+        await _offlineStore.updateOperation(userId, operationId, {
           'attempts': (int.tryParse('${operation['attempts']}') ?? 0) + 1,
           'last_error': error.message,
           'last_attempt_at': DateTime.now().toUtc().toIso8601String(),
-          if (error.statusCode != null) 'blocked': true,
-        };
-        remaining.add(updated);
+          if (!canRetry) 'blocked': true,
+        });
         if (error.statusCode == null) {
-          final index = queue.indexOf(operation);
-          remaining.addAll(queue.skip(index + 1));
           break;
         }
       }
     }
-    await _offlineStore.writeQueue(userId, remaining);
     return synchronized;
+  }
+
+  Future<bool> _confirmCompletedDocument(
+    String token,
+    int documentId,
+    Map<String, dynamic> response,
+  ) async {
+    if (_completionConfirmed(response)) return true;
+    if (documentId < 1) return false;
+
+    final synchronized = await _api.post(
+      '/mobile/driver/documents/$documentId/warehouse-sync',
+      token: token,
+    );
+    return _completionConfirmed(synchronized);
+  }
+
+  bool _completionConfirmed(Map<String, dynamic> response) {
+    final rawDocument = response['document'];
+    if (rawDocument is! Map) return false;
+    final document = rawDocument.cast<String, dynamic>();
+    if (document['status']?.toString() != 'completed') return false;
+    if (document['warehouse_sync_required'] is! bool ||
+        document['warehouse_sync_complete'] is! bool) {
+      return false;
+    }
+    return document['warehouse_sync_required'] != true ||
+        document['warehouse_sync_complete'] == true;
+  }
+
+  Future<int> _recoverUncertainCompletion(
+    String token,
+    int userId,
+    Map<String, dynamic> operation,
+  ) async {
+    final documentId = int.tryParse('${operation['document_id']}') ?? 0;
+    if (documentId < 1) return 0;
+
+    try {
+      final current = await serviceDocument(token, documentId);
+      final rawDocument = current['document'];
+      if (rawDocument is! Map) return 0;
+      if (rawDocument['status']?.toString() == 'completed') {
+        return await _confirmCompletedDocument(token, documentId, current)
+            ? 1
+            : 0;
+      }
+      if (rawDocument['status']?.toString() != 'planned') return 0;
+
+      // The business write is one database transaction. If an uncertain
+      // idempotency record exists but the document is still planned, that
+      // transaction did not commit and the exact payload can safely receive a
+      // new operation identity for the next attempt.
+      final oldOperationId = operation['operation_id']?.toString() ?? '';
+      final newOperationId = _newOperationId(
+        userId,
+        documentId,
+        'complete-retry',
+      );
+      final body = (operation['body'] as Map?)?.cast<String, dynamic>() ?? {};
+      await _offlineStore.updateOperation(userId, oldOperationId, {
+        'operation_id': newOperationId,
+        'body': {...body, 'client_operation_id': newOperationId},
+        'attempts': 0,
+        'blocked': false,
+        'awaiting_confirmation': false,
+        'last_error': null,
+        'last_attempt_at': null,
+      });
+      return 2;
+    } on ApiException {
+      return 0;
+    }
   }
 
   Future<void> retryBlocked(int userId) => _offlineStore.retryBlocked(userId);
@@ -324,11 +460,7 @@ class DriverRepository {
     int intervalDays = 180,
     String? resultNotes,
   }) async {
-    final operationId = _newOperationId(
-      userId,
-      sanitizationId,
-      'sanitization',
-    );
+    final operationId = _newOperationId(userId, sanitizationId, 'sanitization');
     final path =
         '/mobile/driver/documents/$documentId/sanitizations/$sanitizationId/complete';
     final body = <String, dynamic>{

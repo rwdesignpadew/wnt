@@ -34,7 +34,12 @@ void main() {
           body = (jsonDecode(request.body) as Map).cast<String, dynamic>();
           return http.Response(
             jsonEncode({
-              'document': {'id': 41},
+              'document': {
+                'id': 41,
+                'status': 'completed',
+                'warehouse_sync_required': false,
+                'warehouse_sync_complete': true,
+              },
             }),
             200,
           );
@@ -116,9 +121,20 @@ void main() {
     final repository = DriverRepository(
       ApiClient(
         client: MockClient((request) async {
-          final body = (jsonDecode(request.body) as Map).cast<String, dynamic>();
+          final body = (jsonDecode(request.body) as Map)
+              .cast<String, dynamic>();
           operationIds.add(body['client_operation_id'].toString());
-          return http.Response(jsonEncode({'document': {'id': 41}}), 200);
+          return http.Response(
+            jsonEncode({
+              'document': {
+                'id': 41,
+                'status': 'completed',
+                'warehouse_sync_required': false,
+                'warehouse_sync_complete': true,
+              },
+            }),
+            200,
+          );
         }),
       ),
       OfflineStore(supportDirectory: () async => directory),

@@ -233,6 +233,7 @@ class ApiClient {
           : 'Operacja nie powiodła się.',
       statusCode: statusCode,
       errors: errors,
+      payload: json,
     );
   }
 
