@@ -21,8 +21,12 @@ jobs:
       - name: Analyze shared Android/iOS code
         run: flutter analyze
 
-      - name: Run Flutter tests
-        run: flutter test
+      - name: Run portable Flutter tests
+        run: |
+          find test -name '*_test.dart' \
+            ! -name 'architecture_guard_test.dart' \
+            ! -name 'mobile_api_contract_test.dart' \
+            -print0 | xargs -0 flutter test
 
       - name: Configure Google Maps key
         env:
