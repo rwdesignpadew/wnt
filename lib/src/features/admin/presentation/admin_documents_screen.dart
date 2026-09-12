@@ -14,6 +14,7 @@ import '../../driver/application/driver_providers.dart';
 import '../../driver/presentation/driver_manual_wz_screen.dart';
 import '../../driver/presentation/driver_service_screen.dart';
 import '../application/admin_providers.dart';
+import 'admin_monthly_wz_summary_screen.dart';
 
 class AdminDocumentsScreen extends ConsumerStatefulWidget {
   const AdminDocumentsScreen({super.key});
@@ -30,6 +31,10 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
   String _search = '';
   DateTime? _dateFrom;
   DateTime? _dateTo;
+  String _source = 'all';
+  int? _clientId;
+  String _clientType = 'all';
+  int? _driverId;
   int _page = 1;
   bool _loadingMore = false;
   bool _hasMore = true;
@@ -39,6 +44,10 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     search: _search,
     dateFrom: _dateFrom == null ? null : _isoDate(_dateFrom!),
     dateTo: _dateTo == null ? null : _isoDate(_dateTo!),
+    source: _source,
+    clientId: _clientId,
+    clientType: _clientType,
+    driverId: _driverId,
   );
 
   @override
@@ -72,16 +81,23 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
             search: _search,
             dateFrom: _dateFrom == null ? null : _isoDate(_dateFrom!),
             dateTo: _dateTo == null ? null : _isoDate(_dateTo!),
+            source: _source,
+            clientId: _clientId,
+            clientType: _clientType,
+            driverId: _driverId,
           );
       if (!mounted) return;
       setState(() {
         _page = nextPage;
         _hasMore = items.length == 30;
         final keys = _additionalDocuments
-            .map((item) => '${item['source']}:${item['id']}')
+            .map((item) => '${item['source']}:${item['type']}:${item['id']}')
             .toSet();
         _additionalDocuments.addAll(
-          items.where((item) => keys.add('${item['source']}:${item['id']}')),
+          items.where(
+            (item) =>
+                keys.add('${item['source']}:${item['type']}:${item['id']}'),
+          ),
         );
       });
     } catch (error) {
@@ -528,13 +544,43 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       (_filter == 'all' ? 0 : 1) +
       (_search.trim().isEmpty ? 0 : 1) +
       (_dateFrom == null ? 0 : 1) +
-      (_dateTo == null ? 0 : 1);
+      (_dateTo == null ? 0 : 1) +
+      (_source == 'all' ? 0 : 1) +
+      (_clientId == null ? 0 : 1) +
+      (_clientType == 'all' ? 0 : 1) +
+      (_driverId == null ? 0 : 1);
 
   Future<void> _openFilters() async {
+    final token = ref.read(authControllerProvider).session!.token;
+    Map<String, dynamic> options;
+    try {
+      options = await ref
+          .read(adminRepositoryProvider)
+          .documentFilterOptions(token);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final clients = (options['clients'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList(growable: false);
+    final drivers = (options['drivers'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .toList(growable: false);
     final search = TextEditingController(text: _search);
     var type = _filter;
     var dateFrom = _dateFrom;
     var dateTo = _dateTo;
+    var source = _source;
+    var clientId = _clientId;
+    var clientType = _clientType;
+    var driverId = _driverId;
     final result = await showModalBottomSheet<_DocumentFilterResult>(
       context: context,
       isScrollControlled: true,
@@ -585,8 +631,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       value: 'all',
                       child: Text('Wszystkie dokumenty'),
                     ),
-                    DropdownMenuItem(value: 'wz', child: Text('Tylko WZ')),
-                    DropdownMenuItem(value: 'pz', child: Text('Tylko PZ')),
+                    DropdownMenuItem(value: 'wz', child: Text('WZ / PZ')),
                     DropdownMenuItem(
                       value: 'invoice',
                       child: Text('Tylko Faktury VAT'),
@@ -594,6 +639,82 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                   ],
                   onChanged: (value) =>
                       setSheetState(() => type = value ?? 'all'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: source,
+                  decoration: const InputDecoration(labelText: 'Źródło'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Wszystkie')),
+                    DropdownMenuItem(value: 'local', child: Text('Aplikacja')),
+                    DropdownMenuItem(
+                      value: 'fakturownia',
+                      child: Text('Fakturownia'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setSheetState(() => source = value ?? 'all'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int?>(
+                  initialValue: clientId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Klient'),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Wszyscy klienci'),
+                    ),
+                    ...clients.map(
+                      (client) => DropdownMenuItem<int?>(
+                        value: _int(client['id']),
+                        child: Text(
+                          client['name']?.toString() ?? 'Klient',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setSheetState(() => clientId = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: clientType,
+                  decoration: const InputDecoration(labelText: 'Typ klienta'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Wszyscy')),
+                    DropdownMenuItem(value: 'company', child: Text('Firmy')),
+                    DropdownMenuItem(
+                      value: 'private',
+                      child: Text('Osoby prywatne'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setSheetState(() => clientType = value ?? 'all'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int?>(
+                  initialValue: driverId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Kierowca / wystawca',
+                  ),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Wszyscy kierowcy'),
+                    ),
+                    ...drivers.map(
+                      (driver) => DropdownMenuItem<int?>(
+                        value: _int(driver['id']),
+                        child: Text(
+                          driver['name']?.toString() ?? 'Kierowca',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setSheetState(() => driverId = value),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -667,6 +788,10 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                             search: search.text.trim(),
                             dateFrom: dateFrom,
                             dateTo: dateTo,
+                            source: source,
+                            clientId: clientId,
+                            clientType: clientType,
+                            driverId: driverId,
                           ),
                         ),
                         icon: const Icon(Icons.filter_alt_outlined),
@@ -688,6 +813,10 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       _search = result.search;
       _dateFrom = result.dateFrom;
       _dateTo = result.dateTo;
+      _source = result.source;
+      _clientId = result.clientId;
+      _clientType = result.clientType;
+      _driverId = result.driverId;
       _page = 1;
       _hasMore = true;
       _additionalDocuments.clear();
@@ -706,7 +835,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
         data: (items) {
           final allByKey = <String, Map<String, dynamic>>{
             for (final item in [...items, ..._additionalDocuments])
-              '${item['source']}:${item['id']}': item,
+              '${item['source']}:${item['type']}:${item['id']}': item,
           };
           final sorted = allByKey.values.toList()
             ..sort((a, b) {
@@ -754,6 +883,20 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const AdminMonthlyWzSummaryScreen(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.summarize_outlined),
+                          label: const Text('Miesięczne podsumowanie WZ'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -907,12 +1050,20 @@ class _DocumentFilterResult {
     this.search = '',
     this.dateFrom,
     this.dateTo,
+    this.source = 'all',
+    this.clientId,
+    this.clientType = 'all',
+    this.driverId,
   });
 
   final String type;
   final String search;
   final DateTime? dateFrom;
   final DateTime? dateTo;
+  final String source;
+  final int? clientId;
+  final String clientType;
+  final int? driverId;
 }
 
 class _FilterDateTile extends StatelessWidget {

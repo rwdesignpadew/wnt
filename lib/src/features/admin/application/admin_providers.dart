@@ -34,6 +34,10 @@ typedef AdminDocumentsQuery = ({
   String search,
   String? dateFrom,
   String? dateTo,
+  String source,
+  int? clientId,
+  String clientType,
+  int? driverId,
 });
 
 final adminDocumentsProvider =
@@ -46,6 +50,10 @@ final adminDocumentsProvider =
             search: query.search,
             dateFrom: query.dateFrom,
             dateTo: query.dateTo,
+            source: query.source,
+            clientId: query.clientId,
+            clientType: query.clientType,
+            driverId: query.driverId,
           ),
     );
 final adminMissedRoutesProvider =

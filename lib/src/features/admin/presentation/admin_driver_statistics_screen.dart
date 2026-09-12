@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import 'admin_client_stats_screen.dart';
 
 class AdminDriverStatisticsScreen extends ConsumerStatefulWidget {
   const AdminDriverStatisticsScreen({super.key});
@@ -616,6 +617,11 @@ class _PrivateCashNoRecurringCard extends StatelessWidget {
               },
             ),
             const SizedBox(height: 8),
+            _ProductBreakdown(
+              title: 'Co kupili ci klienci',
+              items: stats['private_cash_no_recurring_products'],
+            ),
+            const SizedBox(height: 8),
             if (rows.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -655,7 +661,35 @@ class _PrivateCashNoRecurringCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AdminClientStatsScreen(
+                                  clientId:
+                                      int.tryParse('${row['client_id']}') ?? 0,
+                                  locationId: int.tryParse(
+                                    '${row['location_id']}',
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
+                          if (row['products'] is List)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  (row['products'] as List)
+                                      .whereType<Map>()
+                                      .map(
+                                        (product) =>
+                                            '${product['name']} ${format(product['quantity'], 2)} szt.',
+                                      )
+                                      .join(' · '),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            ),
                         ],
                       );
                     })

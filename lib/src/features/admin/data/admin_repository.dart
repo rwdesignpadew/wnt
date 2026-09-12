@@ -240,11 +240,33 @@ class AdminRepository {
     String search = '',
     String? dateFrom,
     String? dateTo,
+    String source = 'all',
+    int? clientId,
+    String clientType = 'all',
+    int? driverId,
   }) async => _items(
     await _api.get(
-      '/mobile/admin/documents?${Uri(queryParameters: <String, String>{'page': '$page', 'per_page': '30', if (type != 'all') 'type': type, if (search.trim().isNotEmpty) 'search': search.trim(), if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom, if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo}).query}',
+      '/mobile/admin/documents?${Uri(queryParameters: <String, String>{'page': '$page', 'per_page': '30', if (type != 'all') 'type': type, if (search.trim().isNotEmpty) 'search': search.trim(), if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom, if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo, if (source != 'all') 'source': source, if (clientId != null) 'client_id': '$clientId', if (clientType != 'all') 'client_type': clientType, if (driverId != null) 'driver_id': '$driverId'}).query}',
       token: token,
     ),
+  );
+  Future<Map<String, dynamic>> documentFilterOptions(String token) =>
+      _api.get('/mobile/admin/document-filter-options', token: token);
+  Future<Map<String, dynamic>> monthlyWzSummary(
+    String token,
+    String month,
+  ) => _api.get(
+    '/mobile/admin/documents/monthly-summary?${Uri(queryParameters: {'month': month}).query}',
+    token: token,
+  );
+  Future<Map<String, dynamic>> updateMonthlyWzEmailPreference(
+    String token,
+    int clientId,
+    bool enabled,
+  ) => _api.post(
+    '/mobile/admin/clients/$clientId/monthly-wz-email',
+    token: token,
+    body: {'enabled': enabled},
   );
   Future<Map<String, dynamic>> createFinalInvoice(
     String token,

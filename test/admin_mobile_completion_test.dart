@@ -113,8 +113,42 @@ void main() {
     expect(mobile, contains('Data do'));
     expect(repository, contains("'date_from'"));
     expect(repository, contains("'date_to'"));
+    expect(repository, contains("'source'"));
+    expect(repository, contains("'client_id'"));
+    expect(repository, contains("'client_type'"));
+    expect(repository, contains("'driver_id'"));
     expect(controller, contains("\$request->input('search'"));
     expect(controller, contains("\$request->input('type'"));
+    expect(mobile, contains('Kierowca / wystawca'));
+    expect(mobile, contains('Osoby prywatne'));
+  });
+
+  test('miesięczne WZ mają pełne podsumowanie, PDF i wybór wysyłki z FV', () {
+    final documents = File(
+      'lib/src/features/admin/presentation/admin_documents_screen.dart',
+    ).readAsStringSync();
+    final summary = File(
+      'lib/src/features/admin/presentation/admin_monthly_wz_summary_screen.dart',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/src/features/admin/data/admin_repository.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+    final fakturownia = File(
+      '${backendRoot.path}/app/Services/FakturowniaService.php',
+    ).readAsStringSync();
+
+    expect(documents, contains('Miesięczne podsumowanie WZ'));
+    expect(summary, contains('Co kupili wszyscy'));
+    expect(summary, contains('Wystawione WZ'));
+    expect(summary, contains('documentPdf'));
+    expect(summary, contains('Wyślij wszystkie WZ razem z Fakturą VAT'));
+    expect(repository, contains('monthlyWzSummary'));
+    expect(repository, contains('updateMonthlyWzEmailPreference'));
+    expect(controller, contains('function monthlyWzSummary'));
+    expect(fakturownia, contains('sendInvoiceWithWarehouseDocumentsEmail'));
   });
 
   test('statystyki GPS i prywatni klienci są zgodni z panelem WWW', () {
