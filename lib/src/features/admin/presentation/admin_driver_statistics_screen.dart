@@ -214,6 +214,8 @@ class _AdminDriverStatisticsScreenState
             ),
             const SizedBox(height: 16),
             _StatisticsBreakdownCard(stats: stats),
+            const SizedBox(height: 16),
+            _PrivateCashNoRecurringCard(stats: stats),
             if (_driverId == null && breakdown.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text(
@@ -544,6 +546,169 @@ class _StatisticsBreakdownCard extends StatelessWidget {
         'Przelew: ${format(stats['${type}_transfer_value'], 2)} zł '
         '(${stats['${type}_transfer_documents'] ?? 0} WZ)';
   }
+}
+
+class _PrivateCashNoRecurringCard extends StatelessWidget {
+  const _PrivateCashNoRecurringCard({required this.stats});
+
+  final Map<String, dynamic> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = stats['private_cash_no_recurring_rows'] is List
+        ? (stats['private_cash_no_recurring_rows'] as List)
+              .whereType<Map>()
+              .toList(growable: false)
+        : const <Map>[];
+    final format = _AdminDriverStatisticsScreenState._number;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Osoby prywatne — gotówka bez NIP i faktury cyklicznej',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Klienci obsłużeni przez wybranego kierowcę w wybranym okresie.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = (constraints.maxWidth - 8) / 2;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _PrivateStatsMetric(
+                      width: width,
+                      label: 'Klienci',
+                      value:
+                          '${stats['private_cash_no_recurring_customers'] ?? 0}',
+                    ),
+                    _PrivateStatsMetric(
+                      width: width,
+                      label: 'WZ',
+                      value:
+                          '${stats['private_cash_no_recurring_documents'] ?? 0}',
+                    ),
+                    _PrivateStatsMetric(
+                      width: width,
+                      label: 'Wartość WZ',
+                      value:
+                          '${format(stats['private_cash_no_recurring_value'], 2)} zł',
+                    ),
+                    _PrivateStatsMetric(
+                      width: width,
+                      label: 'Pobrana gotówka',
+                      value:
+                          '${format(stats['private_cash_no_recurring_collected'], 2)} zł',
+                      valueColor: Colors.green.shade700,
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            if (rows.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Brak takich klientów w wybranym okresie.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              )
+            else
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                title: Text('Klienci i lokalizacje (${rows.length})'),
+                children: rows
+                    .map((row) {
+                      return Column(
+                        children: [
+                          const Divider(height: 1),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              row['client']?.toString() ?? 'Klient',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${row['location'] ?? 'Główna lokalizacja'}\n'
+                              '${row['documents'] ?? 0} WZ • '
+                              '${format(row['value'], 2)} zł',
+                            ),
+                            trailing: Text(
+                              '${format(row['cash'], 2)} zł',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrivateStatsMetric extends StatelessWidget {
+  const _PrivateStatsMetric({
+    required this.width,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final double width;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: width,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Theme.of(context).dividerColor),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: valueColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ProductBreakdown extends StatelessWidget {

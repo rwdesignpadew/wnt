@@ -116,4 +116,29 @@ void main() {
     expect(controller, contains("\$request->input('search'"));
     expect(controller, contains("\$request->input('type'"));
   });
+
+  test('statystyki GPS i prywatni klienci są zgodni z panelem WWW', () {
+    final screen = File(
+      'lib/src/features/admin/presentation/admin_driver_statistics_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+    final myCar = File(
+      '${backendRoot.path}/app/Services/MyCarService.php',
+    ).readAsStringSync();
+    final console = File(
+      '${backendRoot.path}/routes/console.php',
+    ).readAsStringSync();
+
+    expect(controller, contains('km_delta >= 0 AND km_delta <= 5'));
+    expect(controller, isNot(contains('MAX(odometer) - MIN(odometer)')));
+    expect(controller, contains("'private_cash_no_recurring_rows'"));
+    expect(controller, contains("'private_cash_no_recurring_collected'"));
+    expect(screen, contains('Osoby prywatne'));
+    expect(screen, contains("stats['private_cash_no_recurring_rows']"));
+    expect(console, contains("Schedule::command('wnt:sync-mycar-gps')"));
+    expect(myCar, contains('DriverLocation::updateOrCreate'));
+    expect(myCar, isNot(contains('DriverLocation::create([')));
+  });
 }
