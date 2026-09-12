@@ -13,12 +13,25 @@ void main() {
         .where((file) => file.path.endsWith('.dart'))
         .where((file) => file.readAsStringSync().contains('WebViewController'))
         .toList();
-    expect(webViewFiles, hasLength(1));
+    expect(webViewFiles, hasLength(2));
+    final paths = webViewFiles
+        .map((file) => file.path.replaceAll('\\', '/'))
+        .toList();
     expect(
-      webViewFiles.single.path.replaceAll('\\', '/'),
-      endsWith('features/documents/presentation/html_document_screen.dart'),
+      paths,
+      contains(
+        endsWith('features/documents/presentation/html_document_screen.dart'),
+      ),
     );
-    final source = webViewFiles.single.readAsStringSync();
+    expect(
+      paths,
+      contains(
+        endsWith('features/auth/presentation/legal_document_screen.dart'),
+      ),
+    );
+    final source = webViewFiles
+        .firstWhere((file) => file.path.endsWith('html_document_screen.dart'))
+        .readAsStringSync();
     expect(source, contains('JavaScriptMode.disabled'));
     expect(source, contains('loadHtmlString(widget.html)'));
     expect(source, isNot(contains('loadRequest(')));
@@ -68,7 +81,7 @@ void main() {
     final route = File(
       'lib/src/features/driver/presentation/driver_route_screen.dart',
     ).readAsStringSync();
-    expect(navigation, contains('waypoints: widget.destinations'));
+    expect(navigation, contains('waypoints: destinations'));
     expect(navigation, contains('GoogleMapsNavigator.setDestinations'));
     expect(navigation, contains('continueToNextDestination'));
     expect(navigation, contains('followMyLocation(CameraPerspective.tilted)'));

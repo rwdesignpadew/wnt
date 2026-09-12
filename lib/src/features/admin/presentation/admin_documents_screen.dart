@@ -27,9 +27,19 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
   final List<Map<String, dynamic>> _additionalDocuments = [];
   int? _busy;
   String _filter = 'all';
+  String _search = '';
+  DateTime? _dateFrom;
+  DateTime? _dateTo;
   int _page = 1;
   bool _loadingMore = false;
   bool _hasMore = true;
+
+  AdminDocumentsQuery get _query => (
+    type: _filter,
+    search: _search,
+    dateFrom: _dateFrom == null ? null : _isoDate(_dateFrom!),
+    dateTo: _dateTo == null ? null : _isoDate(_dateTo!),
+  );
 
   @override
   void initState() {
@@ -55,7 +65,14 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final nextPage = _page + 1;
       final items = await ref
           .read(adminRepositoryProvider)
-          .documents(token, page: nextPage);
+          .documents(
+            token,
+            page: nextPage,
+            type: _filter,
+            search: _search,
+            dateFrom: _dateFrom == null ? null : _isoDate(_dateFrom!),
+            dateTo: _dateTo == null ? null : _isoDate(_dateTo!),
+          );
       if (!mounted) return;
       setState(() {
         _page = nextPage;
@@ -84,8 +101,8 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       _hasMore = true;
       _additionalDocuments.clear();
     });
-    ref.invalidate(adminDocumentsProvider);
-    await ref.read(adminDocumentsProvider.future);
+    ref.invalidate(adminDocumentsProvider(_query));
+    await ref.read(adminDocumentsProvider(_query).future);
   }
 
   Future<void> _openManualWz() async {
@@ -209,7 +226,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final response = document['source'] == 'local'
           ? await repository.deleteDocument(token, id)
           : await repository.deleteExternalDocument(token, id);
-      ref.invalidate(adminDocumentsProvider);
+      ref.invalidate(adminDocumentsProvider(_query));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${response['message'] ?? 'WZ usunięta.'}')),
@@ -315,7 +332,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final response = await ref
           .read(adminRepositoryProvider)
           .createFinalInvoice(token, id, servicePrices: servicePrices);
-      ref.invalidate(adminDocumentsProvider);
+      ref.invalidate(adminDocumentsProvider(_query));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -441,7 +458,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       final response = await ref
           .read(adminRepositoryProvider)
           .sendInvoiceToKsef(token, id);
-      ref.invalidate(adminDocumentsProvider);
+      ref.invalidate(adminDocumentsProvider(_query));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -507,14 +524,184 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     }
   }
 
+  int get _activeFilterCount =>
+      (_filter == 'all' ? 0 : 1) +
+      (_search.trim().isEmpty ? 0 : 1) +
+      (_dateFrom == null ? 0 : 1) +
+      (_dateTo == null ? 0 : 1);
+
+  Future<void> _openFilters() async {
+    final search = TextEditingController(text: _search);
+    var type = _filter;
+    var dateFrom = _dateFrom;
+    var dateTo = _dateTo;
+    final result = await showModalBottomSheet<_DocumentFilterResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Filtry dokumentów',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: search,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    labelText: 'Numer dokumentu, klient lub NIP',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(
+                    labelText: 'Rodzaj dokumentu',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'all',
+                      child: Text('Wszystkie dokumenty'),
+                    ),
+                    DropdownMenuItem(value: 'wz', child: Text('Tylko WZ')),
+                    DropdownMenuItem(value: 'pz', child: Text('Tylko PZ')),
+                    DropdownMenuItem(
+                      value: 'invoice',
+                      child: Text('Tylko Faktury VAT'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setSheetState(() => type = value ?? 'all'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _FilterDateTile(
+                        label: 'Data od',
+                        value: dateFrom,
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: dateFrom ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 366),
+                            ),
+                          );
+                          if (picked != null) {
+                            setSheetState(() => dateFrom = picked);
+                          }
+                        },
+                        onClear: dateFrom == null
+                            ? null
+                            : () => setSheetState(() => dateFrom = null),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _FilterDateTile(
+                        label: 'Data do',
+                        value: dateTo,
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: dateTo ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 366),
+                            ),
+                          );
+                          if (picked != null) {
+                            setSheetState(() => dateTo = picked);
+                          }
+                        },
+                        onClear: dateTo == null
+                            ? null
+                            : () => setSheetState(() => dateTo = null),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(
+                          sheetContext,
+                          const _DocumentFilterResult(),
+                        ),
+                        child: const Text('Wyczyść'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.pop(
+                          sheetContext,
+                          _DocumentFilterResult(
+                            type: type,
+                            search: search.text.trim(),
+                            dateFrom: dateFrom,
+                            dateTo: dateTo,
+                          ),
+                        ),
+                        icon: const Icon(Icons.filter_alt_outlined),
+                        label: const Text('Zastosuj'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    search.dispose();
+    if (result == null || !mounted) return;
+    setState(() {
+      _filter = result.type;
+      _search = result.search;
+      _dateFrom = result.dateFrom;
+      _dateTo = result.dateTo;
+      _page = 1;
+      _hasMore = true;
+      _additionalDocuments.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) => ref
-      .watch(adminDocumentsProvider)
+      .watch(adminDocumentsProvider(_query))
       .when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => AsyncErrorView(
           error: error,
-          onRetry: () => ref.invalidate(adminDocumentsProvider),
+          onRetry: () => ref.invalidate(adminDocumentsProvider(_query)),
         ),
         data: (items) {
           final allByKey = <String, Map<String, dynamic>>{
@@ -529,13 +716,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
               if (b['type'] == 'invoice' && a['type'] != 'invoice') return 1;
               return _int(b['id']).compareTo(_int(a['id']));
             });
-          final documents = sorted.where((document) {
-            if (_filter == 'wz') {
-              return document['type'] == 'wz' || document['type'] == 'pz';
-            }
-            if (_filter == 'invoice') return document['type'] == 'invoice';
-            return true;
-          }).toList();
+          final documents = sorted;
           return RefreshIndicator(
             onRefresh: _refreshDocuments,
             child: ListView.separated(
@@ -573,9 +754,17 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _DocumentFilters(
-                        selected: _filter,
-                        onChanged: (value) => setState(() => _filter = value),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _openFilters,
+                          icon: const Icon(Icons.filter_alt_outlined),
+                          label: Text(
+                            _activeFilterCount == 0
+                                ? 'Filtry'
+                                : 'Filtry ($_activeFilterCount)',
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -712,65 +901,64 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       );
 }
 
-class _DocumentFilters extends StatelessWidget {
-  const _DocumentFilters({required this.selected, required this.onChanged});
+class _DocumentFilterResult {
+  const _DocumentFilterResult({
+    this.type = 'all',
+    this.search = '',
+    this.dateFrom,
+    this.dateTo,
+  });
 
-  final String selected;
-  final ValueChanged<String> onChanged;
+  final String type;
+  final String search;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+}
+
+class _FilterDateTile extends StatelessWidget {
+  const _FilterDateTile({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    this.onClear,
+  });
+
+  final String label;
+  final DateTime? value;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
 
   @override
-  Widget build(BuildContext context) {
-    const filters = [
-      ('all', 'Wszystkie'),
-      ('wz', 'WZ / PZ'),
-      ('invoice', 'Faktury VAT'),
-    ];
-    return Container(
-      width: double.infinity,
-      height: 46,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: WntColors.brandSoft,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: WntColors.line),
-      ),
-      child: Row(
-        children: [
-          for (final filter in filters)
-            Expanded(
-              child: Material(
-                color: selected == filter.$1
-                    ? Colors.white
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(9),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(9),
-                  onTap: () => onChanged(filter.$1),
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        filter.$2,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: selected == filter.$1
-                              ? WntColors.brand
-                              : WntColors.muted,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+  Widget build(BuildContext context) => InkWell(
+    borderRadius: BorderRadius.circular(12),
+    onTap: onTap,
+    child: InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: onClear == null
+            ? const Icon(Icons.calendar_month_outlined)
+            : IconButton(
+                tooltip: 'Wyczyść datę',
+                onPressed: onClear,
+                icon: const Icon(Icons.close),
               ),
-            ),
-        ],
       ),
-    );
-  }
+      child: Text(value == null ? 'Dowolna' : _displayDate(value!)),
+    ),
+  );
 }
 
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+
+String _isoDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
+
+String _displayDate(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}.'
+    '${value.month.toString().padLeft(2, '0')}.'
+    '${value.year.toString().padLeft(4, '0')}';
 
 int _documentSortAt(Map<String, dynamic> document) {
   final serverValue = int.tryParse('${document['sort_at'] ?? ''}');

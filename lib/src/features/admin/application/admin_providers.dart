@@ -29,9 +29,31 @@ final adminRoutesProvider = FutureProvider<List<Map<String, dynamic>>>(
 final adminClientsProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(adminRepositoryProvider).clients(_token(ref)),
 );
-final adminDocumentsProvider = FutureProvider<List<Map<String, dynamic>>>(
-  (ref) => ref.watch(adminRepositoryProvider).documents(_token(ref)),
-);
+typedef AdminDocumentsQuery = ({
+  String type,
+  String search,
+  String? dateFrom,
+  String? dateTo,
+});
+
+final adminDocumentsProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, AdminDocumentsQuery>(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .documents(
+            _token(ref),
+            type: query.type,
+            search: query.search,
+            dateFrom: query.dateFrom,
+            dateTo: query.dateTo,
+          ),
+    );
+final adminMissedRoutesProvider =
+    FutureProvider.family<Map<String, dynamic>, String?>(
+      (ref, date) => ref
+          .watch(adminRepositoryProvider)
+          .missedRoutes(_token(ref), date: date),
+    );
 final adminProductsProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(adminRepositoryProvider).products(_token(ref)),
 );

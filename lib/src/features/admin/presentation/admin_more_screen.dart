@@ -471,6 +471,12 @@ class AdminOperationsScreen extends ConsumerWidget {
                                       action,
                                     ),
                                     itemBuilder: (_) => [
+                                      if (item['status'] == 'overdue' &&
+                                          item['route_is_upcoming'] != true)
+                                        const PopupMenuItem(
+                                          value: 'plan_route',
+                                          child: Text('Dodaj zaległą do trasy'),
+                                        ),
                                       const PopupMenuItem(
                                         value: 'edit',
                                         child: Text('Szczegóły i edycja'),
@@ -560,6 +566,20 @@ class AdminOperationsScreen extends ConsumerWidget {
     Map<String, dynamic> item,
     String action,
   ) async {
+    if (action == 'plan_route') {
+      final data = await ref.read(adminOperationsProvider.future);
+      if (context.mounted) {
+        await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => _SanitizationRouteSheet(item: item, data: data),
+        );
+        ref.invalidate(adminOperationsProvider);
+        ref.invalidate(adminRoutesProvider);
+      }
+      return;
+    }
     if (action == 'edit') {
       final data = await ref.read(adminOperationsProvider.future);
       if (context.mounted) {
@@ -743,6 +763,237 @@ Future<void> _openSanitizationEditor(
         _SanitizationSheet(item: item, clients: clients, drivers: drivers),
   );
   ref.invalidate(adminOperationsProvider);
+}
+
+class _SanitizationRouteSheet extends ConsumerStatefulWidget {
+  const _SanitizationRouteSheet({required this.item, required this.data});
+
+  final Map<String, dynamic> item;
+  final Map<String, dynamic> data;
+
+  @override
+  ConsumerState<_SanitizationRouteSheet> createState() =>
+      _SanitizationRouteSheetState();
+}
+
+class _SanitizationRouteSheetState
+    extends ConsumerState<_SanitizationRouteSheet> {
+  late final List<Map<String, dynamic>> routes =
+      (widget.data['route_options'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList();
+  late final List<Map<String, dynamic>> drivers =
+      (widget.data['sanitization_drivers'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList();
+  late String mode = routes.isEmpty ? 'new' : 'existing';
+  late int routeId = routes.isEmpty ? 0 : _int(routes.first['id']);
+  late int driverId = drivers.isEmpty ? 0 : _int(drivers.first['id']);
+  late final TextEditingController position = TextEditingController(
+    text: routes.isEmpty ? '1' : '${_int(routes.first['stops_count']) + 1}',
+  );
+  late final TextEditingController routeName = TextEditingController(
+    text: 'Sanityzacja - ${widget.item['title']}',
+  );
+  DateTime date = DateTime.now().add(const Duration(days: 1));
+  bool saving = false;
+
+  @override
+  void dispose() {
+    position.dispose();
+    routeName.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if ((mode == 'existing' && routeId < 1) ||
+        (mode == 'new' && (driverId < 1 || routeName.text.trim().isEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wybierz trasę i kierowcę.')),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .planSanitizationRoute(
+            ref.read(authControllerProvider).session!.token,
+            _int(widget.item['id']),
+            <String, dynamic>{
+              'route_mode': mode,
+              'route_id': mode == 'existing' ? routeId : null,
+              'route_position': mode == 'existing'
+                  ? (_int(position.text) == 0 ? 1 : _int(position.text))
+                  : null,
+              'new_route_name': mode == 'new' ? routeName.text.trim() : null,
+              'new_scheduled_date': mode == 'new' ? _isoDate(date) : null,
+              'new_driver_id': mode == 'new' ? driverId : null,
+            },
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${response['message'] ?? 'Dodano do trasy.'}'),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .82,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 8, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Zaplanuj zaległą sanityzację',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    Text(
+                      widget.item['title']?.toString() ?? 'Klient',
+                      style: const TextStyle(color: WntColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            children: [
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'existing',
+                    label: Text('Istniejąca trasa'),
+                  ),
+                  ButtonSegment(value: 'new', label: Text('Nowa trasa')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (selection) =>
+                    setState(() => mode = selection.first),
+              ),
+              const SizedBox(height: 14),
+              if (mode == 'existing') ...[
+                DropdownButtonFormField<int>(
+                  initialValue: routeId == 0 ? null : routeId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Trasa'),
+                  items: routes
+                      .map(
+                        (route) => DropdownMenuItem(
+                          value: _int(route['id']),
+                          child: Text(
+                            '${route['date']} - ${route['name']} - ${route['driver'] ?? 'bez kierowcy'}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    final route = routes.firstWhere(
+                      (item) => _int(item['id']) == value,
+                    );
+                    setState(() {
+                      routeId = value;
+                      position.text = '${_int(route['stops_count']) + 1}';
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: position,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Pozycja klienta na trasie',
+                  ),
+                ),
+              ] else ...[
+                TextField(
+                  controller: routeName,
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa nowej trasy',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Data nowej trasy'),
+                  subtitle: Text(_isoDate(date)),
+                  trailing: const Icon(Icons.calendar_month_outlined),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: date,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 730)),
+                    );
+                    if (picked != null) setState(() => date = picked);
+                  },
+                ),
+                DropdownButtonFormField<int>(
+                  initialValue: driverId == 0 ? null : driverId,
+                  decoration: const InputDecoration(labelText: 'Kierowca'),
+                  items: drivers
+                      .map(
+                        (driver) => DropdownMenuItem(
+                          value: _int(driver['id']),
+                          child: Text('${driver['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => driverId = value ?? 0),
+                ),
+              ],
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: saving ? null : _save,
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.route_outlined),
+                label: const Text('Dodaj klienta i sanityzację do trasy'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SanitizationSheet extends ConsumerStatefulWidget {

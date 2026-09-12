@@ -89,6 +89,15 @@ class AdminRepository {
     token: token,
     body: {'result_notes': resultNotes},
   );
+  Future<Map<String, dynamic>> planSanitizationRoute(
+    String token,
+    int id,
+    Map<String, dynamic> body,
+  ) => _api.post(
+    '/mobile/admin/sanitizations/$id/plan-route',
+    token: token,
+    body: body,
+  );
   Future<Map<String, dynamic>> deleteSanitization(String token, int id) =>
       _api.delete('/mobile/admin/sanitizations/$id', token: token);
   Future<Map<String, dynamic>> saveDriver(
@@ -130,6 +139,22 @@ class AdminRepository {
       _api.delete('/mobile/admin/regions/$id', token: token);
   Future<List<Map<String, dynamic>>> routes(String token) async =>
       _items(await _api.get('/mobile/admin/routes', token: token));
+  Future<Map<String, dynamic>> missedRoutes(
+    String token, {
+    String? date,
+  }) => _api.get(
+    '/mobile/admin/routes-missed'
+    '${date == null || date.isEmpty ? '' : '?date=${Uri.encodeQueryComponent(date)}'}',
+    token: token,
+  );
+  Future<Map<String, dynamic>> reassignMissedRoutes(
+    String token,
+    Map<String, dynamic> body,
+  ) => _api.post(
+    '/mobile/admin/routes-missed/reassign',
+    token: token,
+    body: body,
+  );
   Future<Map<String, dynamic>> route(String token, int id) =>
       _api.get('/mobile/admin/routes/$id', token: token);
   Future<Map<String, dynamic>> routeOptions(String token) =>
@@ -211,9 +236,13 @@ class AdminRepository {
   Future<List<Map<String, dynamic>>> documents(
     String token, {
     int page = 1,
+    String type = 'all',
+    String search = '',
+    String? dateFrom,
+    String? dateTo,
   }) async => _items(
     await _api.get(
-      '/mobile/admin/documents?page=$page&per_page=30',
+      '/mobile/admin/documents?${Uri(queryParameters: <String, String>{'page': '$page', 'per_page': '30', if (type != 'all') 'type': type, if (search.trim().isNotEmpty) 'search': search.trim(), if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom, if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo}).query}',
       token: token,
     ),
   );
@@ -283,6 +312,14 @@ class AdminRepository {
   );
   Future<Map<String, dynamic>> rentals(String token) =>
       _api.get('/mobile/admin/rentals', token: token);
+  Future<Map<String, dynamic>> storeRental(
+    String token,
+    Map<String, dynamic> body,
+  ) => _api.post('/mobile/admin/rentals', token: token, body: body);
+  Future<Map<String, dynamic>> deletePendingRental(
+    String token,
+    int documentId,
+  ) => _api.delete('/mobile/admin/rentals/pending/$documentId', token: token);
   Future<Map<String, dynamic>> routeNotes(
     String token, {
     int? routeId,

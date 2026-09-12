@@ -21,7 +21,7 @@ class AdminRoutesScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
-  bool _archived = false;
+  String _tab = 'current';
 
   @override
   Widget build(BuildContext context) => ref
@@ -33,91 +33,142 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
           onRetry: () => ref.invalidate(adminRoutesProvider),
         ),
         data: (allItems) {
+          final active = allItems
+              .where((item) => item['is_archived'] != true)
+              .toList();
+          final recurringCount = active
+              .where((item) => item['is_recurring'] == true)
+              .length;
+          final currentCount = active.length - recurringCount;
+          final archiveCount = allItems
+              .where((item) => item['is_archived'] == true)
+              .length;
+          final missedCount = _list(
+            ref.watch(adminMissedRoutesProvider(null)).valueOrNull?['items'],
+          ).length;
           final items =
               allItems
-                  .where((item) => (item['is_archived'] == true) == _archived)
+                  .where(
+                    (item) => switch (_tab) {
+                      'recurring' =>
+                        item['is_archived'] != true &&
+                            item['is_recurring'] == true,
+                      'archive' => item['is_archived'] == true,
+                      _ =>
+                        item['is_archived'] != true &&
+                            item['is_recurring'] != true,
+                    },
+                  )
                   .toList()
                 ..sort((a, b) {
-                  final byDate = _archived
+                  final byDate = _tab == 'archive'
                       ? _int(b['sort_at']).compareTo(_int(a['sort_at']))
                       : _int(a['sort_at']).compareTo(_int(b['sort_at']));
                   return byDate != 0
                       ? byDate
                       : _int(b['id']).compareTo(_int(a['id']));
                 });
+          final header = Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Trasy',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AdminRouteEditScreen(),
+                          ),
+                        );
+                        ref.invalidate(adminRoutesProvider);
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Nowa trasa'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _RouteFilters(
+                  selected: _tab,
+                  tabs: [
+                    ('current', 'Bieżące', currentCount),
+                    ('recurring', 'Cykliczne', recurringCount),
+                    ('missed', 'Pominięci', missedCount),
+                    ('archive', 'Archiwum', archiveCount),
+                  ],
+                  onChanged: (value) => setState(() => _tab = value),
+                ),
+              ),
+            ],
+          );
+          if (_tab == 'missed') {
+            return Column(
+              children: [
+                header,
+                const SizedBox(height: 8),
+                const Expanded(child: _MissedRoutesView()),
+              ],
+            );
+          }
           return RefreshIndicator(
             onRefresh: () async => ref.refresh(adminRoutesProvider.future),
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length + 2,
+              padding: const EdgeInsets.only(bottom: 16),
+              itemCount: items.length + 1,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Trasy',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ),
-                        FilledButton.icon(
-                          onPressed: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const AdminRouteEditScreen(),
-                              ),
-                            );
-                            ref.invalidate(adminRoutesProvider);
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('Nowa trasa'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                if (index == 1) {
-                  return _RouteFilters(
-                    archived: _archived,
-                    onChanged: (value) => setState(() => _archived = value),
-                  );
-                }
-                final route = items[index - 2];
+                if (index == 0) return header;
+                final route = items[index - 1];
                 final planned = route['is_planned_occurrence'] == true;
-                return Card(
-                  color: planned ? Colors.orange.shade50 : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: planned ? Colors.orange.shade300 : WntColors.line,
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: planned ? Colors.orange.shade50 : null,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: planned
+                            ? Colors.orange.shade300
+                            : WntColors.line,
+                      ),
                     ),
-                  ),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.route_outlined,
-                      color: WntColors.brand,
+                    child: ListTile(
+                      leading: Icon(
+                        route['is_recurring'] == true
+                            ? Icons.event_repeat_outlined
+                            : Icons.route_outlined,
+                        color: WntColors.brand,
+                      ),
+                      title: Text(route['title']?.toString() ?? 'Trasa'),
+                      subtitle: Text(
+                        '${route['subtitle'] ?? ''}\n'
+                        '${route['meta'] ?? ''}'
+                        '${route['is_recurring'] == true ? ' · co ${route['recurrence_interval_days']} dni' : ''}',
+                      ),
+                      isThreeLine: true,
+                      trailing: IconButton(
+                        tooltip: 'Usuń trasę',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _deleteRoute(context, ref, route),
+                      ),
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AdminRouteDetailScreen(id: _int(route['id'])),
+                          ),
+                        );
+                      },
                     ),
-                    title: Text(route['title']?.toString() ?? 'Trasa'),
-                    subtitle: Text(
-                      '${route['subtitle'] ?? ''}\n${route['meta'] ?? ''}',
-                    ),
-                    isThreeLine: true,
-                    trailing: IconButton(
-                      tooltip: 'Usuń trasę',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => _deleteRoute(context, ref, route),
-                    ),
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AdminRouteDetailScreen(id: _int(route['id'])),
-                        ),
-                      );
-                    },
                   ),
                 );
               },
@@ -703,55 +754,497 @@ class _AdminRouteFullscreenMap extends StatelessWidget {
   );
 }
 
-class _RouteFilters extends StatelessWidget {
-  const _RouteFilters({required this.archived, required this.onChanged});
-
-  final bool archived;
-  final ValueChanged<bool> onChanged;
+class _MissedRoutesView extends ConsumerStatefulWidget {
+  const _MissedRoutesView();
 
   @override
-  Widget build(BuildContext context) {
-    const filters = [(false, 'Aktywne'), (true, 'Archiwalne')];
-    return Container(
-      width: double.infinity,
-      height: 46,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: WntColors.brandSoft,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: WntColors.line),
+  ConsumerState<_MissedRoutesView> createState() => _MissedRoutesViewState();
+}
+
+class _MissedRoutesViewState extends ConsumerState<_MissedRoutesView> {
+  String? _date;
+  final Set<int> _selected = {};
+
+  Future<void> _pickDate(String selectedDate) async {
+    final initial = DateTime.tryParse(selectedDate) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked == null) return;
+    setState(() {
+      _date = _isoDate(picked);
+      _selected.clear();
+    });
+  }
+
+  Future<void> _plan(
+    Map<String, dynamic> data,
+    List<Map<String, dynamic>> items,
+  ) async {
+    final selectedItems = items
+        .where((item) => _selected.contains(_int(item['document_id'])))
+        .toList();
+    if (selectedItems.isEmpty) return;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _MissedPlannerSheet(
+        data: data,
+        selectedDate: data['selected_date']?.toString() ?? _date ?? '',
+        selectedItems: selectedItems,
       ),
-      child: Row(
-        children: [
-          for (final filter in filters)
-            Expanded(
-              child: Material(
-                color: archived == filter.$1
-                    ? Colors.white
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(9),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(9),
-                  onTap: () => onChanged(filter.$1),
-                  child: Center(
-                    child: Text(
-                      filter.$2,
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: archived == filter.$1
-                            ? WntColors.brand
-                            : WntColors.muted,
-                        fontWeight: FontWeight.w700,
+    );
+    if (saved == true) {
+      setState(_selected.clear);
+      ref.invalidate(adminMissedRoutesProvider(_date));
+      ref.invalidate(adminMissedRoutesProvider(null));
+      ref.invalidate(adminRoutesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pominięte punkty zostały dodane do trasy.'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ref
+      .watch(adminMissedRoutesProvider(_date))
+      .when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => AsyncErrorView(
+          error: error,
+          onRetry: () => ref.invalidate(adminMissedRoutesProvider(_date)),
+        ),
+        data: (data) {
+          final items = _list(data['items']);
+          final selectedDate =
+              data['selected_date']?.toString() ??
+              _date ??
+              _isoDate(DateTime.now());
+          return RefreshIndicator(
+            onRefresh: () async =>
+                ref.refresh(adminMissedRoutesProvider(_date).future),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: const Text('Dzień pominięcia'),
+                    subtitle: Text(_displayDate(selectedDate)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _pickDate(selectedDate),
+                  ),
+                ),
+                if (items.isNotEmpty)
+                  CheckboxListTile(
+                    value: _selected.length == items.length && items.isNotEmpty,
+                    title: const Text('Zaznacz wszystkie z tego dnia'),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (checked) => setState(() {
+                      if (checked == true) {
+                        _selected.addAll(
+                          items.map((item) => _int(item['document_id'])),
+                        );
+                      } else {
+                        _selected.clear();
+                      }
+                    }),
+                  ),
+                if (items.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Text(
+                        'Brak pominiętych punktów z tego dnia.',
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
+                for (final item in items)
+                  Card(
+                    color: item['status'] == 'missed_closed'
+                        ? WntColors.errorSoft
+                        : WntColors.warningSoft,
+                    child: CheckboxListTile(
+                      value: _selected.contains(_int(item['document_id'])),
+                      onChanged: (checked) => setState(() {
+                        final id = _int(item['document_id']);
+                        checked == true
+                            ? _selected.add(id)
+                            : _selected.remove(id);
+                      }),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        item['client_name']?.toString() ?? 'Klient',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        [
+                              item['location_name'],
+                              item['address'],
+                              '${item['route_name']} · ${item['status_label']}',
+                              _missedProducts(item),
+                              if ('${item['driver_note'] ?? ''}'
+                                  .trim()
+                                  .isNotEmpty)
+                                'Uwaga: ${item['driver_note']}',
+                            ]
+                            .where(
+                              (value) => '${value ?? ''}'.trim().isNotEmpty,
+                            )
+                            .join('\n'),
+                      ),
+                    ),
+                  ),
+                if (items.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => _plan(data, items),
+                    icon: const Icon(Icons.route_outlined),
+                    label: Text(
+                      _selected.isEmpty
+                          ? 'Wybierz klientów'
+                          : 'Dodaj do trasy (${_selected.length})',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class _MissedPlannerSheet extends ConsumerStatefulWidget {
+  const _MissedPlannerSheet({
+    required this.data,
+    required this.selectedDate,
+    required this.selectedItems,
+  });
+
+  final Map<String, dynamic> data;
+  final String selectedDate;
+  final List<Map<String, dynamic>> selectedItems;
+
+  @override
+  ConsumerState<_MissedPlannerSheet> createState() =>
+      _MissedPlannerSheetState();
+}
+
+class _MissedPlannerSheetState extends ConsumerState<_MissedPlannerSheet> {
+  late final List<Map<String, dynamic>> routes = _list(
+    widget.data['target_routes'],
+  );
+  late final List<Map<String, dynamic>> drivers = _list(widget.data['drivers']);
+  late String mode = routes.isEmpty ? 'new' : 'existing';
+  late int routeId = routes.isEmpty ? 0 : _int(routes.first['id']);
+  late int driverId = drivers.isEmpty ? 0 : _int(drivers.first['id']);
+  late DateTime routeDate = DateTime.now().add(const Duration(days: 1));
+  late final TextEditingController routeName = TextEditingController(
+    text: 'Powtórka ${_displayDate(widget.selectedDate)}',
+  );
+  List<Map<String, dynamic>> order = [];
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildOrder();
+  }
+
+  @override
+  void dispose() {
+    routeName.dispose();
+    super.dispose();
+  }
+
+  void _rebuildOrder() {
+    final existing = mode == 'existing'
+        ? _list(
+            routes.firstWhere(
+              (route) => _int(route['id']) == routeId,
+              orElse: () => const <String, dynamic>{},
+            )['stops'],
+          ).map(
+            (stop) => <String, dynamic>{
+              'kind': 'existing',
+              'key':
+                  'existing-${stop['client_id']}-${stop['client_location_id']}',
+              'name': stop['name'],
+            },
+          )
+        : <Map<String, dynamic>>[];
+    order = [
+      ...existing,
+      ...widget.selectedItems.map(
+        (item) => <String, dynamic>{
+          'kind': 'new',
+          'key': 'new-${item['document_id']}',
+          'document_id': _int(item['document_id']),
+          'name': [
+            item['client_name'],
+            item['location_name'],
+          ].where((value) => '${value ?? ''}'.trim().isNotEmpty).join(' - '),
+        },
+      ),
+    ];
+  }
+
+  void _reorder(int oldIndex, int newIndex) {
+    if (order[oldIndex]['kind'] != 'new') return;
+    setState(() {
+      final item = order.removeAt(oldIndex);
+      order.insert(newIndex, item);
+    });
+  }
+
+  Future<void> _save() async {
+    if ((mode == 'existing' && routeId < 1) ||
+        (mode == 'new' && (driverId < 1 || routeName.text.trim().isEmpty))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uzupełnij trasę i kierowcę.')),
+      );
+      return;
+    }
+    final positions = <String, int>{};
+    for (var index = 0; index < order.length; index++) {
+      if (order[index]['kind'] == 'new') {
+        positions['${order[index]['document_id']}'] = index + 1;
+      }
+    }
+    setState(() => saving = true);
+    try {
+      await ref.read(adminRepositoryProvider).reassignMissedRoutes(
+        ref.read(authControllerProvider).session!.token,
+        <String, dynamic>{
+          'missed_date': widget.selectedDate,
+          'document_ids': widget.selectedItems
+              .map((item) => _int(item['document_id']))
+              .toList(),
+          'target_mode': mode,
+          'target_route_id': mode == 'existing' ? routeId : null,
+          'target_positions': positions,
+          'new_route_name': mode == 'new' ? routeName.text.trim() : null,
+          'new_scheduled_date': mode == 'new' ? _isoDate(routeDate) : null,
+          'new_driver_id': mode == 'new' ? driverId : null,
+        },
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .94,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 8, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Dodaj pominiętych do trasy',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
             ),
+            children: [
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'existing',
+                    label: Text('Istniejąca trasa'),
+                  ),
+                  ButtonSegment(value: 'new', label: Text('Nowa trasa')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (selection) => setState(() {
+                  mode = selection.first;
+                  _rebuildOrder();
+                }),
+              ),
+              const SizedBox(height: 12),
+              if (mode == 'existing')
+                DropdownButtonFormField<int>(
+                  initialValue: routeId == 0 ? null : routeId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Trasa'),
+                  items: routes
+                      .map(
+                        (route) => DropdownMenuItem(
+                          value: _int(route['id']),
+                          child: Text(
+                            '${route['date']} - ${route['name']} - ${route['driver'] ?? 'bez kierowcy'}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      routeId = value;
+                      _rebuildOrder();
+                    });
+                  },
+                )
+              else ...[
+                TextField(
+                  controller: routeName,
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa nowej trasy',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Data nowej trasy'),
+                  subtitle: Text(_displayDate(_isoDate(routeDate))),
+                  trailing: const Icon(Icons.calendar_month_outlined),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: routeDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 730)),
+                    );
+                    if (picked != null) setState(() => routeDate = picked);
+                  },
+                ),
+                DropdownButtonFormField<int>(
+                  initialValue: driverId == 0 ? null : driverId,
+                  decoration: const InputDecoration(labelText: 'Kierowca'),
+                  items: drivers
+                      .map(
+                        (driver) => DropdownMenuItem(
+                          value: _int(driver['id']),
+                          child: Text('${driver['name']}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => driverId = value ?? 0),
+                ),
+              ],
+              const SizedBox(height: 18),
+              const Text(
+                'Kolejność na trasie',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Obecne punkty są wyszarzone i zablokowane. Przeciągaj tylko dodawanych klientów.',
+                style: TextStyle(color: WntColors.muted),
+              ),
+              const SizedBox(height: 10),
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: order.length,
+                onReorderItem: _reorder,
+                itemBuilder: (context, index) {
+                  final item = order[index];
+                  final existing = item['kind'] == 'existing';
+                  return Card(
+                    key: ValueKey(item['key']),
+                    color: existing ? Colors.grey.shade200 : Colors.white,
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(
+                        item['name']?.toString() ?? 'Klient',
+                        style: TextStyle(
+                          color: existing ? Colors.grey.shade600 : null,
+                        ),
+                      ),
+                      trailing: existing
+                          ? const Icon(Icons.lock_outline)
+                          : ReorderableDragStartListener(
+                              index: index,
+                              child: const Icon(Icons.drag_handle),
+                            ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: saving ? null : _save,
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.route_outlined),
+                label: const Text('Zapisz punkty na trasie'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _RouteFilters extends StatelessWidget {
+  const _RouteFilters({
+    required this.selected,
+    required this.tabs,
+    required this.onChanged,
+  });
+
+  final String selected;
+  final List<(String, String, int)> tabs;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: [
+        for (final tab in tabs) ...[
+          ChoiceChip(
+            selected: selected == tab.$1,
+            label: Text('${tab.$2}  ${tab.$3}'),
+            onSelected: (_) => onChanged(tab.$1),
+          ),
+          const SizedBox(width: 8),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }
 
 String _status(dynamic status) => switch ('$status') {
@@ -765,3 +1258,26 @@ List<Map<String, dynamic>> _list(dynamic value) => value is List
 Map<String, dynamic>? _map(dynamic value) =>
     value is Map ? value.cast<String, dynamic>() : null;
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+
+String _isoDate(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
+
+String _displayDate(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+  return '${date.day.toString().padLeft(2, '0')}.'
+      '${date.month.toString().padLeft(2, '0')}.'
+      '${date.year.toString().padLeft(4, '0')}';
+}
+
+String _missedProducts(Map<String, dynamic> item) {
+  final products = [..._list(item['products']), ..._list(item['packages'])];
+  if (products.isEmpty) return 'Bez przypisanych produktów';
+  return products
+      .map(
+        (row) => '${row['name']} × ${row['quantity']} ${row['unit'] ?? 'szt.'}',
+      )
+      .join(', ');
+}

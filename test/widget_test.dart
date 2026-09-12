@@ -430,7 +430,9 @@ void main() {
       );
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text('Archiwalne'));
+      final archiveTab = find.textContaining('Archiwum');
+      await tester.ensureVisible(archiveTab);
+      await tester.tap(archiveTab);
       await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('Archiwalna najnowsza')).dy,

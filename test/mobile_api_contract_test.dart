@@ -230,7 +230,7 @@ void main() {
     expect(web, contains("'zaplanowana'"));
   });
 
-  test('kierowca pobiera wyłącznie aktywne trasy od dziś do 14 dni', () {
+  test('kierowca pobiera wyłącznie aktywne trasy od dziś do jutra', () {
     final driver = File(
       '../../remote_live/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
     ).readAsStringSync();
@@ -240,9 +240,7 @@ void main() {
     );
     expect(
       route,
-      contains(
-        "whereBetween('scheduled_date', [today(), today()->addDays(14)])",
-      ),
+      contains("whereBetween('scheduled_date', [today(), today()->addDay()])"),
     );
     expect(route, contains("whereNotIn('status', ['completed', 'cancelled'])"));
     expect(route, contains("where('driver_id', \$driver->id)"));
