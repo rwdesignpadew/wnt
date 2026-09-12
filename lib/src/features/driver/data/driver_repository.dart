@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/storage/offline_store.dart';
@@ -7,6 +9,7 @@ class DriverRepository {
 
   final ApiClient _api;
   final OfflineStore _offlineStore;
+  static final Random _secureRandom = Random.secure();
 
   Future<Map<String, dynamic>> route(
     String token, {
@@ -54,7 +57,7 @@ class DriverRepository {
     int documentId, {
     required int userId,
   }) async {
-    final operationId = _operationId(userId, documentId, 'missed');
+    final operationId = _newOperationId(userId, documentId, 'missed');
     final body = {'client_operation_id': operationId};
     try {
       final response = await _api.post(
@@ -86,7 +89,7 @@ class DriverRepository {
     int routeId, {
     required int userId,
   }) async {
-    final operationId = _operationId(userId, routeId, 'start-route');
+    final operationId = _newOperationId(userId, routeId, 'start-route');
     final body = {'client_operation_id': operationId};
     try {
       await _api.post(
@@ -168,7 +171,7 @@ class DriverRepository {
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
   }) async {
-    final operationId = _operationId(userId, documentId, 'complete');
+    final operationId = _newOperationId(userId, documentId, 'complete');
     final body = <String, dynamic>{
       'client_operation_id': operationId,
       'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
@@ -302,8 +305,14 @@ class DriverRepository {
 
   Future<void> retryBlocked(int userId) => _offlineStore.retryBlocked(userId);
 
-  String _operationId(int userId, int documentId, String kind) {
-    return '$userId-$documentId-$kind';
+  String _newOperationId(int userId, int resourceId, String kind) {
+    final timestamp = DateTime.now().toUtc().microsecondsSinceEpoch;
+    final nonce = List.generate(
+      12,
+      (_) => _secureRandom.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+
+    return '$userId-$resourceId-$kind-$timestamp-$nonce';
   }
 
   Future<Map<String, dynamic>> completeSanitization({
@@ -315,7 +324,11 @@ class DriverRepository {
     int intervalDays = 180,
     String? resultNotes,
   }) async {
-    final operationId = _operationId(userId, sanitizationId, 'sanitization');
+    final operationId = _newOperationId(
+      userId,
+      sanitizationId,
+      'sanitization',
+    );
     final path =
         '/mobile/driver/documents/$documentId/sanitizations/$sanitizationId/complete';
     final body = <String, dynamic>{

@@ -63,6 +63,10 @@ void main() {
     expect(body['sanitization_id'], 91);
     expect(body['sanitization_completed_dispenser_count'], 2);
     expect(body['sanitization_next_interval_days'], 180);
+    expect(
+      body['client_operation_id'],
+      matches(RegExp(r'^7-41-complete-\d{16}-[0-9a-f]{24}$')),
+    );
     expect(body['sanitization_result_notes'], 'Wykonano dwa urządzenia');
   });
 
@@ -105,5 +109,35 @@ void main() {
     expect(body['sanitization_selected'], isTrue);
     expect(body['sanitization_id'], 92);
     expect(body['sanitization_completed_dispenser_count'], 3);
+  });
+
+  test('każdy nowy zapis ma osobny klucz, także dla korekty', () async {
+    final operationIds = <String>[];
+    final repository = DriverRepository(
+      ApiClient(
+        client: MockClient((request) async {
+          final body = (jsonDecode(request.body) as Map).cast<String, dynamic>();
+          operationIds.add(body['client_operation_id'].toString());
+          return http.Response(jsonEncode({'document': {'id': 41}}), 200);
+        }),
+      ),
+      OfflineStore(supportDirectory: () async => directory),
+    );
+
+    for (final correction in [false, true]) {
+      await repository.complete(
+        token: 'token',
+        userId: 7,
+        documentId: 41,
+        quantities: const {1: 2},
+        paymentMethod: 'cash',
+        signatureData: 'data:image/png;base64,dGVzdA==',
+        signedBy: 'Odbiorca',
+        correction: correction,
+      );
+    }
+
+    expect(operationIds, hasLength(2));
+    expect(operationIds.toSet(), hasLength(2));
   });
 }
