@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
@@ -1035,47 +1036,13 @@ class _ManagementTabs extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF1F4FF),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFD8DEEC)),
-    ),
-    child: Row(
-      children: [
-        for (final tab in tabs)
-          Expanded(
-            child: Material(
-              color: selected == tab.$1 ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(9),
-                onTap: () => onChanged(tab.$1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 11,
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      '${tab.$2}  ${tab.$3}',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: selected == tab.$1
-                            ? const Color(0xFF4057F4)
-                            : const Color(0xFF667085),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
+  Widget build(BuildContext context) => WntFilterTabs<String>(
+    value: selected,
+    items: [
+      for (final tab in tabs)
+        WntFilterTab(value: tab.$1, label: '${tab.$2}  ${tab.$3}'),
+    ],
+    onChanged: onChanged,
   );
 }
 

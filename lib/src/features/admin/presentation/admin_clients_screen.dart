@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
@@ -602,44 +603,12 @@ class _ClientStatusTabs extends StatelessWidget {
   final ValueChanged<bool> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    height: 46,
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: WntColors.brandSoft,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: WntColors.line),
-    ),
-    child: Row(
-      children: [
-        for (final item in [(true, activeLabel), (false, inactiveLabel)])
-          Expanded(
-            child: Material(
-              color: active == item.$1 ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(9),
-                onTap: () => onChanged(item.$1),
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      item.$2,
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: active == item.$1
-                            ? WntColors.brand
-                            : WntColors.muted,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
+  Widget build(BuildContext context) => WntFilterTabs<bool>(
+    value: active,
+    items: [
+      WntFilterTab(value: true, label: activeLabel),
+      WntFilterTab(value: false, label: inactiveLabel),
+    ],
+    onChanged: onChanged,
   );
 }

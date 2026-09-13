@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../home/application/home_navigation_provider.dart';
 import '../application/admin_providers.dart';
@@ -1932,40 +1933,12 @@ class _ProductStatusTabs extends StatelessWidget {
   final ValueChanged<bool> onChanged;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    height: 46,
-    padding: const EdgeInsets.all(3),
-    decoration: BoxDecoration(
-      color: WntColors.brandSoft,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: WntColors.line),
-    ),
-    child: Row(
-      children: [
-        for (final item in const [(true, 'Aktywne'), (false, 'Wyłączone')])
-          Expanded(
-            child: Material(
-              color: active == item.$1 ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(9),
-                onTap: () => onChanged(item.$1),
-                child: Center(
-                  child: Text(
-                    item.$2,
-                    style: TextStyle(
-                      color: active == item.$1
-                          ? WntColors.brand
-                          : WntColors.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
+  Widget build(BuildContext context) => WntFilterTabs<bool>(
+    value: active,
+    items: const [
+      WntFilterTab(value: true, label: 'Aktywne'),
+      WntFilterTab(value: false, label: 'Wyłączone'),
+    ],
+    onChanged: onChanged,
   );
 }

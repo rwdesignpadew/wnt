@@ -203,6 +203,15 @@ void main() {
     final clientStats = File(
       'lib/src/features/admin/presentation/admin_client_stats_screen.dart',
     ).readAsStringSync();
+    final clients = File(
+      'lib/src/features/admin/presentation/admin_clients_screen.dart',
+    ).readAsStringSync();
+    final products = File(
+      'lib/src/features/admin/presentation/admin_more_screen.dart',
+    ).readAsStringSync();
+    final management = File(
+      'lib/src/features/admin/presentation/admin_management_screens.dart',
+    ).readAsStringSync();
 
     expect(tabs, contains('selected ? WntColors.brand'));
     expect(tabs, contains('selected ? Colors.white : WntColors.text'));
@@ -214,6 +223,21 @@ void main() {
     ).readAsStringSync();
     expect(routes, contains('WntFilterTabs<String>'));
     expect(routes, isNot(contains('ChoiceChip(')));
+    expect(clients, contains('WntFilterTabs<bool>'));
+    expect(products, contains('WntFilterTabs<bool>'));
+    expect(management, contains('WntFilterTabs<String>'));
+
+    final mobileSources = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    for (final file in mobileSources) {
+      expect(
+        file.readAsStringSync(),
+        isNot(contains('ChoiceChip(')),
+        reason: 'Zielony ChoiceChip wrócił w ${file.path}',
+      );
+    }
   });
 
   test('klient może zamówić sanityzację z limitem lokalizacji', () {
