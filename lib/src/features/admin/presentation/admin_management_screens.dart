@@ -358,12 +358,17 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
           data: (data) {
             final pending = _maps(data['pending']);
             final active = _maps(data['active']);
+            final statistics = data['statistics'] is Map
+                ? (data['statistics'] as Map).cast<String, dynamic>()
+                : <String, dynamic>{};
             final items = _tab == 'pending' ? pending : active;
             return RefreshIndicator(
               onRefresh: () => ref.refresh(adminRentalsProvider.future),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
                 children: [
+                  _RentalStatistics(statistics: statistics),
+                  const SizedBox(height: 12),
                   _ManagementTabs(
                     selected: _tab,
                     tabs: [
@@ -414,6 +419,103 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
           },
         ),
   );
+}
+
+class _RentalStatistics extends StatelessWidget {
+  const _RentalStatistics({required this.statistics});
+
+  final Map<String, dynamic> statistics;
+
+  @override
+  Widget build(BuildContext context) {
+    final productRows = _maps(statistics['by_product']);
+    final tiles = <(String, String)>[
+      ('Klienci', '${_int(statistics['clients'])}'),
+      ('Lokalizacje', '${_int(statistics['locations'])}'),
+      ('Sprzęt u klientów', '${_int(statistics['quantity'])} szt.'),
+      ('Do sanityzacji', '${_int(statistics['sanitization_quantity'])} szt.'),
+      ('Pozostały sprzęt', '${_int(statistics['other_quantity'])} szt.'),
+      ('Miesięcznie netto', _money(statistics['monthly_net'])),
+    ];
+
+    return Column(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = (constraints.maxWidth - 8) / 2;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tile in tiles)
+                  SizedBox(
+                    width: width,
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tile.$1,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              tile.$2,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+        if (productRows.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: ExpansionTile(
+              title: const Text('Podsumowanie sprzętu'),
+              subtitle: Text('${_int(statistics['quantity'])} szt. łącznie'),
+              children: [
+                for (final row in productRows)
+                  ListTile(
+                    dense: true,
+                    title: Text('${row['product_name']}'),
+                    subtitle: Text(
+                      '${row['clients']} klientów • ${row['locations']} lokalizacji'
+                      '${row['requires_sanitization'] == true ? ' • sanityzacja' : ''}',
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${row['quantity']} szt.',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          '${_money(row['monthly_net'])} netto',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _RentalEditorSheet extends ConsumerStatefulWidget {

@@ -254,6 +254,9 @@ void main() {
     expect(rentals, contains("'initial_fee_collected': initialFeeCollected"));
     expect(rentals, contains("'requires_sanitization': requiresSanitization"));
     expect(rentals, isNot(contains("'recurring_billing': recurring")));
+    expect(rentals, contains('Podsumowanie sprzętu'));
+    expect(rentals, contains("statistics['sanitization_quantity']"));
+    expect(rentals, contains("statistics['monthly_net']"));
     expect(
       controller,
       contains("'initial_fee_collected' => ['nullable', 'boolean']"),
