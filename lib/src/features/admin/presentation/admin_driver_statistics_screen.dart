@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/wnt_colors.dart';
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_client_stats_screen.dart';
@@ -155,21 +156,21 @@ class _AdminDriverStatisticsScreenState
                 ),
               ],
             ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _ranges.entries
+            WntFilterTabs<String>(
+              value: _range,
+              items: _ranges.entries
                   .map(
-                    (entry) => ChoiceChip(
-                      label: Text(entry.value),
-                      selected: _range == entry.key,
-                      onSelected: (_) {
-                        _range = entry.key;
-                        _reload();
-                      },
+                    (entry) => WntFilterTab<String>(
+                      value: entry.key,
+                      label: entry.value,
                     ),
                   )
-                  .toList(),
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (_range == value) return;
+                _range = value;
+                _reload();
+              },
             ),
             const SizedBox(height: 18),
             LayoutBuilder(

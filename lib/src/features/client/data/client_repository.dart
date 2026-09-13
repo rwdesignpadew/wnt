@@ -19,6 +19,16 @@ class ClientRepository {
     body: {'client_rental_item_id': rentalItemId, 'description': description},
   );
 
+  Future<Map<String, dynamic>> requestSanitization({
+    required String token,
+    required int locationId,
+    required int dispenserCount,
+  }) => _api.post(
+    '/mobile/client/sanitizations',
+    token: token,
+    body: {'client_location_id': locationId, 'dispenser_count': dispenserCount},
+  );
+
   Future<Map<String, dynamic>> tracking(String token) {
     return _api.get('/mobile/client/tracking', token: token);
   }

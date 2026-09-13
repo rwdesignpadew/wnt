@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/presentation/html_document_screen.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
@@ -385,21 +386,19 @@ class _AdminClientStatsScreenState
     );
   }
 
-  Widget _rangeSelector() => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: SegmentedButton<String>(
-      segments: const [
-        ButtonSegment(value: 'current_year', label: Text('Ten rok')),
-        ButtonSegment(value: 'previous_year', label: Text('Poprzedni')),
-        ButtonSegment(value: 'last_12_months', label: Text('12 mies.')),
-        ButtonSegment(value: 'all', label: Text('Całość')),
-      ],
-      selected: {_range},
-      onSelectionChanged: (value) {
-        _range = value.first;
-        _load();
-      },
-    ),
+  Widget _rangeSelector() => WntFilterTabs<String>(
+    value: _range,
+    items: const [
+      WntFilterTab(value: 'current_year', label: 'Ten rok'),
+      WntFilterTab(value: 'previous_year', label: 'Poprzedni'),
+      WntFilterTab(value: 'last_12_months', label: '12 mies.'),
+      WntFilterTab(value: 'all', label: 'Całość'),
+    ],
+    onChanged: (value) {
+      if (_range == value) return;
+      _range = value;
+      _load();
+    },
   );
 
   Widget _summary() {

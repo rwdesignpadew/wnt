@@ -189,4 +189,50 @@ void main() {
     expect(myCar, contains('DriverLocation::updateOrCreate'));
     expect(myCar, isNot(contains('DriverLocation::create([')));
   });
+
+  test('zakładki są niebieskie jak w Dokumentach, bez zielonych chipów', () {
+    final tabs = File(
+      'lib/src/shared/widgets/wnt_filter_tabs.dart',
+    ).readAsStringSync();
+    final driverStats = File(
+      'lib/src/features/admin/presentation/admin_driver_statistics_screen.dart',
+    ).readAsStringSync();
+    final clientStats = File(
+      'lib/src/features/admin/presentation/admin_client_stats_screen.dart',
+    ).readAsStringSync();
+
+    expect(tabs, contains('selected ? WntColors.brand'));
+    expect(tabs, contains('selected ? Colors.white : WntColors.text'));
+    expect(driverStats, contains('WntFilterTabs<String>'));
+    expect(driverStats, isNot(contains('ChoiceChip(')));
+    expect(clientStats, contains('WntFilterTabs<String>'));
+  });
+
+  test('klient może zamówić sanityzację z limitem lokalizacji', () {
+    final screen = File(
+      'lib/src/features/client/presentation/client_service_screen.dart',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/src/features/client/data/client_repository.dart',
+    ).readAsStringSync();
+    final routes = File(
+      '${backendRoot.path}/routes/api.php',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileClientController.php',
+    ).readAsStringSync();
+    final service = File(
+      '${backendRoot.path}/app/Services/ClientSanitizationRequestService.php',
+    ).readAsStringSync();
+
+    expect(screen, contains('Sanityzacje na żądanie'));
+    expect(screen, contains('max_dispenser_count'));
+    expect(screen, contains('Zamów sanityzację'));
+    expect(repository, contains('/mobile/client/sanitizations'));
+    expect(routes, contains("/client/sanitizations'"));
+    expect(controller, contains('function storeSanitization'));
+    expect(service, contains("'is_on_request' => true"));
+    expect(service, contains('Wybierz od 1 do '));
+    expect(service, contains('jest już otwarte zgłoszenie'));
+  });
 }
