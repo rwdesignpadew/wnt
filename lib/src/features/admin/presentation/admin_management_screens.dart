@@ -399,7 +399,7 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
                           ),
                           subtitle: Text(
                             '${item['product_name']} • ${item['quantity']} szt.'
-                            '${_tab == 'pending' ? '\n${item['date'] ?? ''} - ${item['route_name'] ?? 'bez trasy'}${item['initial_fee_collected'] == true ? ' • opłata za ten miesiąc na WZ' : ' • opłata od faktury miesięcznej'}' : '\n${item['recurring_billing'] == true ? 'Rozliczenie miesięczne' : 'Stare ustawienie jednorazowe'} • ${_money(item['unit_price'])} netto / szt.'}',
+                            '${_tab == 'pending' ? '\n${item['date'] ?? ''} - ${item['route_name'] ?? 'bez trasy'} • opłata wybierana przy obsłudze klienta' : '\n${item['recurring_billing'] == true ? 'Rozliczenie miesięczne' : 'Stare ustawienie jednorazowe'} • ${_money(item['unit_price'])} netto / szt.'}',
                           ),
                           isThreeLine: true,
                           trailing: _tab == 'pending'
@@ -545,8 +545,6 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
   int routeId = 0;
   int driverId = 0;
   String routeMode = 'existing';
-  String paymentMethod = 'cash';
-  bool initialFeeCollected = false;
   bool requiresSanitization = false;
   bool saving = false;
   DateTime date = DateTime.now();
@@ -632,9 +630,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
           'unit_price_net':
               double.tryParse(price.text.replaceAll(',', '.')) ?? 0,
           'vat_rate': double.tryParse(vat.text.replaceAll(',', '.')) ?? 23,
-          'initial_fee_collected': initialFeeCollected,
           'requires_sanitization': requiresSanitization,
-          'payment_method': paymentMethod,
           'route_mode': routeMode,
           'delivery_route_id': routeMode == 'existing' ? routeId : null,
           'route_name': routeMode == 'new' ? routeName.text.trim() : null,
@@ -790,35 +786,6 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                value: initialFeeCollected,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text(
-                  'Pobrano opłatę za dzierżawę za bieżący miesiąc',
-                ),
-                subtitle: const Text(
-                  'Kwota trafi na to WZ i nie naliczy się drugi raz w tym miesiącu. Od kolejnego miesiąca będzie rozliczana automatycznie.',
-                ),
-                onChanged: (value) =>
-                    setState(() => initialFeeCollected = value ?? false),
-              ),
-              if (initialFeeCollected) ...[
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: paymentMethod,
-                  decoration: const InputDecoration(
-                    labelText: 'Płatność przy wydaniu',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'cash', child: Text('Gotówka')),
-                    DropdownMenuItem(value: 'transfer', child: Text('Przelew')),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => paymentMethod = value ?? 'cash'),
-                ),
-              ],
               CheckboxListTile(
                 value: requiresSanitization,
                 contentPadding: EdgeInsets.zero,

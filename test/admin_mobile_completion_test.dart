@@ -294,9 +294,15 @@ void main() {
     expect(service, contains('jest już otwarte zgłoszenie'));
   });
 
-  test('nowa dzierżawa oddziela pierwszą opłatę od kolejnych miesięcy', () {
+  test('opłata dzierżawy jest wybierana dopiero przy obsłudze klienta', () {
     final rentals = File(
       'lib/src/features/admin/presentation/admin_management_screens.dart',
+    ).readAsStringSync();
+    final driverService = File(
+      'lib/src/features/driver/presentation/driver_service_screen.dart',
+    ).readAsStringSync();
+    final driverRepository = File(
+      'lib/src/features/driver/data/driver_repository.dart',
     ).readAsStringSync();
     final clients = File(
       'lib/src/features/admin/presentation/admin_client_full_edit_screen.dart',
@@ -307,14 +313,27 @@ void main() {
     final completion = File(
       '${backendRoot.path}/app/Services/DeliveryDocumentCompletionService.php',
     ).readAsStringSync();
+    final driverController = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
+    ).readAsStringSync();
 
-    expect(rentals, contains('Pobrano opłatę za dzierżawę'));
-    expect(rentals, contains("'initial_fee_collected': initialFeeCollected"));
+    expect(rentals, isNot(contains('Pobrano opłatę za dzierżawę')));
+    expect(
+      rentals,
+      isNot(contains("'initial_fee_collected': initialFeeCollected")),
+    );
     expect(rentals, contains("'requires_sanitization': requiresSanitization"));
     expect(rentals, isNot(contains("'recurring_billing': recurring")));
     expect(rentals, contains('Podsumowanie sprzętu'));
     expect(rentals, contains("statistics['sanitization_quantity']"));
     expect(rentals, contains("statistics['monthly_net']"));
+    expect(driverService, contains('Opłata za wydawaną dzierżawę'));
+    expect(driverService, contains('Pobrano opłatę za dzierżawę'));
+    expect(driverService, contains('rentalInitialFeeCollected:'));
+    expect(
+      driverRepository,
+      contains("'rental_initial_fee_collected': rentalInitialFeeCollected"),
+    );
     expect(
       controller,
       contains("'initial_fee_collected' => ['nullable', 'boolean']"),
@@ -325,6 +344,12 @@ void main() {
     );
     expect(completion, contains(r'$rental->recurring_billing = true'));
     expect(completion, contains('rentalInitialFeeCollected'));
+    expect(completion, contains('applyRentalRequestBillingDecision'));
+    expect(
+      driverController,
+      contains("'rental_initial_fee_collected' => ['nullable', 'boolean']"),
+    );
+    expect(driverController, contains("'rental_request' => is_array"));
     expect(clients, contains('Wyślij fakturę ze wszystkimi WZ z miesiąca'));
     expect(clients, contains("'email_monthly_wz_with_invoice'"));
   });

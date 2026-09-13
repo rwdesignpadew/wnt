@@ -50,6 +50,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
+  bool _rentalInitialFeeCollected = false;
   bool _showSanitization = false;
   Map<String, dynamic>? _sanitization;
   final Set<int> _completedSanitizationUnits = {};
@@ -112,6 +113,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         forcedGross ||
         (widget.document['status'] == 'completed' &&
             _flag(widget.document['customer_requests_invoice']));
+    _rentalInitialFeeCollected = _flag(
+      _map(widget.document['rental_request'])?['initial_fee_collected'],
+    );
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
@@ -270,6 +274,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         correction: correction,
+        rentalInitialFeeCollected: _rentalInitialFeeCollected,
         rentalReturns: rentalReturns,
         sanitizationSelected: sanitizationSelected,
         sanitizationId: sanitizationId,
@@ -469,6 +474,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         correction: correction,
+        rentalInitialFeeCollected: _rentalInitialFeeCollected,
         rentalReturns: rentalReturns,
         sanitizationSelected: sanitizationSelected,
         sanitizationId: sanitizationId,
@@ -697,6 +703,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         _customerRequestsInvoice;
     final hideTransferPrices = _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
+    final rentalRequest = _map(widget.document['rental_request']);
     final permanentDocumentNotes = '${widget.document['document_notes'] ?? ''}'
         .trim();
     final returnAvailability =
@@ -774,7 +781,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           product,
         ) {
           return sum +
-              (_quantities[_int(product['id'])] ?? 0) * _productPrice(product);
+              (_quantities[_int(product['id'])] ?? 0) *
+                  _effectiveProductPrice(product);
         }) +
         packages.fold<double>(
           0,
@@ -790,7 +798,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ) {
           return sum +
               (_quantities[_int(product['id'])] ?? 0) *
-                  _productGrossPrice(product);
+                  _effectiveProductGrossPrice(product);
         }) +
         packages.fold<double>(0, (sum, packageItem) {
           final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
@@ -885,7 +893,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   _ProductRow(
                     product: visible[index],
                     value: _quantities[_int(visible[index]['id'])] ?? 0,
-                    netUnitPrice: _productPrice(visible[index]),
+                    netUnitPrice: _effectiveProductPrice(visible[index]),
                     useGross: useGross,
                     showPrices: !hideTransferPrices,
                     onChanged: (value) => setState(
@@ -922,6 +930,28 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     if (index < packages.length - 1) const Divider(),
                   ],
                 ],
+              ),
+            ),
+          ],
+          if (rentalRequest != null &&
+              widget.document['status']?.toString() != 'completed') ...[
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Opłata za wydawaną dzierżawę',
+              child: CheckboxListTile(
+                value: _rentalInitialFeeCollected,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'Pobrano opłatę za dzierżawę za bieżący miesiąc',
+                ),
+                subtitle: Text(
+                  _rentalInitialFeeCollected
+                      ? 'Do WZ doliczono ${_rentalRequestFee(useGross).toStringAsFixed(2)} zł. Opłata nie naliczy się ponownie w tym miesiącu; od następnego miesiąca wróci rozliczenie cykliczne.'
+                      : 'Zaznacz dopiero przy odbiorze opłaty. Bez zaznaczenia wydanie sprzętu pozostaje na WZ za 0,00 zł, a opłata przejdzie do rozliczenia cyklicznego.',
+                ),
+                onChanged: (value) =>
+                    setState(() => _rentalInitialFeeCollected = value == true),
               ),
             ),
           ],
@@ -1665,6 +1695,42 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   double _productGrossPrice(Map<String, dynamic> product) {
     final vatRate = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
     return _productPrice(product) * (1 + vatRate / 100);
+  }
+
+  double _effectiveProductPrice(Map<String, dynamic> product) {
+    final request = _map(widget.document['rental_request']);
+    if (request != null && _int(product['id']) == _int(request['product_id'])) {
+      return _rentalInitialFeeCollected
+          ? double.tryParse('${request['unit_price_net'] ?? 0}') ?? 0
+          : 0;
+    }
+
+    return _productPrice(product);
+  }
+
+  double _effectiveProductGrossPrice(Map<String, dynamic> product) {
+    final request = _map(widget.document['rental_request']);
+    if (request != null && _int(product['id']) == _int(request['product_id'])) {
+      final net = _effectiveProductPrice(product);
+      final vatRate =
+          double.tryParse(
+            '${request['vat_rate'] ?? product['vat_rate'] ?? 23}',
+          ) ??
+          23;
+      return net * (1 + vatRate / 100);
+    }
+
+    return _productGrossPrice(product);
+  }
+
+  double _rentalRequestFee(bool gross) {
+    final request = _map(widget.document['rental_request']);
+    if (request == null || !_rentalInitialFeeCollected) return 0;
+    final productId = _int(request['product_id']);
+    final quantity = _quantities[productId] ?? _int(request['quantity']);
+    final net = double.tryParse('${request['unit_price_net'] ?? 0}') ?? 0;
+    final vatRate = double.tryParse('${request['vat_rate'] ?? 23}') ?? 23;
+    return quantity * net * (gross ? 1 + vatRate / 100 : 1);
   }
 
   void _message(String message, {bool error = false}) {

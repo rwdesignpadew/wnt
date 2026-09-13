@@ -205,10 +205,13 @@ void main() {
         paymentMethod: 'transfer',
         signatureData: 'data:image/png;base64,dGVzdA==',
         signedBy: 'Odbiorca',
+        rentalInitialFeeCollected: true,
       );
 
       expect(response['queued_offline'], isTrue);
-      expect(await store.readQueue(7), hasLength(1));
+      final queue = await store.readQueue(7);
+      expect(queue, hasLength(1));
+      expect(queue.single['body']['rental_initial_fee_collected'], isTrue);
     },
   );
 

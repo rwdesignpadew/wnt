@@ -149,6 +149,80 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'opłata pierwszego miesiąca dzierżawy jest wybierana przy obsłudze klienta',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: WntTheme.light(),
+            home: DriverServiceScreen(
+              document: const {
+                'id': 2001,
+                'status': 'planned',
+                'is_company': false,
+                'payment_method': 'cash',
+                'debt_amount': 0,
+                'credit_amount': 0,
+                'available_product_ids': [81],
+                'items': [
+                  {'product_id': 81, 'quantity': 2},
+                ],
+                'rental_request': {
+                  'product_id': 81,
+                  'quantity': 2,
+                  'unit_price_net': 25,
+                  'vat_rate': 23,
+                  'initial_fee_collected': false,
+                },
+                'client': {
+                  'name': 'Klient dzierżawy',
+                  'recurring_invoice_enabled': false,
+                },
+              },
+              products: const [
+                {
+                  'id': 81,
+                  'name': 'Misa ceramiczna',
+                  'unit': 'szt.',
+                  'default_price': 25,
+                  'vat_rate': 23,
+                  'kind': 'product',
+                },
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final feeTile = find.byWidgetPredicate(
+        (widget) =>
+            widget is CheckboxListTile &&
+            widget.title is Text &&
+            (widget.title! as Text).data ==
+                'Pobrano opłatę za dzierżawę za bieżący miesiąc',
+      );
+      await tester.drag(find.byType(ListView), const Offset(0, -450));
+      await tester.pumpAndSettle();
+      expect(feeTile, findsOneWidget);
+      expect(
+        find.textContaining('wydanie sprzętu pozostaje na WZ za 0,00 zł'),
+        findsOneWidget,
+      );
+
+      await tester.tap(feeTile);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Do WZ doliczono 50.00 zł'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test('karta trasy kierowcy pokazuje zaplanowaną sanityzację', () {
     final source = File(
       'lib/src/features/driver/presentation/driver_route_screen.dart',
