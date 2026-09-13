@@ -507,7 +507,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '$sanitizationCount ${sanitizationCount == 1 ? 'dystrybutor' : 'dystrybutorów'}'
+                            '$sanitizationCount ${sanitizationCount == 1 ? 'element' : 'elementów'}'
                             '${sanitizationDate.isEmpty ? '' : ' · termin $sanitizationDate'}',
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),

@@ -47,7 +47,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
 
   Future<bool> sendSanitization(int locationId, int count) async {
     if (locationId < 1 || count < 1) {
-      _message('Wybierz lokalizację i liczbę dystrybutorów.', error: true);
+      _message('Wybierz lokalizację i liczbę elementów.', error: true);
       return false;
     }
     try {
@@ -215,7 +215,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Wybierz lokalizację i liczbę dystrybutorów.',
+                  'Wybierz lokalizację i liczbę elementów.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 16),
@@ -245,7 +245,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Liczba dystrybutorów',
+                  'Liczba elementów do sanityzacji',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
@@ -412,7 +412,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                   else
                     const _EmptyCard(
                       text:
-                          'Brak dystrybutorów, dla których można zamówić sanityzację.',
+                          'Brak sprzętu, dla którego można zamówić sanityzację.',
                     ),
                   const SizedBox(height: 18),
                   Text(

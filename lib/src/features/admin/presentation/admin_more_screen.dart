@@ -616,7 +616,7 @@ class AdminOperationsScreen extends ConsumerWidget {
                   children: [
                     if (action == 'complete') ...[
                       Text(
-                        'Wybierz wykonane dystrybutory: ${completedDispensers.length} z $totalDispensers',
+                        'Wybierz wykonane elementy: ${completedDispensers.length} z $totalDispensers',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 8),
@@ -626,7 +626,7 @@ class AdminOperationsScreen extends ConsumerWidget {
                         children: [
                           for (var unit = 1; unit <= totalDispensers; unit++)
                             FilterChip(
-                              label: Text('Dystrybutor $unit'),
+                              label: Text('Element $unit'),
                               selected: completedDispensers.contains(unit),
                               onSelected: (selected) => setDialogState(() {
                                 if (selected) {
@@ -1068,7 +1068,7 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
       selected: selectedClient,
       titleFor: (client) => '${client['name'] ?? ''}',
       subtitleFor: (client) =>
-          '${_int(client['dispenser_count'])} dystrybutorów',
+          '${_int(client['dispenser_count'])} elementów do sanityzacji',
       searchTextFor: (client) => '${client['name'] ?? ''}',
     );
     if (selected == null || !mounted) return;
@@ -1083,7 +1083,7 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
     if (clientId == 0 || _int(count.text) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Wybierz klienta i podaj liczbę dystrybutorów.'),
+          content: Text('Wybierz klienta i podaj liczbę elementów do sanityzacji.'),
         ),
       );
       return;
@@ -1198,7 +1198,7 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
             controller: count,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: 'Liczba dystrybutorów',
+              labelText: 'Liczba elementów do sanityzacji',
             ),
           ),
           const SizedBox(height: 12),

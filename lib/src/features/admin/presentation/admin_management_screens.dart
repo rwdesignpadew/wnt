@@ -5,6 +5,7 @@ import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import '../domain/rental_sanitization_rules.dart';
 import 'admin_bottom_navigation.dart';
 
 class AdminBalancesScreen extends ConsumerStatefulWidget {
@@ -831,6 +832,15 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     return null;
   }
 
+  bool get selectedProductRequiresSanitization {
+    for (final product in products) {
+      if (_int(product['id']) == productId) {
+        return rentalProductRequiresSanitization(product['name']);
+      }
+    }
+    return false;
+  }
+
   Future<void> _pickClient() async {
     final selected = await showWntSearchPicker<Map<String, dynamic>>(
       context: context,
@@ -871,9 +881,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
       productId = value;
       price.text = '${product['default_price'] ?? 0}';
       vat.text = '${product['vat_rate'] ?? 23}';
-      requiresSanitization = '${product['name'] ?? ''}'.toLowerCase().contains(
-        'dystrybutor',
-      );
+      requiresSanitization = rentalProductRequiresSanitization(product['name']);
     }
 
     notify ? setState(update) : update();
@@ -1049,10 +1057,12 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 controlAffinity: ListTileControlAffinity.leading,
                 title: const Text('Sprzęt wymaga regularnej sanityzacji'),
                 subtitle: const Text(
-                  'Włączone automatycznie dla dystrybutorów; stojaki, misy i pompki tego nie wymagają.',
+                  'Wymagane automatycznie dla dystrybutorów i mis ceramicznych. Stojaki i pompki tego nie wymagają.',
                 ),
-                onChanged: (value) =>
-                    setState(() => requiresSanitization = value ?? false),
+                onChanged: selectedProductRequiresSanitization
+                    ? null
+                    : (value) =>
+                          setState(() => requiresSanitization = value ?? false),
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(

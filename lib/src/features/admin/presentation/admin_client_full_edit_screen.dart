@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/wnt_colors.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
+import '../domain/rental_sanitization_rules.dart';
 import 'admin_bottom_navigation.dart';
 
 class AdminClientFullEditScreen extends ConsumerStatefulWidget {
@@ -703,7 +704,7 @@ class _AdminClientFullEditScreenState
       'quantity': 1,
       'unit_price_net': product['default_price']?.toString() ?? '0',
       'vat_rate': product['vat_rate']?.toString() ?? '23',
-      'requires_sanitization': false,
+      'requires_sanitization': rentalProductRequiresSanitization(product['name']),
       'sanitization_price_net': null,
     };
   }
@@ -747,7 +748,18 @@ class _AdminClientFullEditScreenState
                   ),
                 )
                 .toList(),
-            onChanged: (value) => rental['product_id'] = value,
+            onChanged: (value) {
+              final product = _products.firstWhere(
+                (item) => _int(item['id']) == value,
+                orElse: () => const <String, dynamic>{},
+              );
+              setState(() {
+                rental['product_id'] = value;
+                rental['requires_sanitization'] =
+                    rentalProductRequiresSanitization(product['name']) ||
+                    _bool(rental['requires_sanitization']);
+              });
+            },
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
@@ -787,11 +799,13 @@ class _AdminClientFullEditScreenState
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Sanityzacja'),
-            value: _bool(rental['requires_sanitization']),
-            onChanged: (value) =>
-                setState(() => rental['requires_sanitization'] = value),
+            value: _rentalRequiresSanitization(rental),
+            onChanged: _rentalProductRequiresSanitization(rental)
+                ? null
+                : (value) =>
+                      setState(() => rental['requires_sanitization'] = value),
           ),
-          if (_bool(rental['requires_sanitization']))
+          if (_rentalRequiresSanitization(rental))
             _rentalNumber(
               rental,
               'sanitization_price_net',
@@ -801,6 +815,19 @@ class _AdminClientFullEditScreenState
       ),
     ),
   );
+
+  bool _rentalProductRequiresSanitization(Map<String, dynamic> rental) {
+    final product = _products.firstWhere(
+      (item) => _int(item['id']) == _int(rental['product_id']),
+      orElse: () => const <String, dynamic>{},
+    );
+
+    return rentalProductRequiresSanitization(product['name']);
+  }
+
+  bool _rentalRequiresSanitization(Map<String, dynamic> rental) =>
+      _rentalProductRequiresSanitization(rental) ||
+      _bool(rental['requires_sanitization']);
 
   Widget _rentalNumber(Map<String, dynamic> rental, String key, String label) =>
       TextFormField(

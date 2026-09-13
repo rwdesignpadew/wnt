@@ -1090,7 +1090,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             if (_showSanitization) ...[
               const SizedBox(height: 10),
               _Section(
-                title: 'Sanityzacja dystrybutorów',
+                title: 'Sanityzacja sprzętu',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
