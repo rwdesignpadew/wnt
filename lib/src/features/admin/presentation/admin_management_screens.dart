@@ -393,7 +393,7 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
                           ),
                           subtitle: Text(
                             '${item['product_name']} • ${item['quantity']} szt.'
-                            '${_tab == 'pending' ? '\n${item['date'] ?? ''} - ${item['route_name'] ?? 'bez trasy'}' : '\n${item['recurring_billing'] == true ? 'Rozliczenie miesięczne' : 'Opłacona przy wydaniu'} • ${_money(item['unit_price'])} netto / szt.'}',
+                            '${_tab == 'pending' ? '\n${item['date'] ?? ''} - ${item['route_name'] ?? 'bez trasy'}${item['initial_fee_collected'] == true ? ' • opłata za ten miesiąc na WZ' : ' • opłata od faktury miesięcznej'}' : '\n${item['recurring_billing'] == true ? 'Rozliczenie miesięczne' : 'Stare ustawienie jednorazowe'} • ${_money(item['unit_price'])} netto / szt.'}',
                           ),
                           isThreeLine: true,
                           trailing: _tab == 'pending'
@@ -443,7 +443,8 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
   int driverId = 0;
   String routeMode = 'existing';
   String paymentMethod = 'cash';
-  bool recurring = true;
+  bool initialFeeCollected = false;
+  bool requiresSanitization = false;
   bool saving = false;
   DateTime date = DateTime.now();
 
@@ -492,6 +493,9 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
       productId = value;
       price.text = '${product['default_price'] ?? 0}';
       vat.text = '${product['vat_rate'] ?? 23}';
+      requiresSanitization = '${product['name'] ?? ''}'.toLowerCase().contains(
+        'dystrybutor',
+      );
     }
 
     notify ? setState(update) : update();
@@ -525,7 +529,8 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
           'unit_price_net':
               double.tryParse(price.text.replaceAll(',', '.')) ?? 0,
           'vat_rate': double.tryParse(vat.text.replaceAll(',', '.')) ?? 23,
-          'recurring_billing': recurring,
+          'initial_fee_collected': initialFeeCollected,
+          'requires_sanitization': requiresSanitization,
           'payment_method': paymentMethod,
           'route_mode': routeMode,
           'delivery_route_id': routeMode == 'existing' ? routeId : null,
@@ -631,7 +636,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 initialValue: productId == 0 ? null : productId,
                 isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Model dystrybutora',
+                  labelText: 'Sprzęt / przedmiot dzierżawy',
                 ),
                 items: products
                     .map(
@@ -683,16 +688,20 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              SwitchListTile(
-                value: recurring,
+              CheckboxListTile(
+                value: initialFeeCollected,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Rozliczaj cyklicznie co miesiąc'),
-                subtitle: const Text(
-                  'Po wyłączeniu opłata zostanie pobrana przy wydaniu.',
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'Pobrano opłatę za dzierżawę za bieżący miesiąc',
                 ),
-                onChanged: (value) => setState(() => recurring = value),
+                subtitle: const Text(
+                  'Kwota trafi na to WZ i nie naliczy się drugi raz w tym miesiącu. Od kolejnego miesiąca będzie rozliczana automatycznie.',
+                ),
+                onChanged: (value) =>
+                    setState(() => initialFeeCollected = value ?? false),
               ),
-              if (!recurring) ...[
+              if (initialFeeCollected) ...[
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: paymentMethod,
@@ -707,6 +716,17 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                       setState(() => paymentMethod = value ?? 'cash'),
                 ),
               ],
+              CheckboxListTile(
+                value: requiresSanitization,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('Sprzęt wymaga regularnej sanityzacji'),
+                subtitle: const Text(
+                  'Włączone automatycznie dla dystrybutorów; stojaki, misy i pompki tego nie wymagają.',
+                ),
+                onChanged: (value) =>
+                    setState(() => requiresSanitization = value ?? false),
+              ),
               const SizedBox(height: 12),
               SegmentedButton<String>(
                 segments: const [

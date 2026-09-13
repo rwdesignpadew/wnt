@@ -235,4 +235,36 @@ void main() {
     expect(service, contains('Wybierz od 1 do '));
     expect(service, contains('jest już otwarte zgłoszenie'));
   });
+
+  test('nowa dzierżawa oddziela pierwszą opłatę od kolejnych miesięcy', () {
+    final rentals = File(
+      'lib/src/features/admin/presentation/admin_management_screens.dart',
+    ).readAsStringSync();
+    final clients = File(
+      'lib/src/features/admin/presentation/admin_client_full_edit_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+    final completion = File(
+      '${backendRoot.path}/app/Services/DeliveryDocumentCompletionService.php',
+    ).readAsStringSync();
+
+    expect(rentals, contains('Pobrano opłatę za dzierżawę'));
+    expect(rentals, contains("'initial_fee_collected': initialFeeCollected"));
+    expect(rentals, contains("'requires_sanitization': requiresSanitization"));
+    expect(rentals, isNot(contains("'recurring_billing': recurring")));
+    expect(
+      controller,
+      contains("'initial_fee_collected' => ['nullable', 'boolean']"),
+    );
+    expect(
+      controller,
+      isNot(contains("LOWER(name) LIKE ?', ['%dystrybutor%']")),
+    );
+    expect(completion, contains(r'$rental->recurring_billing = true'));
+    expect(completion, contains('rentalInitialFeeCollected'));
+    expect(clients, contains('Wyślij fakturę ze wszystkimi WZ z miesiąca'));
+    expect(clients, contains("'email_monthly_wz_with_invoice'"));
+  });
 }

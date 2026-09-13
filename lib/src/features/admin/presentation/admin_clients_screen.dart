@@ -322,6 +322,7 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
   bool _active = true;
   bool _recipient = false;
   bool _jst = false;
+  bool _emailMonthlyWzWithInvoice = false;
   String _payment = 'transfer';
 
   @override
@@ -353,6 +354,8 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
       _active = _client?['is_active'] == true;
       _recipient = _client?['invoice_recipient_enabled'] == true;
       _jst = _client?['invoice_jst_enabled'] == true;
+      _emailMonthlyWzWithInvoice =
+          _client?['email_monthly_wz_with_invoice'] == true;
       _payment = _client?['payment_method']?.toString() == 'cash'
           ? 'cash'
           : 'transfer';
@@ -396,6 +399,7 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
           'invoice_jst_enabled': _jst,
           'payment_method': _payment,
           'payment_term_days': int.tryParse(_c('payment_term_days').text) ?? 0,
+          'email_monthly_wz_with_invoice': _emailMonthlyWzWithInvoice,
           'is_active': _active,
         },
       );
@@ -511,6 +515,18 @@ class _AdminClientEditScreenState extends ConsumerState<AdminClientEditScreen> {
                     'payment_term_days',
                     'Termin płatności (dni)',
                     keyboard: TextInputType.number,
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Wyślij fakturę ze wszystkimi WZ z miesiąca',
+                    ),
+                    subtitle: const Text(
+                      'Jeden email: faktura miesięczna i komplet rozliczanych WZ.',
+                    ),
+                    value: _emailMonthlyWzWithInvoice,
+                    onChanged: (value) =>
+                        setState(() => _emailMonthlyWzWithInvoice = value),
                   ),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,

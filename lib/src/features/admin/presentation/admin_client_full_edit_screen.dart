@@ -35,6 +35,7 @@ class _AdminClientFullEditScreenState
   bool _recipient = false;
   bool _jst = false;
   bool _recurringRentalInvoice = false;
+  bool _emailMonthlyWzWithInvoice = false;
   String _payment = 'transfer';
   String _productQuery = '';
 
@@ -99,6 +100,9 @@ class _AdminClientFullEditScreenState
       _recurringRentalInvoice = _bool(
         _client['dispenser_recurring_invoice_enabled'],
       );
+      _emailMonthlyWzWithInvoice = _bool(
+        _client['email_monthly_wz_with_invoice'],
+      );
       _payment = _client['payment_method']?.toString() == 'cash'
           ? 'cash'
           : 'transfer';
@@ -152,6 +156,7 @@ class _AdminClientFullEditScreenState
             int.tryParse(_controller('sanitization_interval_days').text) ?? 180,
         'last_sanitized_on': _controller('last_sanitized_on').text.trim(),
         'dispenser_recurring_invoice_enabled': _recurringRentalInvoice,
+        'email_monthly_wz_with_invoice': _emailMonthlyWzWithInvoice,
         'locations': _locations,
         'visible_product_ids': _visibleProducts.toList(),
         'prices': prices,
@@ -383,6 +388,16 @@ class _AdminClientFullEditScreenState
           'payment_term_days',
           'Termin płatności w dniach',
           keyboard: TextInputType.number,
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Wyślij fakturę ze wszystkimi WZ z miesiąca'),
+          subtitle: const Text(
+            'Jeden email będzie zawierał fakturę miesięczną oraz komplet WZ objętych rozliczeniem.',
+          ),
+          value: _emailMonthlyWzWithInvoice,
+          onChanged: (value) =>
+              setState(() => _emailMonthlyWzWithInvoice = value),
         ),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
