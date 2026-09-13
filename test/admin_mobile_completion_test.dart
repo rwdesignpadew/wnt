@@ -44,6 +44,8 @@ void main() {
     expect(controller, contains('function storeRental'));
     expect(controller, contains('function destroyPendingRental'));
     expect(controller, contains('rental_request_data'));
+    expect(mobile, contains('WntSearchableSelectField('));
+    expect(mobile, contains('Wpisz nazwę klienta lub adres'));
   });
 
   test(
@@ -66,6 +68,8 @@ void main() {
       expect(routes, contains('/sanitizations/{sanitization}/plan-route'));
       expect(controller, contains('function planSanitizationRoute'));
       expect(controller, contains("\$sanitization->status !== 'overdue'"));
+      expect(mobile, contains('WntSearchableSelectField('));
+      expect(mobile, contains('Wpisz nazwę klienta'));
     },
   );
 

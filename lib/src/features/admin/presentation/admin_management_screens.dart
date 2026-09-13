@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
@@ -823,6 +824,44 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     return _maps(client['locations']);
   }
 
+  Map<String, dynamic>? get selectedClient {
+    for (final client in clients) {
+      if (_int(client['id']) == clientId) return client;
+    }
+    return null;
+  }
+
+  Future<void> _pickClient() async {
+    final selected = await showWntSearchPicker<Map<String, dynamic>>(
+      context: context,
+      title: 'Wybierz klienta',
+      searchHint: 'Wpisz nazwę klienta lub adres',
+      items: clients,
+      selected: selectedClient,
+      titleFor: (client) => '${client['name'] ?? ''}',
+      subtitleFor: (client) {
+        final clientLocations = _maps(client['locations']);
+        if (clientLocations.isEmpty) return null;
+        return clientLocations
+            .map((location) => '${location['name']} • ${location['address']}')
+            .join('\n');
+      },
+      searchTextFor: (client) => [
+        client['name'],
+        ..._maps(
+          client['locations'],
+        ).expand((location) => [location['name'], location['address']]),
+      ].where((value) => value != null).join(' '),
+    );
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      clientId = _int(selected['id']);
+      final nextLocations = _maps(selected['locations']);
+      locationId = nextLocations.isEmpty ? 0 : _int(nextLocations.first['id']);
+    });
+  }
+
   void _selectProduct(int value, {bool notify = true}) {
     final product = products.firstWhere(
       (item) => _int(item['id']) == value,
@@ -923,31 +962,11 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
               24 + MediaQuery.viewInsetsOf(context).bottom,
             ),
             children: [
-              DropdownButtonFormField<int>(
-                initialValue: clientId == 0 ? null : clientId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Klient'),
-                items: clients
-                    .map(
-                      (client) => DropdownMenuItem(
-                        value: _int(client['id']),
-                        child: Text(
-                          '${client['name']}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() {
-                    clientId = value;
-                    final nextLocations = locations;
-                    locationId = nextLocations.isEmpty
-                        ? 0
-                        : _int(nextLocations.first['id']);
-                  });
-                },
+              WntSearchableSelectField(
+                label: 'Klient',
+                value: selectedClient?['name']?.toString(),
+                hintText: 'Wyszukaj klienta',
+                onTap: clients.isEmpty ? null : _pickClient,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(

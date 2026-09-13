@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../home/application/home_navigation_provider.dart';
@@ -1033,6 +1034,13 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
   );
   bool saving = false;
 
+  Map<String, dynamic>? get selectedClient {
+    for (final client in widget.clients) {
+      if (_int(client['id']) == clientId) return client;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1049,6 +1057,26 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
     notes.dispose();
     resultNotes.dispose();
     super.dispose();
+  }
+
+  Future<void> pickClient() async {
+    final selected = await showWntSearchPicker<Map<String, dynamic>>(
+      context: context,
+      title: 'Wybierz klienta',
+      searchHint: 'Wpisz nazwę klienta',
+      items: widget.clients,
+      selected: selectedClient,
+      titleFor: (client) => '${client['name'] ?? ''}',
+      subtitleFor: (client) =>
+          '${_int(client['dispenser_count'])} dystrybutorów',
+      searchTextFor: (client) => '${client['name'] ?? ''}',
+    );
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      clientId = _int(selected['id']);
+      count.text = '${_int(selected['dispenser_count'])}';
+    });
   }
 
   Future<void> save() async {
@@ -1124,31 +1152,11 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
             ],
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: clientId == 0 ? null : clientId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Klient'),
-            items: widget.clients
-                .map(
-                  (client) => DropdownMenuItem<int>(
-                    value: _int(client['id']),
-                    child: Text(
-                      '${client['name']}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              final client = widget.clients.firstWhere(
-                (row) => _int(row['id']) == value,
-              );
-              setState(() {
-                clientId = value;
-                count.text = '${_int(client['dispenser_count'])}';
-              });
-            },
+          WntSearchableSelectField(
+            label: 'Klient',
+            value: selectedClient?['name']?.toString(),
+            hintText: 'Wyszukaj klienta',
+            onTap: widget.clients.isEmpty ? null : pickClient,
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
