@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:io';
+import 'package:woda_na_telefon/src/core/theme/wnt_colors.dart';
 import 'package:woda_na_telefon/src/core/theme/wnt_theme.dart';
 import 'package:woda_na_telefon/src/features/admin/application/admin_providers.dart';
 import 'package:woda_na_telefon/src/features/admin/presentation/admin_clients_screen.dart';
@@ -13,6 +14,26 @@ import 'package:woda_na_telefon/src/features/driver/presentation/driver_service_
 import 'package:woda_na_telefon/src/shared/widgets/auth_frame.dart';
 
 void main() {
+  test('wszystkie zaznaczone kontrolki używają niebieskiego motywu', () {
+    final theme = WntTheme.light();
+    const selected = {WidgetState.selected};
+
+    expect(theme.colorScheme.primary, WntColors.brand);
+    expect(theme.colorScheme.secondary, WntColors.brand);
+    expect(theme.colorScheme.secondaryContainer, WntColors.brandSoft);
+    expect(theme.colorScheme.tertiary, WntColors.brand);
+    expect(theme.checkboxTheme.fillColor?.resolve(selected), WntColors.brand);
+    expect(theme.switchTheme.trackColor?.resolve(selected), WntColors.brand);
+    expect(
+      theme.segmentedButtonTheme.style?.backgroundColor?.resolve(selected),
+      WntColors.brand,
+    );
+    expect(theme.chipTheme.selectedColor, WntColors.brand);
+    expect(theme.tabBarTheme.indicatorColor, WntColors.brand);
+    expect(WntColors.success, WntColors.brand);
+    expect(WntColors.successSoft, WntColors.brandSoft);
+  });
+
   testWidgets(
     'prywatny klient płaci netto, a checkbox faktury przełącza cenę na brutto',
     (tester) async {

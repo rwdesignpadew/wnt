@@ -314,7 +314,7 @@ class _DriverComparison extends StatelessWidget {
     final colors = <Color>[
       WntColors.brand,
       WntColors.error,
-      Colors.green.shade600,
+      const Color(0xFF7A5AF8),
       Colors.orange.shade700,
       Colors.purple.shade600,
     ];
@@ -601,7 +601,7 @@ class _PrivateCashNoRecurringCard extends StatelessWidget {
                       label: 'Pobrana gotówka',
                       value:
                           '${format(stats['private_cash_no_recurring_collected'], 2)} zł',
-                      valueColor: Colors.green.shade700,
+                      valueColor: WntColors.brand,
                     ),
                   ],
                 );

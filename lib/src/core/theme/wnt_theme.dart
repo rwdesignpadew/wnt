@@ -18,9 +18,25 @@ abstract final class WntTheme {
       colorScheme: const ColorScheme.light(
         primary: WntColors.brand,
         onPrimary: Colors.white,
+        primaryContainer: WntColors.brandSoft,
+        onPrimaryContainer: WntColors.brandDark,
+        secondary: WntColors.brand,
+        onSecondary: Colors.white,
+        secondaryContainer: WntColors.brandSoft,
+        onSecondaryContainer: WntColors.brandDark,
+        tertiary: WntColors.brand,
+        onTertiary: Colors.white,
+        tertiaryContainer: WntColors.brandSoft,
+        onTertiaryContainer: WntColors.brandDark,
         surface: WntColors.surface,
         onSurface: WntColors.ink,
         error: WntColors.error,
+        onError: Colors.white,
+        errorContainer: WntColors.errorSoft,
+        onErrorContainer: WntColors.error,
+        outline: WntColors.inputLine,
+        outlineVariant: WntColors.line,
+        surfaceTint: WntColors.brand,
       ),
       textTheme: textTheme.copyWith(
         headlineSmall: textTheme.headlineSmall?.copyWith(
@@ -107,6 +123,71 @@ abstract final class WntTheme {
           shape: const RoundedRectangleBorder(borderRadius: radius),
           textStyle: textTheme.labelLarge,
         ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? WntColors.brand
+              : Colors.white,
+        ),
+        checkColor: const WidgetStatePropertyAll(Colors.white),
+        side: const BorderSide(color: WntColors.inputLine),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? WntColors.brand
+              : WntColors.muted,
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : WntColors.muted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? WntColors.brand
+              : WntColors.line,
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? WntColors.brand
+                : Colors.white,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? Colors.white
+                : WntColors.text,
+          ),
+          side: const WidgetStatePropertyAll(
+            BorderSide(color: WntColors.inputLine),
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: const Color(0xFFF2F4F7),
+        selectedColor: WntColors.brand,
+        secondarySelectedColor: WntColors.brand,
+        checkmarkColor: Colors.white,
+        labelStyle: textTheme.bodyMedium?.copyWith(color: WntColors.text),
+        secondaryLabelStyle: textTheme.bodyMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+        side: const BorderSide(color: WntColors.line),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      tabBarTheme: const TabBarThemeData(
+        labelColor: WntColors.brand,
+        unselectedLabelColor: WntColors.muted,
+        indicatorColor: WntColors.brand,
+        dividerColor: WntColors.line,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white,

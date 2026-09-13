@@ -212,6 +212,10 @@ void main() {
     final management = File(
       'lib/src/features/admin/presentation/admin_management_screens.dart',
     ).readAsStringSync();
+    final theme = File('lib/src/core/theme/wnt_theme.dart').readAsStringSync();
+    final colors = File(
+      'lib/src/core/theme/wnt_colors.dart',
+    ).readAsStringSync();
 
     expect(tabs, contains('selected ? WntColors.brand'));
     expect(tabs, contains('selected ? Colors.white : WntColors.text'));
@@ -226,6 +230,15 @@ void main() {
     expect(clients, contains('WntFilterTabs<bool>'));
     expect(products, contains('WntFilterTabs<bool>'));
     expect(management, contains('WntFilterTabs<String>'));
+    expect(theme, contains('secondary: WntColors.brand'));
+    expect(theme, contains('secondaryContainer: WntColors.brandSoft'));
+    expect(theme, contains('segmentedButtonTheme:'));
+    expect(theme, contains('checkboxTheme:'));
+    expect(theme, contains('switchTheme:'));
+    expect(theme, contains('chipTheme:'));
+    expect(theme, contains('tabBarTheme:'));
+    expect(colors, contains('static const success = brand;'));
+    expect(colors, contains('static const successSoft = brandSoft;'));
 
     final mobileSources = Directory('lib')
         .listSync(recursive: true)
@@ -237,6 +250,19 @@ void main() {
         isNot(contains('ChoiceChip(')),
         reason: 'Zielony ChoiceChip wrócił w ${file.path}',
       );
+      for (final forbiddenGreen in [
+        'Colors.green',
+        'Colors.teal',
+        'Colors.lime',
+        '0xFF039855',
+        '0xFFECFDF3',
+      ]) {
+        expect(
+          file.readAsStringSync(),
+          isNot(contains(forbiddenGreen)),
+          reason: 'Zielony kolor wrócił w ${file.path}',
+        );
+      }
     }
   });
 

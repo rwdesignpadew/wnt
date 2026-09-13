@@ -157,7 +157,7 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
                                           '${documents[index]['email_sent_at'] ?? ''}'
                                               .trim()
                                               .isNotEmpty
-                                          ? Colors.green.shade700
+                                          ? WntColors.brand
                                           : WntColors.error,
                                       fontWeight: FontWeight.w700,
                                     ),

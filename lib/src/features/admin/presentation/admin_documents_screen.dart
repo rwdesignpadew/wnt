@@ -939,7 +939,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                   '${document['email_sent_at'] ?? ''}'
                                       .trim()
                                       .isNotEmpty
-                                  ? Colors.green.shade700
+                                  ? WntColors.brand
                                   : WntColors.error,
                               fontWeight: FontWeight.w700,
                             ),
