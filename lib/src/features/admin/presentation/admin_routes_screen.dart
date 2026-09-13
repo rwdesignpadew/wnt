@@ -8,6 +8,7 @@ import 'package:google_navigation_flutter/google_navigation_flutter.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../driver/application/driver_providers.dart';
 import '../../driver/presentation/driver_service_screen.dart';
@@ -97,13 +98,25 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _RouteFilters(
-                  selected: _tab,
-                  tabs: [
-                    ('current', 'Bieżące', currentCount),
-                    ('recurring', 'Cykliczne', recurringCount),
-                    ('missed', 'Pominięci', missedCount),
-                    ('archive', 'Archiwum', archiveCount),
+                child: WntFilterTabs<String>(
+                  value: _tab,
+                  items: [
+                    WntFilterTab(
+                      value: 'current',
+                      label: 'Bieżące  $currentCount',
+                    ),
+                    WntFilterTab(
+                      value: 'recurring',
+                      label: 'Cykliczne  $recurringCount',
+                    ),
+                    WntFilterTab(
+                      value: 'missed',
+                      label: 'Pominięci  $missedCount',
+                    ),
+                    WntFilterTab(
+                      value: 'archive',
+                      label: 'Archiwum  $archiveCount',
+                    ),
                   ],
                   onChanged: (value) => setState(() => _tab = value),
                 ),
@@ -1213,35 +1226,6 @@ class _MissedPlannerSheetState extends ConsumerState<_MissedPlannerSheet> {
             ],
           ),
         ),
-      ],
-    ),
-  );
-}
-
-class _RouteFilters extends StatelessWidget {
-  const _RouteFilters({
-    required this.selected,
-    required this.tabs,
-    required this.onChanged,
-  });
-
-  final String selected;
-  final List<(String, String, int)> tabs;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        for (final tab in tabs) ...[
-          ChoiceChip(
-            selected: selected == tab.$1,
-            label: Text('${tab.$2}  ${tab.$3}'),
-            onSelected: (_) => onChanged(tab.$1),
-          ),
-          const SizedBox(width: 8),
-        ],
       ],
     ),
   );

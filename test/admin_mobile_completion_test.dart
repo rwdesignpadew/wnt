@@ -86,6 +86,9 @@ void main() {
     for (final label in ['Bieżące', 'Cykliczne', 'Pominięci', 'Archiwum']) {
       expect(mobile, contains(label));
     }
+    expect(mobile, contains('WntFilterTabs<String>'));
+    expect(mobile, contains("wnt_filter_tabs.dart"));
+    expect(mobile, isNot(contains('ChoiceChip(')));
     expect(mobile, contains('ReorderableDragStartListener'));
     expect(mobile, contains('Icons.lock_outline'));
     expect(repository, contains('reassignMissedRoutes'));
@@ -206,6 +209,11 @@ void main() {
     expect(driverStats, contains('WntFilterTabs<String>'));
     expect(driverStats, isNot(contains('ChoiceChip(')));
     expect(clientStats, contains('WntFilterTabs<String>'));
+    final routes = File(
+      'lib/src/features/admin/presentation/admin_routes_screen.dart',
+    ).readAsStringSync();
+    expect(routes, contains('WntFilterTabs<String>'));
+    expect(routes, isNot(contains('ChoiceChip(')));
   });
 
   test('klient może zamówić sanityzację z limitem lokalizacji', () {
