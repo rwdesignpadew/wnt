@@ -12,7 +12,6 @@ import '../../documents/presentation/html_document_screen.dart';
 import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
-import 'admin_client_stats_screen.dart';
 
 class AdminMonthlyWzSummaryScreen extends ConsumerStatefulWidget {
   const AdminMonthlyWzSummaryScreen({super.key});
@@ -137,7 +136,7 @@ class _AdminMonthlyWzSummaryScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Miesięczne podsumowanie WZ')),
+    appBar: AppBar(title: const Text('WZ do faktur miesięcznych')),
     bottomNavigationBar: adminBottomNavigation(context, ref),
     body: FutureBuilder<Map<String, dynamic>>(
       future: _result,
@@ -162,8 +161,6 @@ class _AdminMonthlyWzSummaryScreenState
         }
 
         final data = snapshot.data!;
-        final all = _map(data['all']);
-        final private = _map(data['private']);
         final recurring = _map(data['recurring']);
         return RefreshIndicator(
           onRefresh: () async {
@@ -175,22 +172,6 @@ class _AdminMonthlyWzSummaryScreenState
             children: [
               _monthSelector(),
               const SizedBox(height: 14),
-              _summaryCard('Wszyscy klienci', all),
-              const SizedBox(height: 14),
-              _productsCard('Co kupili wszyscy', _list(all['products'])),
-              const SizedBox(height: 18),
-              _sectionTitle(
-                'Klienci prywatni',
-                '${private['clients'] ?? 0} klientów · ${private['documents'] ?? 0} WZ · ${_money(private['value'])} zł',
-              ),
-              const SizedBox(height: 8),
-              _productsCard(
-                'Zakupy klientów prywatnych',
-                _list(private['products']),
-              ),
-              const SizedBox(height: 8),
-              ..._list(private['rows']).map(_privateClientCard),
-              const SizedBox(height: 18),
               _sectionTitle(
                 'Faktury miesięczne',
                 'Zaznacz klientów, którzy razem z Fakturą VAT mają dostać wszystkie WZ z rozliczenia.',
@@ -245,105 +226,6 @@ class _AdminMonthlyWzSummaryScreenState
         icon: const Icon(Icons.chevron_right),
       ),
     ],
-  );
-
-  Widget _summaryCard(String title, Map<String, dynamic> data) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _metric('Klienci', '${data['clients'] ?? 0}'),
-              _metric('WZ', '${data['documents'] ?? 0}'),
-              _metric('Wartość', '${_money(data['value'])} zł'),
-            ],
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _metric(String label, String value) => Container(
-    width: 104,
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: WntColors.canvas,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 4),
-        FittedBox(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _productsCard(
-    String title,
-    List<Map<String, dynamic>> products,
-  ) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (products.isEmpty)
-            const Text('Brak sprzedanych produktów.')
-          else
-            ...products.map(
-              (product) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  children: [
-                    Expanded(child: Text('${product['name'] ?? 'Produkt'}')),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${_number(product['quantity'])} szt. · ${_money(product['value'])} zł',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _privateClientCard(Map<String, dynamic> client) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: ExpansionTile(
-      title: Text(client['name']?.toString() ?? 'Klient prywatny'),
-      subtitle: Text(
-        '${client['documents_count'] ?? 0} WZ · ${_money(client['value'])} zł',
-      ),
-      trailing: IconButton(
-        tooltip: 'Pełne statystyki klienta',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                AdminClientStatsScreen(clientId: _int(client['client_id'])),
-          ),
-        ),
-        icon: const Icon(Icons.analytics_outlined),
-      ),
-      children: [_clientDetails(client)],
-    ),
   );
 
   Widget _recurringClientCard(Map<String, dynamic> client) {
@@ -449,8 +331,6 @@ List<Map<String, dynamic>> _list(dynamic value) => value is List
 
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
 double _double(dynamic value) => double.tryParse('$value') ?? 0;
-String _money(dynamic value) =>
-    _double(value).toStringAsFixed(2).replaceAll('.', ',');
 String _number(dynamic value) {
   final number = _double(value);
   return number == number.roundToDouble()

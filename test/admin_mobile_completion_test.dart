@@ -123,9 +123,12 @@ void main() {
     expect(mobile, contains('Osoby prywatne'));
   });
 
-  test('miesięczne WZ mają pełne podsumowanie, PDF i wybór wysyłki z FV', () {
+  test('miesięczne WZ są ustawiane przy klientach, a nie w dokumentach', () {
     final documents = File(
       'lib/src/features/admin/presentation/admin_documents_screen.dart',
+    ).readAsStringSync();
+    final clients = File(
+      'lib/src/features/admin/presentation/admin_clients_screen.dart',
     ).readAsStringSync();
     final summary = File(
       'lib/src/features/admin/presentation/admin_monthly_wz_summary_screen.dart',
@@ -140,8 +143,11 @@ void main() {
       '${backendRoot.path}/app/Services/FakturowniaService.php',
     ).readAsStringSync();
 
-    expect(documents, contains('Miesięczne podsumowanie WZ'));
-    expect(summary, contains('Co kupili wszyscy'));
+    expect(documents, isNot(contains('Miesięczne podsumowanie WZ')));
+    expect(clients, contains('WZ do faktur miesięcznych'));
+    expect(summary, contains('WZ do faktur miesięcznych'));
+    expect(summary, isNot(contains('Co kupili wszyscy')));
+    expect(summary, isNot(contains('Zakupy klientów prywatnych')));
     expect(summary, contains('Wystawione WZ'));
     expect(summary, contains('documentPdf'));
     expect(summary, contains('Wyślij wszystkie WZ razem z Fakturą VAT'));
@@ -169,8 +175,16 @@ void main() {
     expect(controller, isNot(contains('MAX(odometer) - MIN(odometer)')));
     expect(controller, contains("'private_cash_no_recurring_rows'"));
     expect(controller, contains("'private_cash_no_recurring_collected'"));
-    expect(screen, contains('Osoby prywatne'));
+    expect(screen, contains('Zakupy klientów prywatnych'));
+    expect(screen, contains('Klienci i kupione produkty'));
+    expect(screen, isNot(contains('Co kupiły firmy')));
+    expect(screen, isNot(contains('Co kupiły osoby prywatne')));
     expect(screen, contains("stats['private_cash_no_recurring_rows']"));
+    expect(
+      controller,
+      contains(r'! (bool) $document->customer_requests_invoice'),
+    );
+    expect(controller, contains(r'blank($document->final_invoice_number)'));
     expect(console, contains("Schedule::command('wnt:sync-mycar-gps')"));
     expect(myCar, contains('DriverLocation::updateOrCreate'));
     expect(myCar, isNot(contains('DriverLocation::create([')));

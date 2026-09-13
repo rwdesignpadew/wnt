@@ -8,6 +8,7 @@ import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
 import 'admin_client_full_edit_screen.dart';
 import 'admin_client_stats_screen.dart';
+import 'admin_monthly_wz_summary_screen.dart';
 import 'admin_route_edit_screen.dart';
 
 class AdminClientsScreen extends ConsumerStatefulWidget {
@@ -140,7 +141,7 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
             onRefresh: () async => ref.refresh(adminClientsProvider.future),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: items.length + 3,
+              itemCount: items.length + 4,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -196,6 +197,20 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                   );
                 }
                 if (index == 2) {
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const AdminMonthlyWzSummaryScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.attach_email_outlined),
+                      label: const Text('WZ do faktur miesięcznych'),
+                    ),
+                  );
+                }
+                if (index == 3) {
                   return TextField(
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.search),
@@ -204,7 +219,7 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                     onChanged: (value) => setState(() => _query = value),
                   );
                 }
-                final client = items[index - 3];
+                final client = items[index - 4];
                 final id = _int(client['id']);
                 final sanitationOverdue =
                     client['has_overdue_sanitization'] == true;

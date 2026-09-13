@@ -14,7 +14,6 @@ import '../../driver/application/driver_providers.dart';
 import '../../driver/presentation/driver_manual_wz_screen.dart';
 import '../../driver/presentation/driver_service_screen.dart';
 import '../application/admin_providers.dart';
-import 'admin_monthly_wz_summary_screen.dart';
 
 class AdminDocumentsScreen extends ConsumerStatefulWidget {
   const AdminDocumentsScreen({super.key});
@@ -881,20 +880,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const AdminMonthlyWzSummaryScreen(),
-                            ),
-                          ),
-                          icon: const Icon(Icons.summarize_outlined),
-                          label: const Text('Miesięczne podsumowanie WZ'),
-                        ),
                       ),
                       const SizedBox(height: 8),
                       SizedBox(

@@ -214,9 +214,9 @@ class _AdminDriverStatisticsScreenState
               },
             ),
             const SizedBox(height: 16),
-            _StatisticsBreakdownCard(stats: stats),
-            const SizedBox(height: 16),
             _PrivateCashNoRecurringCard(stats: stats),
+            const SizedBox(height: 16),
+            _StatisticsBreakdownCard(stats: stats),
             if (_driverId == null && breakdown.isNotEmpty) ...[
               const SizedBox(height: 24),
               Text(
@@ -523,16 +523,6 @@ class _StatisticsBreakdownCard extends StatelessWidget {
                   '${_AdminDriverStatisticsScreenState._number(stats['transfer_value'], 2)} zł',
               details: '${stats['transfer_documents'] ?? 0} WZ',
             ),
-            const SizedBox(height: 12),
-            _ProductBreakdown(
-              title: 'Co kupiły firmy',
-              items: stats['company_products'],
-            ),
-            const SizedBox(height: 12),
-            _ProductBreakdown(
-              title: 'Co kupiły osoby prywatne',
-              items: stats['private_products'],
-            ),
           ],
         ),
       ),
@@ -571,12 +561,12 @@ class _PrivateCashNoRecurringCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Osoby prywatne — gotówka bez NIP i faktury cyklicznej',
+              'Zakupy klientów prywatnych',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             Text(
-              'Klienci obsłużeni przez wybranego kierowcę w wybranym okresie.',
+              'Tylko płatność gotówką, bez NIP, bez faktury cyklicznej i bez wystawionej faktury.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
@@ -630,71 +620,58 @@ class _PrivateCashNoRecurringCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               )
-            else
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: EdgeInsets.zero,
-                title: Text('Klienci i lokalizacje (${rows.length})'),
-                children: rows
-                    .map((row) {
-                      return Column(
-                        children: [
-                          const Divider(height: 1),
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              row['client']?.toString() ?? 'Klient',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${row['location'] ?? 'Główna lokalizacja'}\n'
-                              '${row['documents'] ?? 0} WZ • '
-                              '${format(row['value'], 2)} zł',
-                            ),
-                            trailing: Text(
-                              '${format(row['cash'], 2)} zł',
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AdminClientStatsScreen(
-                                  clientId:
-                                      int.tryParse('${row['client_id']}') ?? 0,
-                                  locationId: int.tryParse(
-                                    '${row['location_id']}',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (row['products'] is List)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  (row['products'] as List)
-                                      .whereType<Map>()
-                                      .map(
-                                        (product) =>
-                                            '${product['name']} ${format(product['quantity'], 2)} szt.',
-                                      )
-                                      .join(' · '),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
-                            ),
-                        ],
-                      );
-                    })
-                    .toList(growable: false),
+            else ...[
+              Text(
+                'Klienci i kupione produkty (${rows.length})',
+                style: Theme.of(context).textTheme.titleSmall,
               ),
+              const SizedBox(height: 4),
+              ...rows.map((row) {
+                return Column(
+                  children: [
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        row['client']?.toString() ?? 'Klient',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        '${row['location'] ?? 'Główna lokalizacja'}\n'
+                        '${row['documents'] ?? 0} WZ • '
+                        '${format(row['value'], 2)} zł',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AdminClientStatsScreen(
+                            clientId: int.tryParse('${row['client_id']}') ?? 0,
+                            locationId: int.tryParse('${row['location_id']}'),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (row['products'] is List)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            (row['products'] as List)
+                                .whereType<Map>()
+                                .map(
+                                  (product) =>
+                                      '${product['name']}: ${format(product['quantity'], 2)} szt.',
+                                )
+                                .join('\n'),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }),
+            ],
           ],
         ),
       ),
@@ -783,9 +760,7 @@ class _ProductBreakdown extends StatelessWidget {
                     Text(item['name']?.toString() ?? 'Produkt'),
                     Text(
                       '${_AdminDriverStatisticsScreenState._number(item['quantity'], 2)} szt. · '
-                      '${_AdminDriverStatisticsScreenState._number(item['value'], 2)} zł · '
-                      'gotówka ${_AdminDriverStatisticsScreenState._number(item['cash_value'], 2)} zł · '
-                      'przelew ${_AdminDriverStatisticsScreenState._number(item['transfer_value'], 2)} zł',
+                      '${_AdminDriverStatisticsScreenState._number(item['value'], 2)} zł',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
