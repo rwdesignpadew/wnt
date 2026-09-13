@@ -32,4 +32,23 @@ void main() {
     expect(rows, hasLength(1));
     expect(rows.single['type'], 'wz');
   });
+
+  test('shows a pure return only as PZ, without an empty WZ row', () {
+    final rows = driverDocumentRows([
+      {
+        'id': 2324,
+        'number': 'ZWROT/20260913/2324',
+        'has_wz': false,
+        'has_pz': true,
+        'warehouse_pz_required': false,
+        'has_return_pz': false,
+        'pz_number': 'PZP/202609/0001',
+        'sort_at': 102,
+      },
+    ]);
+
+    expect(rows, hasLength(1));
+    expect(rows.single['type'], 'pz');
+    expect(rows.single['number'], 'PZP/202609/0001');
+  });
 }

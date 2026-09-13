@@ -237,15 +237,24 @@ List<Map<String, dynamic>> driverDocumentRows(dynamic value) {
   final rows = <Map<String, dynamic>>[];
   for (final document in _list(value)) {
     final wzNumber = '${document['number'] ?? ''}'.trim();
-    if (wzNumber.isEmpty) continue;
+    final hasWz = !document.containsKey('has_wz') || _flag(document['has_wz']);
 
-    rows.add({...document, 'type': 'wz', 'number': wzNumber});
+    if (hasWz && wzNumber.isNotEmpty) {
+      rows.add({...document, 'type': 'wz', 'number': wzNumber});
+    }
     final pzNumber = '${document['pz_number'] ?? ''}'.trim();
-    if (_flag(document['has_return_pz']) || pzNumber.isNotEmpty) {
+    if (_flag(document['has_pz']) ||
+        _flag(document['has_return_pz']) ||
+        _flag(document['warehouse_pz_required']) ||
+        pzNumber.isNotEmpty) {
       rows.add({
         ...document,
         'type': 'pz',
-        'number': pzNumber.isNotEmpty ? pzNumber : 'PZ do $wzNumber',
+        'number': pzNumber.isNotEmpty
+            ? pzNumber
+            : hasWz && wzNumber.isNotEmpty
+            ? 'PZ do $wzNumber'
+            : 'PZ — oczekuje na numer',
       });
     }
   }
