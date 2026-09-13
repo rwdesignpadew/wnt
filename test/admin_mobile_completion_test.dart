@@ -353,4 +353,40 @@ void main() {
     expect(clients, contains('Wyślij fakturę ze wszystkimi WZ z miesiąca'));
     expect(clients, contains("'email_monthly_wz_with_invoice'"));
   });
+
+  test('dzierżawy mają filtry i nie pokazują zwróconego sprzętu w edycji', () {
+    final rentals = File(
+      'lib/src/features/admin/presentation/admin_management_screens.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+    final webController = File(
+      '${backendRoot.path}/app/Http/Controllers/AdminController.php',
+    ).readAsStringSync();
+
+    expect(rentals, contains('Szukaj klienta, lokalizacji lub sprzętu'));
+    expect(rentals, contains("label: 'Klient'"));
+    expect(rentals, contains("label: 'Lokalizacja'"));
+    expect(rentals, contains("label: 'Sprzęt'"));
+    expect(rentals, contains("labelText: 'Rodzaj sprzętu'"));
+    expect(rentals, contains('Brak dzierżaw pasujących do filtrów.'));
+    expect(
+      controller,
+      contains("'rental_items.*.id' => ['nullable', 'integer']"),
+    );
+    expect(
+      controller,
+      contains(
+        r"$obsoleteRentals = $client->rentalItems()->where('quantity', '>', 0)",
+      ),
+    );
+    expect(
+      controller,
+      contains(
+        r"'requires_sanitization' => (bool) $rental->requires_sanitization",
+      ),
+    );
+    expect(webController, contains("->where('quantity', '>', 0)"));
+  });
 }

@@ -197,6 +197,75 @@ class AdminRentalsScreen extends ConsumerStatefulWidget {
 
 class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
   String _tab = 'active';
+  final TextEditingController _rentalSearch = TextEditingController();
+  String _clientFilter = '';
+  String _locationFilter = '';
+  String _productFilter = '';
+  String _equipmentFilter = 'all';
+  bool _filtersVisible = false;
+
+  @override
+  void dispose() {
+    _rentalSearch.dispose();
+    super.dispose();
+  }
+
+  List<String> _filterValues(Iterable<Map<String, dynamic>> items, String key) {
+    final values = items
+        .map((item) => item[key]?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+    values.sort(
+      (left, right) => left.toLowerCase().compareTo(right.toLowerCase()),
+    );
+    return values;
+  }
+
+  bool _matchesRentalFilters(Map<String, dynamic> item) {
+    final query = _rentalSearch.text.trim().toLowerCase();
+    final searchable = [
+      item['client_name'],
+      item['location_name'],
+      item['product_name'],
+      item['route_name'],
+      item['date'],
+    ].where((value) => value != null).join(' ').toLowerCase();
+    if (query.isNotEmpty && !searchable.contains(query)) return false;
+    if (_clientFilter.isNotEmpty && item['client_name'] != _clientFilter) {
+      return false;
+    }
+    if (_locationFilter.isNotEmpty &&
+        item['location_name'] != _locationFilter) {
+      return false;
+    }
+    if (_productFilter.isNotEmpty && item['product_name'] != _productFilter) {
+      return false;
+    }
+    final requiresSanitization = _truthy(item['requires_sanitization']);
+    if (_equipmentFilter == 'sanitization' && !requiresSanitization) {
+      return false;
+    }
+    if (_equipmentFilter == 'other' && requiresSanitization) return false;
+    return true;
+  }
+
+  int get _activeFilterCount => [
+    _clientFilter,
+    _locationFilter,
+    _productFilter,
+    if (_equipmentFilter != 'all') _equipmentFilter,
+  ].where((value) => value.isNotEmpty).length;
+
+  void _clearRentalFilters() {
+    setState(() {
+      _rentalSearch.clear();
+      _clientFilter = '';
+      _locationFilter = '';
+      _productFilter = '';
+      _equipmentFilter = 'all';
+    });
+  }
 
   Future<void> _addRental(Map<String, dynamic> data) async {
     final saved = await showModalBottomSheet<bool>(
@@ -359,10 +428,18 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
           data: (data) {
             final pending = _maps(data['pending']);
             final active = _maps(data['active']);
+            final allRentals = <Map<String, dynamic>>[...active, ...pending];
+            final clients = _filterValues(allRentals, 'client_name');
+            final locations = _filterValues(allRentals, 'location_name');
+            final products = _filterValues(allRentals, 'product_name');
             final statistics = data['statistics'] is Map
                 ? (data['statistics'] as Map).cast<String, dynamic>()
                 : <String, dynamic>{};
-            final items = _tab == 'pending' ? pending : active;
+            final filteredActive = active.where(_matchesRentalFilters).toList();
+            final filteredPending = pending
+                .where(_matchesRentalFilters)
+                .toList();
+            final items = _tab == 'pending' ? filteredPending : filteredActive;
             return RefreshIndicator(
               onRefresh: () => ref.refresh(adminRentalsProvider.future),
               child: ListView(
@@ -373,15 +450,143 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
                   _ManagementTabs(
                     selected: _tab,
                     tabs: [
-                      ('active', 'Aktywne', active.length),
-                      ('pending', 'W realizacji', pending.length),
+                      ('active', 'Aktywne', filteredActive.length),
+                      ('pending', 'W realizacji', filteredPending.length),
                     ],
                     onChanged: (value) => setState(() => _tab = value),
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _rentalSearch,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Szukaj klienta, lokalizacji lub sprzętu',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _rentalSearch.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'Wyczyść wyszukiwanie',
+                                    onPressed: () {
+                                      _rentalSearch.clear();
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(Icons.close),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            setState(() => _filtersVisible = !_filtersVisible),
+                        icon: const Icon(Icons.tune),
+                        label: Text(
+                          _activeFilterCount == 0
+                              ? 'Filtry'
+                              : 'Filtry ($_activeFilterCount)',
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_filtersVisible) ...[
+                    const SizedBox(height: 10),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          children: [
+                            _RentalFilterDropdown(
+                              key: ValueKey('rental-client-$_clientFilter'),
+                              label: 'Klient',
+                              allLabel: 'Wszyscy klienci',
+                              value: _clientFilter,
+                              values: clients,
+                              onChanged: (value) =>
+                                  setState(() => _clientFilter = value ?? ''),
+                            ),
+                            const SizedBox(height: 10),
+                            _RentalFilterDropdown(
+                              key: ValueKey('rental-location-$_locationFilter'),
+                              label: 'Lokalizacja',
+                              allLabel: 'Wszystkie lokalizacje',
+                              value: _locationFilter,
+                              values: locations,
+                              onChanged: (value) =>
+                                  setState(() => _locationFilter = value ?? ''),
+                            ),
+                            const SizedBox(height: 10),
+                            _RentalFilterDropdown(
+                              key: ValueKey('rental-product-$_productFilter'),
+                              label: 'Sprzęt',
+                              allLabel: 'Cały sprzęt',
+                              value: _productFilter,
+                              values: products,
+                              onChanged: (value) =>
+                                  setState(() => _productFilter = value ?? ''),
+                            ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              key: ValueKey(
+                                'rental-equipment-$_equipmentFilter',
+                              ),
+                              initialValue: _equipmentFilter,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Rodzaj sprzętu',
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'all',
+                                  child: Text('Wszystkie rodzaje'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'sanitization',
+                                  child: Text('Wymagający sanityzacji'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'other',
+                                  child: Text('Pozostały sprzęt'),
+                                ),
+                              ],
+                              onChanged: (value) => setState(
+                                () => _equipmentFilter = value ?? 'all',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                TextButton.icon(
+                                  onPressed:
+                                      _activeFilterCount == 0 &&
+                                          _rentalSearch.text.isEmpty
+                                      ? null
+                                      : _clearRentalFilters,
+                                  icon: const Icon(Icons.filter_alt_off),
+                                  label: const Text('Wyczyść filtry'),
+                                ),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: () =>
+                                      setState(() => _filtersVisible = false),
+                                  child: const Text('Zwiń'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
                   if (items.isEmpty)
                     _EmptyMessage(
-                      _tab == 'pending'
+                      _rentalSearch.text.isNotEmpty || _activeFilterCount > 0
+                          ? 'Brak dzierżaw pasujących do filtrów.'
+                          : _tab == 'pending'
                           ? 'Brak dzierżaw oczekujących na wydanie.'
                           : 'Brak aktywnych dzierżaw.',
                     )
@@ -419,6 +624,39 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
             );
           },
         ),
+  );
+}
+
+class _RentalFilterDropdown extends StatelessWidget {
+  const _RentalFilterDropdown({
+    required this.label,
+    required this.allLabel,
+    required this.value,
+    required this.values,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String label;
+  final String allLabel;
+  final String value;
+  final List<String> values;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => DropdownButtonFormField<String>(
+    initialValue: value,
+    isExpanded: true,
+    decoration: InputDecoration(labelText: label),
+    items: [
+      DropdownMenuItem(value: '', child: Text(allLabel)),
+      for (final option in values)
+        DropdownMenuItem(
+          value: option,
+          child: Text(option, overflow: TextOverflow.ellipsis),
+        ),
+    ],
+    onChanged: onChanged,
   );
 }
 
@@ -1047,6 +1285,8 @@ List<Map<String, dynamic>> _maps(dynamic value) => value is List
     : const [];
 
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+bool _truthy(dynamic value) =>
+    value == true || value == 1 || value?.toString() == '1';
 double _double(dynamic value) =>
     double.tryParse('$value'.replaceAll(',', '.')) ?? 0;
 String _money(dynamic value) =>
