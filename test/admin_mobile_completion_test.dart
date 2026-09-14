@@ -73,6 +73,36 @@ void main() {
     },
   );
 
+  test('sanityzacje mają statystyki i komplet filtrów jak panel WWW', () {
+    final mobile = File(
+      'lib/src/features/admin/presentation/admin_more_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+
+    for (final label in [
+      'Po terminie',
+      'Na dzisiaj',
+      'Wszystkie otwarte',
+      'Na żądanie',
+      'Do dokończenia',
+      'Wykonane w miesiącu',
+      'Status',
+      'Rodzaj',
+      'Termin',
+      'Klient',
+      'Kierowca',
+    ]) {
+      expect(mobile, contains(label));
+    }
+    expect(mobile, contains('sanitization_summary'));
+    expect(mobile, contains('WntSearchableSelectField('));
+    expect(controller, contains("'sanitization_summary'"));
+    expect(controller, contains('->limit(500)'));
+    expect(controller, contains("'driver_name'"));
+  });
+
   test('trasy mają osobne zakładki i bezpieczne przenoszenie pominiętych', () {
     final mobile = File(
       'lib/src/features/admin/presentation/admin_routes_screen.dart',

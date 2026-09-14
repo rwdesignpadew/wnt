@@ -489,6 +489,111 @@ void main() {
   );
 
   testWidgets(
+    'sanityzacje pokazują statystyki i rozwijane filtry bez overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            adminOperationsProvider.overrideWith(
+              (ref) async => {
+                'sanitization_summary': {
+                  'overdue': 1,
+                  'today': 1,
+                  'open': 1,
+                  'on_request': 0,
+                  'in_progress': 0,
+                  'completed_month': 1,
+                },
+                'sanitizations': [
+                  {
+                    'id': 1,
+                    'client_id': 10,
+                    'client_location_id': 100,
+                    'driver_id': 20,
+                    'client_name': 'Klient bieżący',
+                    'location_name': 'Biuro',
+                    'driver_name': 'Kierowca testowy',
+                    'title': 'Klient bieżący',
+                    'subtitle': 'Biuro · 14.09.2026',
+                    'meta': '2 szt. · Kierowca testowy',
+                    'status': 'overdue',
+                    'scheduled_date': '2026-09-14',
+                    'is_on_request': false,
+                  },
+                  {
+                    'id': 2,
+                    'client_id': 11,
+                    'client_location_id': 101,
+                    'driver_id': 21,
+                    'client_name': 'Klient wykonany',
+                    'location_name': 'Magazyn',
+                    'driver_name': 'Drugi kierowca',
+                    'title': 'Klient wykonany',
+                    'subtitle': 'Magazyn · 10.09.2026',
+                    'meta': '1 szt. · Drugi kierowca',
+                    'status': 'completed',
+                    'scheduled_date': '2026-09-10',
+                    'is_on_request': true,
+                  },
+                ],
+              },
+            ),
+          ],
+          child: MaterialApp(
+            theme: WntTheme.light(),
+            home: const AdminOperationsScreen(
+              dataKey: 'sanitizations',
+              title: 'Sanityzacje',
+              embedded: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Po terminie'), findsWidgets);
+      expect(find.text('Wykonane w miesiącu'), findsOneWidget);
+      expect(find.text('Klient bieżący'), findsOneWidget);
+      expect(find.text('Klient wykonany'), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.text('Filtry'));
+      await tester.pumpAndSettle();
+
+      for (final label in [
+        'Status',
+        'Rodzaj',
+        'Termin',
+        'Klient',
+        'Kierowca',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('Wszystkie bieżące'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(
+        find.byType(TextField).first,
+        'nieistniejący klient',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Zwiń'));
+      await tester.tap(find.text('Zwiń'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Brak sanityzacji pasujących do wybranych filtrów.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'formularz klienta pojawia się dopiero po Nowe zamówienie i nie ma overflow',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);

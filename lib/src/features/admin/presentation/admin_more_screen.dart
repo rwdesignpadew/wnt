@@ -401,6 +401,18 @@ class AdminOperationsScreen extends ConsumerWidget {
                       .map((item) => item.cast<String, dynamic>())
                       .toList()
                 : <Map<String, dynamic>>[];
+            if (dataKey == 'sanitizations') {
+              return _AdminSanitizationsContent(
+                data: data,
+                items: items,
+                onRefresh: () async =>
+                    ref.refresh(adminOperationsProvider.future),
+                onEdit: (item) =>
+                    _openSanitizationEditor(context, ref, data, item: item),
+                onAction: (item, action) =>
+                    _sanitizationAction(context, ref, item, action),
+              );
+            }
             return RefreshIndicator(
               onRefresh: () async =>
                   ref.refresh(adminOperationsProvider.future),
@@ -740,6 +752,505 @@ class AdminOperationsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _AdminSanitizationsContent extends StatefulWidget {
+  const _AdminSanitizationsContent({
+    required this.data,
+    required this.items,
+    required this.onRefresh,
+    required this.onEdit,
+    required this.onAction,
+  });
+
+  final Map<String, dynamic> data;
+  final List<Map<String, dynamic>> items;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function(Map<String, dynamic> item) onEdit;
+  final Future<void> Function(Map<String, dynamic> item, String action)
+  onAction;
+
+  @override
+  State<_AdminSanitizationsContent> createState() =>
+      _AdminSanitizationsContentState();
+}
+
+class _AdminSanitizationsContentState
+    extends State<_AdminSanitizationsContent> {
+  final TextEditingController _search = TextEditingController();
+  String _status = 'open';
+  String _kind = 'all';
+  String _due = 'all';
+  int? _clientId;
+  int? _driverId;
+  bool _filtersVisible = false;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  int get _activeFilterCount => [
+    if (_status != 'open') _status,
+    if (_kind != 'all') _kind,
+    if (_due != 'all') _due,
+    if (_clientId != null) 'client',
+    if (_driverId != null) 'driver',
+  ].length;
+
+  List<MapEntry<int, String>> _options(String idKey, String nameKey) {
+    final values = <int, String>{};
+    for (final item in widget.items) {
+      final id = _int(item[idKey]);
+      final name = item[nameKey]?.toString().trim() ?? '';
+      if (id > 0 && name.isNotEmpty) values[id] = name;
+    }
+    final options = values.entries.toList();
+    options.sort(
+      (left, right) =>
+          left.value.toLowerCase().compareTo(right.value.toLowerCase()),
+    );
+    return options;
+  }
+
+  bool _matches(Map<String, dynamic> item) {
+    final query = _search.text.trim().toLowerCase();
+    final searchable = [
+      item['client_name'],
+      item['location_name'],
+      item['driver_name'],
+      item['route_name'],
+      item['subtitle'],
+      item['meta'],
+      item['notes'],
+    ].where((value) => value != null).join(' ').toLowerCase();
+    if (query.isNotEmpty && !searchable.contains(query)) return false;
+
+    final status = item['status']?.toString() ?? '';
+    if (_status == 'open' &&
+        !{'planned', 'overdue', 'in_progress'}.contains(status)) {
+      return false;
+    }
+    if (_status != 'open' && _status != 'all' && status != _status) {
+      return false;
+    }
+    final onRequest = item['is_on_request'] == true;
+    if (_kind == 'regular' && onRequest) return false;
+    if (_kind == 'on_request' && !onRequest) return false;
+    if (_clientId != null && _int(item['client_id']) != _clientId) return false;
+    if (_driverId != null && _int(item['driver_id']) != _driverId) return false;
+
+    if (_due != 'all') {
+      final scheduled = DateTime.tryParse(
+        item['scheduled_date']?.toString() ?? '',
+      );
+      if (scheduled == null) return false;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final date = DateTime(scheduled.year, scheduled.month, scheduled.day);
+      if (_due == 'today' && date != today) return false;
+      final days = _due == 'next_7' ? 7 : 30;
+      if (_due != 'today' &&
+          (date.isBefore(today) ||
+              date.isAfter(today.add(Duration(days: days))))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _search.clear();
+      _status = 'open';
+      _kind = 'all';
+      _due = 'all';
+      _clientId = null;
+      _driverId = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = widget.data['sanitization_summary'] is Map
+        ? (widget.data['sanitization_summary'] as Map).cast<String, dynamic>()
+        : <String, dynamic>{};
+    final filtered = widget.items.where(_matches).toList();
+    final clients = _options('client_id', 'client_name');
+    final drivers = _options('driver_id', 'driver_name');
+
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+        children: [
+          _SanitizationStatistics(summary: summary),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final searchField = TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Klient, lokalizacja lub kierowca',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Wyczyść wyszukiwanie',
+                          onPressed: () {
+                            _search.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close),
+                        ),
+                ),
+              );
+              final filterButton = OutlinedButton.icon(
+                onPressed: () =>
+                    setState(() => _filtersVisible = !_filtersVisible),
+                icon: const Icon(Icons.tune),
+                label: Text(
+                  _activeFilterCount == 0
+                      ? 'Filtry'
+                      : 'Filtry ($_activeFilterCount)',
+                ),
+              );
+              if (constraints.maxWidth < 430) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchField,
+                    const SizedBox(height: 8),
+                    filterButton,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  const SizedBox(width: 8),
+                  filterButton,
+                ],
+              );
+            },
+          ),
+          if (_filtersVisible) ...[
+            const SizedBox(height: 10),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: [
+                    _SanitizationDropdown(
+                      label: 'Status',
+                      value: _status,
+                      options: const {
+                        'open': 'Wszystkie bieżące',
+                        'planned': 'Zaplanowane',
+                        'overdue': 'Po terminie',
+                        'in_progress': 'Do dokończenia',
+                        'completed': 'Wykonane',
+                        'partial': 'Częściowo wykonane',
+                        'missed': 'Nie było klienta',
+                        'cancelled': 'Anulowane',
+                        'all': 'Wszystkie',
+                      },
+                      onChanged: (value) =>
+                          setState(() => _status = value ?? 'open'),
+                    ),
+                    const SizedBox(height: 10),
+                    _SanitizationDropdown(
+                      label: 'Rodzaj',
+                      value: _kind,
+                      options: const {
+                        'all': 'Wszystkie',
+                        'regular': 'Regularne',
+                        'on_request': 'Na żądanie',
+                      },
+                      onChanged: (value) =>
+                          setState(() => _kind = value ?? 'all'),
+                    ),
+                    const SizedBox(height: 10),
+                    _SanitizationDropdown(
+                      label: 'Termin',
+                      value: _due,
+                      options: const {
+                        'all': 'Dowolny',
+                        'today': 'Dzisiaj',
+                        'next_7': 'Najbliższe 7 dni',
+                        'next_30': 'Najbliższe 30 dni',
+                      },
+                      onChanged: (value) =>
+                          setState(() => _due = value ?? 'all'),
+                    ),
+                    const SizedBox(height: 10),
+                    _SanitizationSearchFilter(
+                      label: 'Klient',
+                      hint: 'Wszyscy klienci',
+                      searchHint: 'Wpisz nazwę klienta',
+                      options: clients,
+                      selectedId: _clientId,
+                      onChanged: (value) => setState(() => _clientId = value),
+                    ),
+                    const SizedBox(height: 10),
+                    _SanitizationSearchFilter(
+                      label: 'Kierowca',
+                      hint: 'Wszyscy kierowcy',
+                      searchHint: 'Wpisz nazwę kierowcy',
+                      options: drivers,
+                      selectedId: _driverId,
+                      onChanged: (value) => setState(() => _driverId = value),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: TextButton.icon(
+                            onPressed:
+                                _activeFilterCount == 0 && _search.text.isEmpty
+                                ? null
+                                : _clearFilters,
+                            icon: const Icon(Icons.filter_alt_off),
+                            label: const Text('Wyczyść filtry'),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _filtersVisible = false),
+                          child: const Text('Zwiń'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Wyświetlane: ${filtered.length} z ${widget.items.length}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
+          ),
+          const SizedBox(height: 8),
+          if (filtered.isEmpty)
+            const EmptyState(
+              icon: Icons.cleaning_services_outlined,
+              title: 'Brak sanityzacji',
+              message: 'Brak sanityzacji pasujących do wybranych filtrów.',
+            )
+          else
+            for (final item in filtered) ...[
+              _sanitizationCard(item),
+              const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sanitizationCard(Map<String, dynamic> item) {
+    final overdue = item['status']?.toString() == 'overdue';
+    return Card(
+      color: overdue ? WntColors.errorSoft : null,
+      child: ListTile(
+        title: Text(item['title']?.toString() ?? ''),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              [item['subtitle'], item['meta']]
+                  .where((value) => value?.toString().trim().isNotEmpty == true)
+                  .join('\n'),
+            ),
+            const SizedBox(height: 4),
+            _StatusBadge(status: item['status']?.toString() ?? ''),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          tooltip: 'Działania',
+          onSelected: (action) => widget.onAction(item, action),
+          itemBuilder: (_) => [
+            if (item['status'] == 'overdue' &&
+                item['route_is_upcoming'] != true)
+              const PopupMenuItem(
+                value: 'plan_route',
+                child: Text('Dodaj zaległą do trasy'),
+              ),
+            const PopupMenuItem(
+              value: 'edit',
+              child: Text('Szczegóły i edycja'),
+            ),
+            if ([
+              'planned',
+              'overdue',
+              'in_progress',
+            ].contains(item['status']?.toString())) ...const [
+              PopupMenuItem(
+                value: 'complete',
+                child: Text('Oznacz jako wykonaną'),
+              ),
+              PopupMenuItem(
+                value: 'reschedule',
+                child: Text('Nie zastano - przełóż'),
+              ),
+              PopupMenuItem(value: 'cancel', child: Text('Anuluj sanityzację')),
+            ],
+            const PopupMenuItem(value: 'delete', child: Text('Usuń')),
+          ],
+        ),
+        onTap: () => widget.onEdit(item),
+      ),
+    );
+  }
+}
+
+class _SanitizationStatistics extends StatelessWidget {
+  const _SanitizationStatistics({required this.summary});
+
+  final Map<String, dynamic> summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = <(String, String)>[
+      ('Po terminie', '${_int(summary['overdue'])}'),
+      ('Na dzisiaj', '${_int(summary['today'])}'),
+      ('Wszystkie otwarte', '${_int(summary['open'])}'),
+      ('Na żądanie', '${_int(summary['on_request'])}'),
+      ('Do dokończenia', '${_int(summary['in_progress'])}'),
+      ('Wykonane w miesiącu', '${_int(summary['completed_month'])}'),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth = (constraints.maxWidth - 8) / 2;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final tile in tiles)
+              SizedBox(
+                width: tileWidth,
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tile.$1,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          tile.$2,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SanitizationDropdown extends StatelessWidget {
+  const _SanitizationDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final Map<String, String> options;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => DropdownButtonFormField<String>(
+    initialValue: value,
+    isExpanded: true,
+    decoration: InputDecoration(labelText: label),
+    items: options.entries
+        .map(
+          (option) => DropdownMenuItem(
+            value: option.key,
+            child: Text(option.value, overflow: TextOverflow.ellipsis),
+          ),
+        )
+        .toList(),
+    onChanged: onChanged,
+  );
+}
+
+class _SanitizationSearchFilter extends StatelessWidget {
+  const _SanitizationSearchFilter({
+    required this.label,
+    required this.hint,
+    required this.searchHint,
+    required this.options,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String hint;
+  final String searchHint;
+  final List<MapEntry<int, String>> options;
+  final int? selectedId;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    MapEntry<int, String>? selected;
+    for (final option in options) {
+      if (option.key == selectedId) selected = option;
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: WntSearchableSelectField(
+            label: label,
+            value: selected?.value,
+            hintText: hint,
+            onTap: () async {
+              final result = await showWntSearchPicker<MapEntry<int, String>>(
+                context: context,
+                title: 'Wybierz: $label',
+                searchHint: searchHint,
+                items: options,
+                titleFor: (item) => item.value,
+                searchTextFor: (item) => item.value,
+                selected: selected,
+              );
+              if (result != null) onChanged(result.key);
+            },
+          ),
+        ),
+        if (selectedId != null) ...[
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: 'Wyczyść: $label',
+            onPressed: () => onChanged(null),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -1083,7 +1594,9 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
     if (clientId == 0 || _int(count.text) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Wybierz klienta i podaj liczbę elementów do sanityzacji.'),
+          content: Text(
+            'Wybierz klienta i podaj liczbę elementów do sanityzacji.',
+          ),
         ),
       );
       return;
