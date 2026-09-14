@@ -1803,10 +1803,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   double _effectiveProductPrice(Map<String, dynamic> product) {
-    final request = _map(widget.document['rental_request']);
-    if (request != null && _int(product['id']) == _int(request['product_id'])) {
+    final requestItem = _rentalRequestItemForProduct(_int(product['id']));
+    if (requestItem != null) {
       return _rentalInitialFeeCollected
-          ? double.tryParse('${request['unit_price_net'] ?? 0}') ?? 0
+          ? double.tryParse('${requestItem['unit_price_net'] ?? 0}') ?? 0
           : 0;
     }
 
@@ -1814,12 +1814,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   double _effectiveProductGrossPrice(Map<String, dynamic> product) {
-    final request = _map(widget.document['rental_request']);
-    if (request != null && _int(product['id']) == _int(request['product_id'])) {
+    final requestItem = _rentalRequestItemForProduct(_int(product['id']));
+    if (requestItem != null) {
       final net = _effectiveProductPrice(product);
       final vatRate =
           double.tryParse(
-            '${request['vat_rate'] ?? product['vat_rate'] ?? 23}',
+            '${requestItem['vat_rate'] ?? product['vat_rate'] ?? 23}',
           ) ??
           23;
       return net * (1 + vatRate / 100);
@@ -1829,13 +1829,32 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   double _rentalRequestFee(bool gross) {
+    if (!_rentalInitialFeeCollected) return 0;
+
+    return _rentalRequestItems().fold<double>(0, (sum, item) {
+      final productId = _int(item['product_id']);
+      final quantity = _quantities[productId] ?? _int(item['quantity']);
+      final net = double.tryParse('${item['unit_price_net'] ?? 0}') ?? 0;
+      final vatRate = double.tryParse('${item['vat_rate'] ?? 23}') ?? 23;
+
+      return sum + quantity * net * (gross ? 1 + vatRate / 100 : 1);
+    });
+  }
+
+  List<Map<String, dynamic>> _rentalRequestItems() {
     final request = _map(widget.document['rental_request']);
-    if (request == null || !_rentalInitialFeeCollected) return 0;
-    final productId = _int(request['product_id']);
-    final quantity = _quantities[productId] ?? _int(request['quantity']);
-    final net = double.tryParse('${request['unit_price_net'] ?? 0}') ?? 0;
-    final vatRate = double.tryParse('${request['vat_rate'] ?? 23}') ?? 23;
-    return quantity * net * (gross ? 1 + vatRate / 100 : 1);
+    if (request == null) return const [];
+
+    final items = _list(request['items']);
+    return items.isNotEmpty ? items : [request];
+  }
+
+  Map<String, dynamic>? _rentalRequestItemForProduct(int productId) {
+    for (final item in _rentalRequestItems()) {
+      if (_int(item['product_id']) == productId) return item;
+    }
+
+    return null;
   }
 
   void _message(String message, {bool error = false}) {

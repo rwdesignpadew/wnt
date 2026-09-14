@@ -229,6 +229,97 @@ void main() {
     },
   );
 
+  testWidgets('multi-item rental fee includes every pending equipment item', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: WntTheme.light(),
+          home: DriverServiceScreen(
+            document: const {
+              'id': 2600,
+              'status': 'planned',
+              'is_company': false,
+              'payment_method': 'cash',
+              'debt_amount': 0,
+              'credit_amount': 0,
+              'available_product_ids': [9, 10],
+              'items': [
+                {'product_id': 9, 'quantity': 3},
+                {'product_id': 10, 'quantity': 1},
+              ],
+              'rental_request': {
+                'product_id': 9,
+                'quantity': 3,
+                'unit_price_net': 5,
+                'vat_rate': 0,
+                'initial_fee_collected': false,
+                'items': [
+                  {
+                    'product_id': 9,
+                    'quantity': 3,
+                    'unit_price_net': 5,
+                    'vat_rate': 0,
+                  },
+                  {
+                    'product_id': 10,
+                    'quantity': 1,
+                    'unit_price_net': 10,
+                    'vat_rate': 0,
+                  },
+                ],
+              },
+              'client': {
+                'name': 'RWDESIGN Tomasz Burghardt',
+                'recurring_invoice_enabled': false,
+              },
+            },
+            products: const [
+              {
+                'id': 9,
+                'name': 'Dystrybutor wody',
+                'unit': 'szt.',
+                'default_price': 650,
+                'vat_rate': 23,
+                'kind': 'product',
+              },
+              {
+                'id': 10,
+                'name': 'Dystrybutor wody GAZUJĄCY',
+                'unit': 'szt.',
+                'default_price': 2000,
+                'vat_rate': 23,
+                'kind': 'product',
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -450));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(
+        CheckboxListTile,
+        'Pobrano opłatę za dzierżawę za bieżący miesiąc',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Do WZ doliczono 25.00 zł'), findsOneWidget);
+    expect(find.text('Cena do zapłaty: 25.00 zł'), findsOneWidget);
+    expect(find.text('25.00 zł'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   test('karta trasy kierowcy pokazuje zaplanowaną sanityzację', () {
     final source = File(
       'lib/src/features/driver/presentation/driver_route_screen.dart',
