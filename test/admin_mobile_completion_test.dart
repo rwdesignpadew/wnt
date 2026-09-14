@@ -241,8 +241,18 @@ void main() {
     expect(theme, contains('switchTheme:'));
     expect(theme, contains('chipTheme:'));
     expect(theme, contains('tabBarTheme:'));
-    expect(colors, contains('static const success = brand;'));
-    expect(colors, contains('static const successSoft = brandSoft;'));
+    expect(colors, contains('static const success = Color(0xFF039855);'));
+    expect(colors, contains('static const successSoft = Color(0xFFECFDF3);'));
+
+    final driverRoute = File(
+      'lib/src/features/driver/presentation/driver_route_screen.dart',
+    ).readAsStringSync();
+    final driverService = File(
+      'lib/src/features/driver/presentation/driver_service_screen.dart',
+    ).readAsStringSync();
+    expect(driverRoute, contains('? WntColors.successSoft'));
+    expect(driverRoute, contains('? WntColors.success'));
+    expect(driverService, contains('color: WntColors.error'));
 
     final mobileSources = Directory('lib')
         .listSync(recursive: true)
@@ -258,8 +268,6 @@ void main() {
         'Colors.green',
         'Colors.teal',
         'Colors.lime',
-        '0xFF039855',
-        '0xFFECFDF3',
       ]) {
         expect(
           file.readAsStringSync(),
@@ -298,6 +306,36 @@ void main() {
     expect(service, contains('jest już otwarte zgłoszenie'));
   });
 
+  test('klient zawsze widzi usługi i może zamówić dzierżawę dystrybutora', () {
+    final home = File(
+      'lib/src/features/home/presentation/role_home_screen.dart',
+    ).readAsStringSync();
+    final screen = File(
+      'lib/src/features/client/presentation/client_service_screen.dart',
+    ).readAsStringSync();
+    final repository = File(
+      'lib/src/features/client/data/client_repository.dart',
+    ).readAsStringSync();
+    final routes = File(
+      '${backendRoot.path}/routes/api.php',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileClientController.php',
+    ).readAsStringSync();
+
+    expect(home, contains("_Destination('Usługi'"));
+    expect(home, isNot(contains('if (hasService)')));
+    expect(screen, contains("WntFilterTab(value: 'rentals'"));
+    expect(screen, contains('Zamów dzierżawę dystrybutora'));
+    expect(screen, contains('Twoje zamówienia dzierżawy'));
+    expect(repository, contains('/mobile/client/rentals'));
+    expect(routes, contains("/client/rentals'"));
+    expect(controller, contains('function storeRental'));
+    expect(controller, contains("'request_type' => 'rental'"));
+    expect(controller, contains("'rental_products'"));
+    expect(controller, contains("'rental_requests'"));
+  });
+
   test('opłata dzierżawy jest wybierana dopiero przy obsłudze klienta', () {
     final rentals = File(
       'lib/src/features/admin/presentation/admin_management_screens.dart',
@@ -326,8 +364,12 @@ void main() {
       rentals,
       isNot(contains("'initial_fee_collected': initialFeeCollected")),
     );
-    expect(rentals, contains("'requires_sanitization': requiresSanitization"));
-    expect(rentals, isNot(contains("'recurring_billing': recurring")));
+    expect(
+      rentals,
+      isNot(contains("'requires_sanitization': requiresSanitization")),
+    );
+    expect(rentals, contains("'recurring_billing': recurringBilling"));
+    expect(rentals, contains('Pobieraj opłatę co miesiąc'));
     expect(rentals, contains('Podsumowanie sprzętu'));
     expect(rentals, contains("statistics['sanitization_quantity']"));
     expect(rentals, contains("statistics['monthly_net']"));
@@ -346,7 +388,16 @@ void main() {
       controller,
       isNot(contains("LOWER(name) LIKE ?', ['%dystrybutor%']")),
     );
-    expect(completion, contains(r'$rental->recurring_billing = true'));
+    expect(
+      completion,
+      contains(
+        r"$rental->recurring_billing = (bool) ($request['recurring_billing'] ?? true)",
+      ),
+    );
+    expect(
+      completion,
+      isNot(contains(r"$request['recurring_billing'] = true")),
+    );
     expect(completion, contains('rentalInitialFeeCollected'));
     expect(completion, contains('applyRentalRequestBillingDecision'));
     expect(

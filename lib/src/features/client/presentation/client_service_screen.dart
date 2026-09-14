@@ -16,12 +16,14 @@ class ClientServiceScreen extends ConsumerStatefulWidget {
 
 class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
   final description = TextEditingController();
+  final rentalNotes = TextEditingController();
   String section = 'service';
   int rentalId = 0;
 
   @override
   void dispose() {
     description.dispose();
+    rentalNotes.dispose();
     super.dispose();
   }
 
@@ -63,6 +65,36 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
       _message(
         '${response['message'] ?? 'Sanityzacja na żądanie została zamówiona.'}',
       );
+      return true;
+    } catch (error) {
+      _message('$error', error: true);
+      return false;
+    }
+  }
+
+  Future<bool> sendRental({
+    required int locationId,
+    required int productId,
+    required int quantity,
+  }) async {
+    if (locationId < 1 || productId < 1 || quantity < 1) {
+      _message('Wybierz lokalizację, dystrybutor i liczbę sztuk.', error: true);
+      return false;
+    }
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(clientRepositoryProvider)
+          .requestRental(
+            token: token,
+            locationId: locationId,
+            productId: productId,
+            quantity: quantity,
+            notes: rentalNotes.text,
+          );
+      rentalNotes.clear();
+      ref.invalidate(clientHomeProvider);
+      _message('${response['message'] ?? 'Zamówienie dzierżawy wysłane.'}');
       return true;
     } catch (error) {
       _message('$error', error: true);
@@ -313,6 +345,169 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
     );
   }
 
+  Future<void> openRentalForm(
+    List<Map<String, dynamic>> products,
+    List<Map<String, dynamic>> locations,
+  ) async {
+    var productId = _int(products.first['id']);
+    var locationId = _int(locations.first['id']);
+    var quantity = 1;
+    var sheetSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Zamów dzierżawę dystrybutora',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Anuluj',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Wybierz miejsce dostawy, model i liczbę sztuk. Administrator potwierdzi termin wydania.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  initialValue: locationId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Lokalizacja'),
+                  items: locations
+                      .map(
+                        (location) => DropdownMenuItem<int>(
+                          value: _int(location['id']),
+                          child: Text(
+                            '${location['name']} — ${location['address'] ?? ''}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => locationId = value ?? 0,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<int>(
+                  initialValue: productId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Dystrybutor'),
+                  items: products
+                      .map(
+                        (product) => DropdownMenuItem<int>(
+                          value: _int(product['id']),
+                          child: Text(
+                            '${product['name']}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => productId = value ?? 0,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Liczba sztuk',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: WntColors.inputLine),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Zmniejsz',
+                        onPressed: quantity > 1
+                            ? () => setSheetState(() => quantity--)
+                            : null,
+                        icon: const Icon(Icons.remove),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '$quantity',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Zwiększ',
+                        onPressed: quantity < 20
+                            ? () => setSheetState(() => quantity++)
+                            : null,
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: rentalNotes,
+                  minLines: 2,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Uwagi (opcjonalnie)',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: sheetSaving
+                      ? null
+                      : () async {
+                          setSheetState(() => sheetSaving = true);
+                          final saved = await sendRental(
+                            locationId: locationId,
+                            productId: productId,
+                            quantity: quantity,
+                          );
+                          if (saved && sheetContext.mounted) {
+                            Navigator.of(sheetContext).pop();
+                          } else if (sheetContext.mounted) {
+                            setSheetState(() => sheetSaving = false);
+                          }
+                        },
+                  icon: sheetSaving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_business_outlined),
+                  label: const Text('Wyślij zamówienie'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ref
       .watch(clientHomeProvider)
@@ -320,15 +515,15 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('$error')),
         data: (data) {
+          final locations = _mapList(data['locations']);
           final rentals = _mapList(data['service_rentals']);
           final serviceRequests = _mapList(data['service_requests']);
           final sanitizationLocations = _mapList(
             data['sanitization_locations'],
           );
           final sanitizationRequests = _mapList(data['sanitization_requests']);
-          if (rentals.isEmpty && sanitizationLocations.isEmpty) {
-            return const Center(child: Text('Brak aktywnej dzierżawy.'));
-          }
+          final rentalProducts = _mapList(data['rental_products']);
+          final rentalRequests = _mapList(data['rental_requests']);
           if (rentalId == 0 && rentals.isNotEmpty) {
             rentalId = _int(rentals.first['id']);
           }
@@ -355,6 +550,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                       value: 'sanitizations',
                       label: 'Sanityzacje na żądanie',
                     ),
+                    WntFilterTab(value: 'rentals', label: 'Dzierżawa'),
                   ],
                   onChanged: (value) => setState(() => section = value),
                 ),
@@ -401,7 +597,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                       _ServiceRequestCard(request: request),
                       const SizedBox(height: 10),
                     ],
-                ] else ...[
+                ] else if (section == 'sanitizations') ...[
                   if (sanitizationLocations.isNotEmpty)
                     FilledButton.icon(
                       onPressed: () =>
@@ -428,6 +624,34 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                   else
                     for (final request in sanitizationRequests) ...[
                       _SanitizationRequestCard(request: request),
+                      const SizedBox(height: 10),
+                    ],
+                ] else ...[
+                  if (rentalProducts.isNotEmpty && locations.isNotEmpty)
+                    FilledButton.icon(
+                      onPressed: () =>
+                          openRentalForm(rentalProducts, locations),
+                      icon: const Icon(Icons.add_business_outlined),
+                      label: const Text('Zamów dzierżawę dystrybutora'),
+                    )
+                  else
+                    const _EmptyCard(
+                      text:
+                          'Brak dystrybutorów dostępnych do zamówienia albo aktywnej lokalizacji.',
+                    ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Twoje zamówienia dzierżawy',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  if (rentalRequests.isEmpty)
+                    const _EmptyCard(
+                      text: 'Nie masz jeszcze zamówień dzierżawy.',
+                    )
+                  else
+                    for (final request in rentalRequests) ...[
+                      _RentalRequestCard(request: request),
                       const SizedBox(height: 10),
                     ],
                 ],
@@ -528,6 +752,32 @@ class _SanitizationRequestCard extends StatelessWidget {
           '${request['dispenser_count'] ?? 0} szt. · '
           '${request['created_at'] ?? ''}',
       details: details,
+    );
+  }
+}
+
+class _RentalRequestCard extends StatelessWidget {
+  const _RentalRequestCard({required this.request});
+  final Map<String, dynamic> request;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = '${request['status']}';
+    final details = <String>[
+      if ('${request['scheduled_date'] ?? ''}'.isNotEmpty)
+        'Termin: ${request['scheduled_date']}',
+    ];
+    return _RequestCard(
+      title: '${request['product'] ?? 'Dystrybutor wody'}',
+      status: status,
+      statusLabel: '${request['status_label'] ?? status}',
+      subtitle:
+          '${request['quantity'] ?? 1} szt. · '
+          '${request['location'] ?? 'Główna lokalizacja'} · '
+          '${request['created_at'] ?? ''}',
+      body: '${request['notes'] ?? ''}',
+      details: details,
+      adminNotes: '${request['admin_notes'] ?? ''}',
     );
   }
 }

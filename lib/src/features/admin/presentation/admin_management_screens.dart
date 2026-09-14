@@ -5,7 +5,6 @@ import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
-import '../domain/rental_sanitization_rules.dart';
 import 'admin_bottom_navigation.dart';
 
 class AdminBalancesScreen extends ConsumerStatefulWidget {
@@ -785,7 +784,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
   int routeId = 0;
   int driverId = 0;
   String routeMode = 'existing';
-  bool requiresSanitization = false;
+  bool recurringBilling = true;
   bool saving = false;
   DateTime date = DateTime.now();
 
@@ -800,6 +799,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     if (products.isNotEmpty) {
       _selectProduct(_int(products.first['id']), notify: false);
     }
+    _applyClientBilling();
     if (routes.isNotEmpty) {
       routeId = _int(routes.first['id']);
     } else {
@@ -832,13 +832,11 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     return null;
   }
 
-  bool get selectedProductRequiresSanitization {
-    for (final product in products) {
-      if (_int(product['id']) == productId) {
-        return rentalProductRequiresSanitization(product['name']);
-      }
-    }
-    return false;
+  bool get selectedClientUsesPrivateBalance =>
+      _truthy(selectedClient?['rental_private_balance']);
+
+  void _applyClientBilling() {
+    vat.text = '${selectedClient?['rental_vat_rate'] ?? 23}';
   }
 
   Future<void> _pickClient() async {
@@ -869,6 +867,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
       clientId = _int(selected['id']);
       final nextLocations = _maps(selected['locations']);
       locationId = nextLocations.isEmpty ? 0 : _int(nextLocations.first['id']);
+      _applyClientBilling();
     });
   }
 
@@ -880,8 +879,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     void update() {
       productId = value;
       price.text = '${product['default_price'] ?? 0}';
-      vat.text = '${product['vat_rate'] ?? 23}';
-      requiresSanitization = rentalProductRequiresSanitization(product['name']);
+      _applyClientBilling();
     }
 
     notify ? setState(update) : update();
@@ -915,7 +913,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
           'unit_price_net':
               double.tryParse(price.text.replaceAll(',', '.')) ?? 0,
           'vat_rate': double.tryParse(vat.text.replaceAll(',', '.')) ?? 23,
-          'requires_sanitization': requiresSanitization,
+          'recurring_billing': recurringBilling,
           'route_mode': routeMode,
           'delivery_route_id': routeMode == 'existing' ? routeId : null,
           'route_name': routeMode == 'new' ? routeName.text.trim() : null,
@@ -1043,26 +1041,25 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                   Expanded(
                     child: TextField(
                       controller: vat,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      readOnly: true,
                       decoration: const InputDecoration(labelText: 'VAT %'),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
               CheckboxListTile(
-                value: requiresSanitization,
+                value: recurringBilling,
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('Sprzęt wymaga regularnej sanityzacji'),
-                subtitle: const Text(
-                  'Wymagane automatycznie dla dystrybutorów i mis ceramicznych. Stojaki i pompki tego nie wymagają.',
+                title: const Text('Pobieraj opłatę co miesiąc'),
+                subtitle: Text(
+                  selectedClientUsesPrivateBalance
+                      ? 'Opłata netto będzie naliczana od razu na saldo ujemne, również za pominięte miesiące. Pobranie pierwszej opłaty potwierdza kierowca przy wydaniu.'
+                      : 'Opłata będzie doliczana co miesiąc do faktury. Pobranie pierwszej opłaty potwierdza kierowca przy wydaniu.',
                 ),
-                onChanged: selectedProductRequiresSanitization
-                    ? null
-                    : (value) =>
-                          setState(() => requiresSanitization = value ?? false),
+                onChanged: (value) =>
+                    setState(() => recurringBilling = value ?? false),
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(

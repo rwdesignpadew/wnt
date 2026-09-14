@@ -16,7 +16,6 @@ import '../../client/presentation/client_documents_screen.dart';
 import '../../client/presentation/client_order_screen.dart';
 import '../../client/presentation/client_service_screen.dart';
 import '../../client/presentation/client_tracking_screen.dart';
-import '../../client/application/client_providers.dart';
 import '../../driver/presentation/driver_documents_screen.dart';
 import '../../driver/presentation/driver_load_screen.dart';
 import '../../driver/presentation/driver_route_screen.dart';
@@ -51,16 +50,7 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(authControllerProvider).session!;
-    final hasService =
-        session.user.role == UserRole.client &&
-        (ref.watch(clientHomeProvider).valueOrNull?['service_rentals']
-                    as List? ??
-                const [])
-            .isNotEmpty;
-    final destinations = _destinations(
-      session.user.role,
-      hasService: hasService,
-    );
+    final destinations = _destinations(session.user.role);
     final isTablet = MediaQuery.sizeOf(context).width >= 800;
     final newOrders = session.user.role == UserRole.admin
         ? _newOrdersCount(ref.watch(adminSummaryProvider).valueOrNull)
@@ -141,17 +131,13 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1200),
-                      child: _page(
-                        session.user.role,
-                        index,
-                        hasService: hasService,
-                      ),
+                      child: _page(session.user.role, index),
                     ),
                   ),
                 ),
               ],
             )
-          : _page(session.user.role, index, hasService: hasService),
+          : _page(session.user.role, index),
       bottomNavigationBar: isTablet
           ? null
           : MediaQuery.withClampedTextScaling(
@@ -178,7 +164,7 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
     );
   }
 
-  Widget _page(UserRole role, int index, {bool hasService = false}) {
+  Widget _page(UserRole role, int index) {
     if (role == UserRole.admin) {
       return switch (index) {
         0 => const AdminDashboardScreen(),
@@ -197,7 +183,7 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
         0 => const ClientOrderScreen(),
         1 => const ClientTrackingScreen(),
         2 => const ClientDocumentsScreen(),
-        3 when hasService => const ClientServiceScreen(),
+        3 => const ClientServiceScreen(),
         _ => const ClientAccountScreen(),
       };
     }
@@ -281,10 +267,7 @@ class _Destination {
   final IconData selectedIcon;
 }
 
-List<_Destination> _destinations(
-  UserRole role, {
-  bool hasService = false,
-}) => switch (role) {
+List<_Destination> _destinations(UserRole role) => switch (role) {
   UserRole.admin => const [
     _Destination('Start', Icons.dashboard_outlined, Icons.dashboard),
     _Destination('Trasy', Icons.route_outlined, Icons.route),
@@ -314,8 +297,7 @@ List<_Destination> _destinations(
       Icons.description_outlined,
       Icons.description,
     ),
-    if (hasService)
-      const _Destination('Serwis', Icons.build_outlined, Icons.build),
+    const _Destination('Usługi', Icons.build_outlined, Icons.build),
     const _Destination('Konto', Icons.person_outline, Icons.person),
   ],
 };

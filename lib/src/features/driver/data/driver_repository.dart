@@ -175,6 +175,7 @@ class DriverRepository {
     bool sanitizationSelected = false,
     int? sanitizationId,
     int? sanitizationCompletedDispenserCount,
+    List<Map<String, dynamic>> sanitizationEquipment = const [],
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
   }) async {
@@ -198,6 +199,7 @@ class DriverRepository {
       'sanitization_id': ?sanitizationId,
       'sanitization_completed_dispenser_count':
           ?sanitizationCompletedDispenserCount,
+      'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
     };
@@ -266,6 +268,7 @@ class DriverRepository {
     bool sanitizationSelected = false,
     int? sanitizationId,
     int? sanitizationCompletedDispenserCount,
+    List<Map<String, dynamic>> sanitizationEquipment = const [],
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
     String type = 'wz',
@@ -290,6 +293,7 @@ class DriverRepository {
       'sanitization_id': ?sanitizationId,
       'sanitization_completed_dispenser_count':
           ?sanitizationCompletedDispenserCount,
+      'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
     },

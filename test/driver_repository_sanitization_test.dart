@@ -59,6 +59,10 @@ void main() {
       sanitizationSelected: true,
       sanitizationId: 91,
       sanitizationCompletedDispenserCount: 2,
+      sanitizationEquipment: const [
+        {'rental_item_id': 436, 'quantity': 1},
+        {'rental_item_id': 437, 'quantity': 1},
+      ],
       sanitizationNextIntervalDays: 180,
       sanitizationResultNotes: 'Wykonano dwa urządzenia',
     );
@@ -67,6 +71,10 @@ void main() {
     expect(body['sanitization_selected'], isTrue);
     expect(body['sanitization_id'], 91);
     expect(body['sanitization_completed_dispenser_count'], 2);
+    expect(body['sanitization_equipment'], [
+      {'rental_item_id': 436, 'quantity': 1},
+      {'rental_item_id': 437, 'quantity': 1},
+    ]);
     expect(body['sanitization_next_interval_days'], 180);
     expect(
       body['client_operation_id'],
@@ -107,6 +115,9 @@ void main() {
       sanitizationSelected: true,
       sanitizationId: 92,
       sanitizationCompletedDispenserCount: 3,
+      sanitizationEquipment: const [
+        {'rental_item_id': 501, 'quantity': 3},
+      ],
       sanitizationNextIntervalDays: 180,
       sanitizationResultNotes: 'Wszystkie wykonane',
     );
@@ -114,6 +125,9 @@ void main() {
     expect(body['sanitization_selected'], isTrue);
     expect(body['sanitization_id'], 92);
     expect(body['sanitization_completed_dispenser_count'], 3);
+    expect(body['sanitization_equipment'], [
+      {'rental_item_id': 501, 'quantity': 3},
+    ]);
   });
 
   test('każdy nowy zapis ma osobny klucz, także dla korekty', () async {

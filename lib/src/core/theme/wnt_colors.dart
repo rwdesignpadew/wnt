@@ -11,8 +11,8 @@ abstract final class WntColors {
   static const inputLine = Color(0xFFD0D5DD);
   static const canvas = Color(0xFFF9FAFB);
   static const surface = Colors.white;
-  static const success = brand;
-  static const successSoft = brandSoft;
+  static const success = Color(0xFF039855);
+  static const successSoft = Color(0xFFECFDF3);
   static const warning = Color(0xFFDC6803);
   static const warningSoft = Color(0xFFFFFAEB);
   static const error = Color(0xFFD92D20);

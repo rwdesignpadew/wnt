@@ -53,7 +53,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   bool _rentalInitialFeeCollected = false;
   bool _showSanitization = false;
   Map<String, dynamic>? _sanitization;
-  final Set<int> _completedSanitizationUnits = {};
+  final Map<int, int> _completedSanitizationEquipment = {};
   late String _paymentMethod;
 
   DriverNavigationDestination? get _clientDestination {
@@ -217,7 +217,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   Future<void> _save() async {
     final sanitization = _sanitization;
     final sanitizationSelected = _showSanitization && sanitization != null;
-    if (sanitizationSelected && _completedSanitizationUnits.isEmpty) {
+    final sanitizationEquipment = sanitizationSelected
+        ? _selectedSanitizationEquipment()
+        : <Map<String, dynamic>>[];
+    final selectedSanitizationCount = sanitizationSelected
+        ? _selectedSanitizationCount()
+        : 0;
+    if (sanitizationSelected && selectedSanitizationCount < 1) {
       _message('Wybierz wykonane dystrybutory do sanityzacji.', error: true);
       return;
     }
@@ -225,7 +231,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ? _int(sanitization['id'])
         : null;
     final sanitizationCount = sanitizationSelected
-        ? _completedSanitizationUnits.length
+        ? selectedSanitizationCount
         : null;
     final configuredInterval = sanitizationSelected
         ? _int(sanitization['next_interval_days'])
@@ -279,6 +285,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         sanitizationSelected: sanitizationSelected,
         sanitizationId: sanitizationId,
         sanitizationCompletedDispenserCount: sanitizationCount,
+        sanitizationEquipment: sanitizationEquipment,
         sanitizationNextIntervalDays: sanitizationInterval,
         sanitizationResultNotes: sanitizationSelected
             ? _sanitizationNotes.text.trim()
@@ -479,6 +486,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         sanitizationSelected: sanitizationSelected,
         sanitizationId: sanitizationId,
         sanitizationCompletedDispenserCount: sanitizationCount,
+        sanitizationEquipment: sanitizationEquipment,
         sanitizationNextIntervalDays: sanitizationInterval,
         sanitizationResultNotes: sanitizationSelected
             ? _sanitizationNotes.text.trim()
@@ -775,6 +783,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final title = locationName?.isNotEmpty == true
         ? '$clientName - $locationName'
         : clientName;
+    final sanitizationNet = _sanitizationCharge(gross: false);
+    final sanitizationGross = _sanitizationCharge(gross: true);
     final totalNet =
         widget.products.where(_isBillableProduct).fold<double>(0, (
           sum,
@@ -790,7 +800,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               sum +
               (_packageQuantities[_int(packageItem['id'])] ?? 0) *
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
-        );
+        ) +
+        sanitizationNet;
     final total =
         widget.products.where(_isBillableProduct).fold<double>(0, (
           sum,
@@ -807,7 +818,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               (_packageQuantities[_int(packageItem['id'])] ?? 0) *
                   net *
                   (1 + vat / 100);
-        });
+        }) +
+        sanitizationGross;
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final credit =
         double.tryParse('${widget.document['credit_amount'] ?? 0}') ?? 0;
@@ -1071,7 +1083,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 onPressed: () => setState(() {
                   _showSanitization = !_showSanitization;
                   if (!_showSanitization) {
-                    _completedSanitizationUnits.clear();
+                    _completedSanitizationEquipment.clear();
                     _sanitizationNotes.clear();
                   }
                 }),
@@ -1107,44 +1119,22 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Wybierz wykonane urządzenia'),
+                        const Text('Wybierz typ i liczbę urządzeń'),
                         Text(
-                          '${_completedSanitizationUnits.length} z ${_int(_sanitization!['dispenser_count'])}',
+                          '${_selectedSanitizationCount()} z ${_int(_sanitization!['dispenser_count'])}',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (
-                          var unit = 1;
-                          unit <= _int(_sanitization!['dispenser_count']);
-                          unit++
-                        )
-                          FilterChip(
-                            label: Text('Dystrybutor $unit'),
-                            selected: _completedSanitizationUnits.contains(
-                              unit,
-                            ),
-                            onSelected: (selected) => setState(() {
-                              if (selected) {
-                                _completedSanitizationUnits.add(unit);
-                              } else {
-                                _completedSanitizationUnits.remove(unit);
-                              }
-                            }),
-                          ),
-                      ],
-                    ),
-                    if (_completedSanitizationUnits.length <
+                    for (final equipment in _sanitizationEquipment())
+                      _sanitizationEquipmentRow(equipment),
+                    if (_selectedSanitizationCount() <
                         _int(_sanitization!['dispenser_count']))
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'Pozostałe ${_int(_sanitization!['dispenser_count']) - _completedSanitizationUnits.length} szt. dostaną automatyczny termin dokończenia.',
+                          'Pozostałe ${_int(_sanitization!['dispenser_count']) - _selectedSanitizationCount()} szt. dostaną automatyczny termin dokończenia.',
                           style: const TextStyle(color: WntColors.warning),
                         ),
                       ),
@@ -1545,8 +1535,16 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         wzLines.add('${packageItem['name']} — $quantity szt.');
       }
     }
-    if (_showSanitization && _completedSanitizationUnits.isNotEmpty) {
-      wzLines.add('Sanityzacja — ${_completedSanitizationUnits.length} szt.');
+    if (_showSanitization) {
+      for (final equipment in _sanitizationEquipment()) {
+        final rentalItemId = _int(equipment['rental_item_id']);
+        final quantity = _completedSanitizationEquipment[rentalItemId] ?? 0;
+        if (quantity > 0) {
+          wzLines.add(
+            'Sanityzacja - ${equipment['equipment_name']} — $quantity szt.',
+          );
+        }
+      }
     }
     final rentals = _list(widget.document['rental_items']);
     for (final entry in _selectedRentalReturns()) {
@@ -1677,6 +1675,113 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _sanitizationEquipment() {
+    final equipment = _list(_sanitization?['equipment']);
+    if (equipment.isNotEmpty) return equipment;
+
+    final legacyCount = _int(_sanitization?['dispenser_count']);
+    if (legacyCount < 1) return const [];
+
+    return [
+      {
+        'rental_item_id': 0,
+        'equipment_name': 'Dystrybutor',
+        'available_quantity': legacyCount,
+        'unit_price_net': 0,
+        'vat_rate': 23,
+        'legacy': true,
+      },
+    ];
+  }
+
+  int _selectedSanitizationCount() => _completedSanitizationEquipment.values
+      .fold<int>(0, (sum, quantity) => sum + quantity);
+
+  List<Map<String, dynamic>> _selectedSanitizationEquipment() => [
+    for (final equipment in _sanitizationEquipment())
+      if (equipment['legacy'] != true &&
+          (_completedSanitizationEquipment[_int(equipment['rental_item_id'])] ??
+                  0) >
+              0)
+        {
+          'rental_item_id': _int(equipment['rental_item_id']),
+          'quantity':
+              _completedSanitizationEquipment[_int(
+                equipment['rental_item_id'],
+              )]!,
+        },
+  ];
+
+  double _sanitizationCharge({required bool gross}) {
+    if (!_showSanitization) return 0;
+
+    return _sanitizationEquipment().fold<double>(0, (sum, equipment) {
+      final quantity =
+          _completedSanitizationEquipment[_int(equipment['rental_item_id'])] ??
+          0;
+      final net = double.tryParse('${equipment['unit_price_net'] ?? 0}') ?? 0;
+      final vat = double.tryParse('${equipment['vat_rate'] ?? 23}') ?? 23;
+      return sum + quantity * net * (gross ? 1 + vat / 100 : 1);
+    });
+  }
+
+  Widget _sanitizationEquipmentRow(Map<String, dynamic> equipment) {
+    final id = _int(equipment['rental_item_id']);
+    final value = _completedSanitizationEquipment[id] ?? 0;
+    final available = _int(equipment['available_quantity']);
+    final taskLimit = _int(_sanitization?['dispenser_count']);
+    final selectedElsewhere = _selectedSanitizationCount() - value;
+    final remaining = (taskLimit - selectedElsewhere)
+        .clamp(0, taskLimit)
+        .toInt();
+    final maximum = available.clamp(0, remaining).toInt();
+    final unitPrice =
+        double.tryParse('${equipment['unit_price_net'] ?? 0}') ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: WntColors.canvas,
+        border: Border.all(color: WntColors.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${equipment['equipment_name'] ?? 'Dystrybutor'}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Dzierżawa: $available szt. • ${unitPrice.toStringAsFixed(2).replaceAll('.', ',')} zł netto/szt.',
+                  style: const TextStyle(color: WntColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          QuantityStepper(
+            value: value,
+            compact: true,
+            onChanged: (next) => setState(() {
+              final safe = next.clamp(0, maximum).toInt();
+              if (safe == 0) {
+                _completedSanitizationEquipment.remove(id);
+              } else {
+                _completedSanitizationEquipment[id] = safe;
+              }
+            }),
+          ),
+        ],
       ),
     );
   }

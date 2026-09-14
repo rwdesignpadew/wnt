@@ -40,6 +40,25 @@ class _AdminClientFullEditScreenState
   String _payment = 'transfer';
   String _productQuery = '';
 
+  List<Map<String, dynamic>> get _rentalProducts {
+    final existingIds = _rentals
+        .map((item) => _int(item['product_id']))
+        .where((id) => id > 0)
+        .toSet();
+
+    return _products
+        .where(
+          (product) =>
+              _bool(product['available_for_rental']) ||
+              existingIds.contains(_int(product['id'])),
+        )
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get _availableRentalProducts => _products
+      .where((product) => _bool(product['available_for_rental']))
+      .toList();
+
   @override
   void initState() {
     super.initState();
@@ -681,7 +700,7 @@ class _AdminClientFullEditScreenState
       }
       if (index == _rentals.length + 1) {
         return OutlinedButton.icon(
-          onPressed: _locations.isEmpty
+          onPressed: _locations.isEmpty || _availableRentalProducts.isEmpty
               ? null
               : () => setState(() => _rentals.add(_newRental())),
           icon: const Icon(Icons.add),
@@ -693,10 +712,7 @@ class _AdminClientFullEditScreenState
   );
 
   Map<String, dynamic> _newRental() {
-    final product = _products.firstWhere(
-      (item) => item['name'].toString().toLowerCase().contains('dzierż'),
-      orElse: () => _products.first,
-    );
+    final product = _availableRentalProducts.first;
     return {
       'client_location_id': _defaultLocation['id'],
       'client_location_uid': _defaultLocation['uid'],
@@ -731,13 +747,13 @@ class _AdminClientFullEditScreenState
           ),
           DropdownButtonFormField<int>(
             initialValue:
-                _products.any(
+                _rentalProducts.any(
                   (item) => _int(item['id']) == _int(rental['product_id']),
                 )
                 ? _int(rental['product_id'])
                 : null,
             decoration: const InputDecoration(labelText: 'Produkt / usługa'),
-            items: _products
+            items: _rentalProducts
                 .map(
                   (item) => DropdownMenuItem(
                     value: _int(item['id']),
@@ -749,7 +765,7 @@ class _AdminClientFullEditScreenState
                 )
                 .toList(),
             onChanged: (value) {
-              final product = _products.firstWhere(
+              final product = _rentalProducts.firstWhere(
                 (item) => _int(item['id']) == value,
                 orElse: () => const <String, dynamic>{},
               );
@@ -817,7 +833,7 @@ class _AdminClientFullEditScreenState
   );
 
   bool _rentalProductRequiresSanitization(Map<String, dynamic> rental) {
-    final product = _products.firstWhere(
+    final product = _rentalProducts.firstWhere(
       (item) => _int(item['id']) == _int(rental['product_id']),
       orElse: () => const <String, dynamic>{},
     );

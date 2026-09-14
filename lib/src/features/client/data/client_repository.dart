@@ -29,6 +29,23 @@ class ClientRepository {
     body: {'client_location_id': locationId, 'dispenser_count': dispenserCount},
   );
 
+  Future<Map<String, dynamic>> requestRental({
+    required String token,
+    required int locationId,
+    required int productId,
+    required int quantity,
+    String? notes,
+  }) => _api.post(
+    '/mobile/client/rentals',
+    token: token,
+    body: {
+      'client_location_id': locationId,
+      'product_id': productId,
+      'quantity': quantity,
+      if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+    },
+  );
+
   Future<Map<String, dynamic>> tracking(String token) {
     return _api.get('/mobile/client/tracking', token: token);
   }

@@ -30,8 +30,10 @@ void main() {
     );
     expect(theme.chipTheme.selectedColor, WntColors.brand);
     expect(theme.tabBarTheme.indicatorColor, WntColors.brand);
-    expect(WntColors.success, WntColors.brand);
-    expect(WntColors.successSoft, WntColors.brandSoft);
+    expect(WntColors.success, const Color(0xFF039855));
+    expect(WntColors.successSoft, const Color(0xFFECFDF3));
+    expect(WntColors.error, const Color(0xFFD92D20));
+    expect(WntColors.errorSoft, const Color(0xFFFEF3F2));
   });
 
   testWidgets(
@@ -82,6 +84,10 @@ void main() {
       expect(find.text('Klient chce fakturę VAT'), findsOneWidget);
       expect(find.text('Cena do zapłaty: 100.00 zł'), findsOneWidget);
       expect(find.text('115.00 zł'), findsOneWidget);
+      final debtText = tester.widget<Text>(
+        find.text('Zaległość klienta: 15.00 zł'),
+      );
+      expect(debtText.style?.color, WntColors.error);
 
       await tester.tap(find.text('Klient chce fakturę VAT'));
       await tester.pumpAndSettle();
