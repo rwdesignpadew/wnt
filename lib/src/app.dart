@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routing/app_router.dart';
 import 'core/theme/wnt_theme.dart';
+import 'core/update/app_update_gate.dart';
 
 class WodaNaTelefonApp extends ConsumerWidget {
   const WodaNaTelefonApp({super.key});
@@ -23,10 +24,13 @@ class WodaNaTelefonApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) => FocusManager.instance.primaryFocus?.unfocus(),
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => AppUpdateGate(
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) =>
+              FocusManager.instance.primaryFocus?.unfocus(),
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       routerConfig: router,
     );
