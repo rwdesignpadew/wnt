@@ -79,7 +79,7 @@ jobs:
       - name: Build signed Android App Bundle
         run: >-
           flutter build appbundle --release
-          --build-name=1.0.3
+          --build-name=1.0.4
           --build-number=${{ inputs.build_number }}
 
       - name: Store signed App Bundle
@@ -97,5 +97,5 @@ jobs:
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: ${{ inputs.track }}
           status: ${{ inputs.release_status }}
-          releaseName: 1.0.3 (${{ inputs.build_number }})
+          releaseName: 1.0.4 (${{ inputs.build_number }})
           changesNotSentForReview: false
