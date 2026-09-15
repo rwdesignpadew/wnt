@@ -605,13 +605,20 @@ class AdminOperationsScreen extends ConsumerWidget {
       return;
     }
     final notes = TextEditingController();
+    final correctionReason = TextEditingController();
     final interval = TextEditingController(
       text:
           '${_int(item['next_interval_days']) == 0 ? 180 : _int(item['next_interval_days'])}',
     );
-    final totalDispensers = _int(item['dispenser_count']).clamp(1, 999);
-    final completedDispensers = <int>{
-      for (var unit = 1; unit <= totalDispensers; unit++) unit,
+    final taskEquipment = (item['task_equipment_units'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => row.cast<String, dynamic>())
+        .toList();
+    final selectableEquipment = taskEquipment
+        .where((unit) => unit['selectable'] == true)
+        .toList();
+    final selectedEquipmentKeys = <String>{
+      for (final unit in selectableEquipment) '${unit['key']}',
     };
     DateTime rescheduled = DateTime.now().add(const Duration(days: 1));
     final confirmed = await showDialog<bool>(
@@ -620,79 +627,125 @@ class AdminOperationsScreen extends ConsumerWidget {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(switch (action) {
             'complete' => 'Sanityzacja wykonana',
+            'correct' => 'Korekta wykonanej sanityzacji',
             'reschedule' => 'Nie zastano - przełóż',
             'delete' => 'Usunąć sanityzację?',
             _ => 'Anulować sanityzację?',
           }),
           content: action == 'delete'
               ? const Text('Tej operacji nie można cofnąć.')
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (action == 'complete') ...[
-                      Text(
-                        'Wybierz wykonane elementy: ${completedDispensers.length} z $totalDispensers',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (var unit = 1; unit <= totalDispensers; unit++)
-                            FilterChip(
-                              label: Text('Element $unit'),
-                              selected: completedDispensers.contains(unit),
-                              onSelected: (selected) => setDialogState(() {
-                                if (selected) {
-                                  completedDispensers.add(unit);
-                                } else {
-                                  completedDispensers.remove(unit);
-                                }
-                              }),
-                            ),
-                        ],
-                      ),
-                    ],
-                    if (action == 'complete') const SizedBox(height: 12),
-                    if (action == 'complete')
-                      TextField(
-                        controller: interval,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Kolejna sanityzacja za ile dni',
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if ({'complete', 'correct'}.contains(action)) ...[
+                        Text(
+                          'Wybierz rzeczywiście wykonany sprzęt: ${selectedEquipmentKeys.length} z ${selectableEquipment.length}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                      ),
-                    if (action == 'reschedule')
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Nowy termin'),
-                        subtitle: Text(_isoDate(rescheduled)),
-                        trailing: const Icon(Icons.calendar_month_outlined),
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: rescheduled,
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(
-                              const Duration(days: 730),
+                        const SizedBox(height: 8),
+                        if (taskEquipment.isEmpty)
+                          const Text(
+                            'Brak sprzętu przypisanego do tego zadania. Odśwież dane lub popraw cykl na panelu web.',
+                            style: TextStyle(color: WntColors.error),
+                          )
+                        else
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 300),
+                            child: ListView(
+                              shrinkWrap: true,
+                              children: [
+                                for (final unit in taskEquipment)
+                                  CheckboxListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                    value: selectedEquipmentKeys.contains(
+                                      '${unit['key']}',
+                                    ),
+                                    onChanged: unit['selectable'] == true
+                                        ? (selected) => setDialogState(() {
+                                            final key = '${unit['key']}';
+                                            if (selected == true) {
+                                              selectedEquipmentKeys.add(key);
+                                            } else {
+                                              selectedEquipmentKeys.remove(key);
+                                            }
+                                          })
+                                        : null,
+                                    title: Text(
+                                      '${unit['label'] ?? unit['equipment_name'] ?? 'Urządzenie'}',
+                                    ),
+                                    subtitle:
+                                        unit['selection_state'] == 'completed'
+                                        ? const Text('Wykonana')
+                                        : unit['selection_state'] ==
+                                              'outside_task'
+                                        ? const Text('Poza tym zadaniem')
+                                        : null,
+                                  ),
+                              ],
                             ),
-                          );
-                          if (picked != null) {
-                            setDialogState(() => rescheduled = picked);
-                          }
-                        },
-                      ),
-                    TextField(
-                      controller: notes,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: action == 'complete'
-                            ? 'Uwagi po wykonaniu'
-                            : 'Powód / uwagi',
-                      ),
-                    ),
-                  ],
+                          ),
+                      ],
+                      if ({'complete', 'correct'}.contains(action))
+                        const SizedBox(height: 12),
+                      if (action == 'correct') ...[
+                        TextField(
+                          controller: correctionReason,
+                          maxLines: 3,
+                          onChanged: (_) => setDialogState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Powód korekty WZ',
+                            helperText: item['correction_source_number'] == null
+                                ? null
+                                : 'Korekta do ${item['correction_source_number']}',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if ({'complete', 'correct'}.contains(action))
+                        TextField(
+                          controller: interval,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Kolejna sanityzacja za ile dni',
+                          ),
+                        ),
+                      if (action == 'reschedule')
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Nowy termin'),
+                          subtitle: Text(_isoDate(rescheduled)),
+                          trailing: const Icon(Icons.calendar_month_outlined),
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: rescheduled,
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 730),
+                              ),
+                            );
+                            if (picked != null) {
+                              setDialogState(() => rescheduled = picked);
+                            }
+                          },
+                        ),
+                      if (action != 'delete')
+                        TextField(
+                          controller: notes,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText: {'complete', 'correct'}.contains(action)
+                                ? 'Uwagi po wykonaniu'
+                                : 'Powód / uwagi',
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
           actions: [
             TextButton(
@@ -700,7 +753,11 @@ class AdminOperationsScreen extends ConsumerWidget {
               child: const Text('Wróć'),
             ),
             FilledButton(
-              onPressed: action == 'complete' && completedDispensers.isEmpty
+              onPressed:
+                  ({'complete', 'correct'}.contains(action) &&
+                          selectedEquipmentKeys.isEmpty) ||
+                      (action == 'correct' &&
+                          correctionReason.text.trim().length < 3)
                   ? null
                   : () => Navigator.pop(context, true),
               child: const Text('Potwierdź'),
@@ -718,10 +775,16 @@ class AdminOperationsScreen extends ConsumerWidget {
           token,
           _int(item['id']),
           intervalDays: _int(interval.text) == 0 ? 180 : _int(interval.text),
-          completedDispenserCount: completedDispensers.length.clamp(
-            1,
-            totalDispensers,
-          ),
+          completedDispenserCount: selectedEquipmentKeys.length,
+          equipmentUnits: selectedEquipmentKeys.toList(),
+          resultNotes: notes.text.trim(),
+        ),
+        'correct' => await repository.correctSanitization(
+          token,
+          _int(item['correction_target_id'] ?? item['id']),
+          correctionReason: correctionReason.text.trim(),
+          equipmentUnits: selectedEquipmentKeys.toList(),
+          intervalDays: _int(interval.text) == 0 ? 180 : _int(interval.text),
           resultNotes: notes.text.trim(),
         ),
         'reschedule' => await repository.rescheduleSanitization(
@@ -1088,21 +1151,28 @@ class _AdminSanitizationsContentState
           tooltip: 'Działania',
           onSelected: (action) => widget.onAction(item, action),
           itemBuilder: (_) => [
-            if (item['status'] == 'overdue' &&
+            if ({'overdue', 'in_progress'}.contains(item['status']) &&
                 item['route_is_upcoming'] != true)
               const PopupMenuItem(
                 value: 'plan_route',
-                child: Text('Dodaj zaległą do trasy'),
+                child: Text('Dodaj do trasy'),
               ),
-            const PopupMenuItem(
-              value: 'edit',
-              child: Text('Szczegóły i edycja'),
-            ),
+            if (item['can_edit_cycle'] == true)
+              const PopupMenuItem(
+                value: 'edit',
+                child: Text('Edytuj cykl i sprzęt'),
+              ),
+            if (item['can_correct'] == true)
+              const PopupMenuItem(
+                value: 'correct',
+                child: Text('Skoryguj brakującą część WZ'),
+              ),
             if ([
-              'planned',
-              'overdue',
-              'in_progress',
-            ].contains(item['status']?.toString())) ...const [
+                  'planned',
+                  'overdue',
+                  'in_progress',
+                ].contains(item['status']?.toString()) &&
+                item['can_correct'] != true) ...const [
               PopupMenuItem(
                 value: 'complete',
                 child: Text('Oznacz jako wykonaną'),
@@ -1116,7 +1186,9 @@ class _AdminSanitizationsContentState
             const PopupMenuItem(value: 'delete', child: Text('Usuń')),
           ],
         ),
-        onTap: () => widget.onEdit(item),
+        onTap: item['can_edit_cycle'] == true
+            ? () => widget.onEdit(item)
+            : null,
       ),
     );
   }
@@ -1275,7 +1347,7 @@ Future<void> _openSanitizationEditor(
       .whereType<Map>()
       .map((row) => row.cast<String, dynamic>())
       .toList();
-  final drivers = (data['sanitization_drivers'] as List? ?? const [])
+  final locations = (data['sanitization_locations'] as List? ?? const [])
       .whereType<Map>()
       .map((row) => row.cast<String, dynamic>())
       .toList();
@@ -1284,7 +1356,7 @@ Future<void> _openSanitizationEditor(
     isScrollControlled: true,
     useSafeArea: true,
     builder: (_) =>
-        _SanitizationSheet(item: item, clients: clients, drivers: drivers),
+        _SanitizationSheet(item: item, clients: clients, locations: locations),
   );
   ref.invalidate(adminOperationsProvider);
 }
@@ -1523,12 +1595,12 @@ class _SanitizationRouteSheetState
 class _SanitizationSheet extends ConsumerStatefulWidget {
   const _SanitizationSheet({
     required this.clients,
-    required this.drivers,
+    required this.locations,
     this.item,
   });
   final Map<String, dynamic>? item;
   final List<Map<String, dynamic>> clients;
-  final List<Map<String, dynamic>> drivers;
+  final List<Map<String, dynamic>> locations;
 
   @override
   ConsumerState<_SanitizationSheet> createState() => _SanitizationSheetState();
@@ -1536,24 +1608,10 @@ class _SanitizationSheet extends ConsumerStatefulWidget {
 
 class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
   late int clientId = _int(widget.item?['client_id']);
-  late int driverId = _int(widget.item?['driver_id']);
-  late DateTime scheduledDate =
-      DateTime.tryParse('${widget.item?['scheduled_date'] ?? ''}') ??
-      DateTime.now();
-  late String status = '${widget.item?['status'] ?? 'planned'}';
-  late final TextEditingController count = TextEditingController(
-    text:
-        '${_int(widget.item?['dispenser_count']) == 0 ? 1 : _int(widget.item?['dispenser_count'])}',
-  );
-  late final TextEditingController method = TextEditingController(
-    text: '${widget.item?['method'] ?? 'Standardowa sanityzacja dystrybutora'}',
-  );
-  late final TextEditingController notes = TextEditingController(
-    text: '${widget.item?['notes'] ?? ''}',
-  );
-  late final TextEditingController resultNotes = TextEditingController(
-    text: '${widget.item?['result_notes'] ?? ''}',
-  );
+  late int locationId = _int(widget.item?['client_location_id']);
+  DateTime? lastSanitizedOn;
+  final TextEditingController interval = TextEditingController(text: '180');
+  final Set<String> selectedEquipmentKeys = {};
   bool saving = false;
 
   Map<String, dynamic>? get selectedClient {
@@ -1563,22 +1621,64 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
     return null;
   }
 
+  Map<String, dynamic>? get selectedLocation {
+    for (final location in widget.locations) {
+      if (_int(location['id']) == locationId) return location;
+    }
+    return null;
+  }
+
+  List<Map<String, dynamic>> get availableLocations => widget.locations
+      .where((location) => _int(location['client_id']) == clientId)
+      .toList();
+
+  List<Map<String, dynamic>> get equipmentUnits =>
+      (selectedLocation?['equipment_units'] as List? ?? const [])
+          .whereType<Map>()
+          .map((row) => row.cast<String, dynamic>())
+          .toList();
+
   @override
   void initState() {
     super.initState();
     if (clientId == 0 && widget.clients.isNotEmpty) {
       clientId = _int(widget.clients.first['id']);
-      count.text = '${_int(widget.clients.first['dispenser_count'])}';
     }
+    if (locationId == 0 && availableLocations.isNotEmpty) {
+      locationId = _int(availableLocations.first['id']);
+    }
+    _applyLocation(
+      preserveSelected: (widget.item?['selected_equipment_keys'] as List?)
+          ?.map((key) => '$key')
+          .toSet(),
+    );
   }
 
   @override
   void dispose() {
-    count.dispose();
-    method.dispose();
-    notes.dispose();
-    resultNotes.dispose();
+    interval.dispose();
     super.dispose();
+  }
+
+  void _applyLocation({Set<String>? preserveSelected}) {
+    final location = selectedLocation;
+    lastSanitizedOn = DateTime.tryParse(
+      '${location?['last_sanitized_on'] ?? widget.item?['last_sanitized_on'] ?? ''}',
+    );
+    interval.text =
+        '${_int(location?['sanitization_interval_days']) == 0
+            ? _int(widget.item?['next_interval_days']) == 0
+                  ? 180
+                  : _int(widget.item?['next_interval_days'])
+            : _int(location?['sanitization_interval_days'])}';
+    final allowed = equipmentUnits.map((unit) => '${unit['key']}').toSet();
+    selectedEquipmentKeys
+      ..clear()
+      ..addAll(
+        preserveSelected == null
+            ? allowed
+            : preserveSelected.where(allowed.contains),
+      );
   }
 
   Future<void> pickClient() async {
@@ -1597,17 +1697,44 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
 
     setState(() {
       clientId = _int(selected['id']);
-      count.text = '${_int(selected['dispenser_count'])}';
+      locationId = availableLocations.isEmpty
+          ? 0
+          : _int(availableLocations.first['id']);
+      _applyLocation();
     });
   }
 
+  Future<void> pickLocation() async {
+    final selected = await showWntSearchPicker<Map<String, dynamic>>(
+      context: context,
+      title: 'Wybierz lokalizację',
+      searchHint: 'Wpisz nazwę lub adres lokalizacji',
+      items: availableLocations,
+      selected: selectedLocation,
+      titleFor: (location) => '${location['name'] ?? ''}',
+      subtitleFor: (location) => '${location['address'] ?? ''}',
+      searchTextFor: (location) =>
+          '${location['name'] ?? ''} ${location['address'] ?? ''}',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      locationId = _int(selected['id']);
+      _applyLocation();
+    });
+  }
+
+  String get nextDueDate {
+    if (lastSanitizedOn == null) return 'Uzupełnij datę ostatniej sanityzacji';
+    final days = _int(interval.text);
+    if (days < 1) return 'Podaj poprawny interwał';
+    return _isoDate(lastSanitizedOn!.add(Duration(days: days)));
+  }
+
   Future<void> save() async {
-    if (clientId == 0 || _int(count.text) < 1) {
+    if (clientId == 0 || locationId == 0 || selectedEquipmentKeys.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Wybierz klienta i podaj liczbę elementów do sanityzacji.',
-          ),
+          content: Text('Wybierz klienta, lokalizację i konkretny sprzęt.'),
         ),
       );
       return;
@@ -1619,14 +1746,13 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
         token,
         widget.item == null ? null : _int(widget.item!['id']),
         <String, dynamic>{
-          'client_id': clientId,
-          'driver_id': driverId == 0 ? null : driverId,
-          'scheduled_date': _isoDate(scheduledDate),
-          'status': status,
-          'dispenser_count': _int(count.text),
-          'method': method.text.trim(),
-          'notes': notes.text.trim(),
-          'result_notes': resultNotes.text.trim(),
+          'cycle_settings': true,
+          'client_location_id': locationId,
+          'last_sanitized_on': lastSanitizedOn == null
+              ? null
+              : _isoDate(lastSanitizedOn!),
+          'sanitization_interval_days': _int(interval.text),
+          'equipment_units': selectedEquipmentKeys.toList(),
         },
       );
       ref.invalidate(adminOperationsProvider);
@@ -1647,25 +1773,29 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      20,
-      16,
-      20,
-      20 + MediaQuery.viewInsetsOf(context).bottom,
-    ),
-    child: SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .9,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
+          child: Row(
             children: [
               Expanded(
-                child: Text(
-                  widget.item == null
-                      ? 'Nowa sanityzacja'
-                      : 'Sanityzacja - szczegóły',
-                  style: Theme.of(context).textTheme.titleLarge,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.item == null
+                          ? 'Ustaw cykl sanityzacji'
+                          : 'Edytuj cykl sanityzacji',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Text(
+                      'Ostatnia sanityzacja, interwał i konkretny sprzęt.',
+                      style: TextStyle(color: WntColors.muted),
+                    ),
+                  ],
                 ),
               ),
               IconButton(
@@ -1675,103 +1805,153 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          WntSearchableSelectField(
-            label: 'Klient',
-            value: selectedClient?['name']?.toString(),
-            hintText: 'Wyszukaj klienta',
-            onTap: widget.clients.isEmpty ? null : pickClient,
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: driverId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Kierowca'),
-            items: [
-              const DropdownMenuItem(value: 0, child: Text('Bez kierowcy')),
-              ...widget.drivers.map(
-                (driver) => DropdownMenuItem<int>(
-                  value: _int(driver['id']),
-                  child: Text(
-                    '${driver['name']}',
-                    overflow: TextOverflow.ellipsis,
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            children: [
+              WntSearchableSelectField(
+                label: 'Klient',
+                value: selectedClient?['name']?.toString(),
+                hintText: 'Wyszukaj klienta',
+                onTap: widget.item != null || widget.clients.isEmpty
+                    ? null
+                    : pickClient,
+              ),
+              const SizedBox(height: 12),
+              WntSearchableSelectField(
+                label: 'Lokalizacja',
+                value: selectedLocation?['name']?.toString(),
+                hintText: 'Wybierz lokalizację',
+                onTap: widget.item != null || availableLocations.isEmpty
+                    ? null
+                    : pickLocation,
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Data ostatniej sanityzacji'),
+                subtitle: Text(
+                  lastSanitizedOn == null
+                      ? 'Brak daty'
+                      : _isoDate(lastSanitizedOn!),
+                ),
+                trailing: const Icon(Icons.calendar_month_outlined),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: lastSanitizedOn ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setState(() => lastSanitizedOn = picked);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: interval,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Kolejna sanityzacja za ile dni',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                color: WntColors.brandSoft,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Sprzęt objęty cyklem · ${selectedEquipmentKeys.length} z ${equipmentUnits.length}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: equipmentUnits.isEmpty
+                                ? null
+                                : () => setState(
+                                    () => selectedEquipmentKeys
+                                      ..clear()
+                                      ..addAll(
+                                        equipmentUnits.map(
+                                          (unit) => '${unit['key']}',
+                                        ),
+                                      ),
+                                  ),
+                            child: const Text('Zaznacz wszystkie'),
+                          ),
+                          TextButton(
+                            onPressed: selectedEquipmentKeys.isEmpty
+                                ? null
+                                : () => setState(selectedEquipmentKeys.clear),
+                            child: const Text('Wyczyść'),
+                          ),
+                        ],
+                      ),
+                      if (equipmentUnits.isEmpty)
+                        const Text(
+                          'Ta lokalizacja nie ma sprzętu wymagającego sanityzacji.',
+                        )
+                      else
+                        for (final unit in equipmentUnits)
+                          CheckboxListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            value: selectedEquipmentKeys.contains(
+                              '${unit['key']}',
+                            ),
+                            title: Text(
+                              '${unit['label'] ?? unit['equipment_name'] ?? 'Urządzenie'}',
+                            ),
+                            onChanged: (selected) => setState(() {
+                              final key = '${unit['key']}';
+                              if (selected == true) {
+                                selectedEquipmentKeys.add(key);
+                              } else {
+                                selectedEquipmentKeys.remove(key);
+                              }
+                            }),
+                          ),
+                    ],
                   ),
                 ),
               ),
-            ],
-            onChanged: (value) => setState(() => driverId = value ?? 0),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Termin'),
-            subtitle: Text(_isoDate(scheduledDate)),
-            trailing: const Icon(Icons.calendar_month_outlined),
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: scheduledDate,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now().add(const Duration(days: 1825)),
-              );
-              if (picked != null) setState(() => scheduledDate = picked);
-            },
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: count,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Liczba elementów do sanityzacji',
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: method,
-            decoration: const InputDecoration(labelText: 'Metoda'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: notes,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Uwagi'),
-          ),
-          if (widget.item != null) ...[
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: status,
-              decoration: const InputDecoration(labelText: 'Status'),
-              items: const [
-                DropdownMenuItem(value: 'planned', child: Text('Zaplanowana')),
-                DropdownMenuItem(value: 'overdue', child: Text('Po terminie')),
-                DropdownMenuItem(value: 'completed', child: Text('Wykonana')),
-                DropdownMenuItem(value: 'missed', child: Text('Nie zastano')),
-                DropdownMenuItem(value: 'cancelled', child: Text('Anulowana')),
-              ],
-              onChanged: (value) => setState(() => status = value ?? status),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: resultNotes,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Uwagi po realizacji',
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  title: const Text('Wyliczony następny termin'),
+                  subtitle: Text(nextDueDate),
+                ),
               ),
-            ),
-          ],
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: saving ? null : save,
-            icon: saving
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: const Text('Zapisz'),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: saving ? null : save,
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: const Text('Zapisz'),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

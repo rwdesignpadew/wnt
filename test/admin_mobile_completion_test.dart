@@ -67,7 +67,10 @@ void main() {
       expect(mobile, contains("value: 'new'"));
       expect(routes, contains('/sanitizations/{sanitization}/plan-route'));
       expect(controller, contains('function planSanitizationRoute'));
-      expect(controller, contains("\$sanitization->status !== 'overdue'"));
+      expect(
+        controller,
+        contains("['overdue', 'in_progress']"),
+      );
       expect(mobile, contains('WntSearchableSelectField('));
       expect(mobile, contains('Wpisz nazwę klienta'));
     },

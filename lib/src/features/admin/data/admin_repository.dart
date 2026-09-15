@@ -49,6 +49,7 @@ class AdminRepository {
     int id, {
     int intervalDays = 180,
     required int completedDispenserCount,
+    List<String> equipmentUnits = const [],
     String? resultNotes,
   }) => _api.post(
     '/mobile/admin/sanitizations/$id/complete',
@@ -56,6 +57,24 @@ class AdminRepository {
     body: {
       'next_interval_days': intervalDays,
       'completed_dispenser_count': completedDispenserCount,
+      'equipment_units': equipmentUnits,
+      'result_notes': resultNotes,
+    },
+  );
+  Future<Map<String, dynamic>> correctSanitization(
+    String token,
+    int id, {
+    required String correctionReason,
+    required List<String> equipmentUnits,
+    int intervalDays = 180,
+    String? resultNotes,
+  }) => _api.post(
+    '/mobile/admin/sanitizations/$id/correct',
+    token: token,
+    body: {
+      'correction_reason': correctionReason,
+      'equipment_units': equipmentUnits,
+      'next_interval_days': intervalDays,
       'result_notes': resultNotes,
     },
   );
