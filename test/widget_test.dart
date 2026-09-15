@@ -6,6 +6,7 @@ import 'package:woda_na_telefon/src/core/theme/wnt_colors.dart';
 import 'package:woda_na_telefon/src/core/theme/wnt_theme.dart';
 import 'package:woda_na_telefon/src/features/admin/application/admin_providers.dart';
 import 'package:woda_na_telefon/src/features/admin/presentation/admin_clients_screen.dart';
+import 'package:woda_na_telefon/src/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:woda_na_telefon/src/features/admin/presentation/admin_more_screen.dart';
 import 'package:woda_na_telefon/src/features/admin/presentation/admin_routes_screen.dart';
 import 'package:woda_na_telefon/src/features/client/application/client_providers.dart';
@@ -593,6 +594,52 @@ void main() {
     },
   );
 
+  testWidgets('pulpit pokazuje brakującą sanityzację jako wykonano 7 z 8', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          adminSummaryProvider.overrideWith(
+            (ref) async => {
+              'alerts': <Map<String, dynamic>>[],
+              'stats': <Map<String, dynamic>>[],
+              'routes': <Map<String, dynamic>>[],
+              'orders': <Map<String, dynamic>>[],
+              'unfinished_sanitizations': [
+                {
+                  'id': 91,
+                  'client_name': 'RADO',
+                  'location_name': 'Ławnica',
+                  'driver_name': 'Kamil Kaczor',
+                  'assigned_count': 8,
+                  'completed_count': 7,
+                  'remaining_count': 1,
+                },
+              ],
+            },
+          ),
+        ],
+        child: MaterialApp(
+          theme: WntTheme.light(),
+          home: const Scaffold(body: AdminDashboardScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Niedokończone sanityzacje'), findsOneWidget);
+    expect(find.text('RADO'), findsOneWidget);
+    expect(find.text('Ławnica · Kamil Kaczor'), findsOneWidget);
+    expect(find.text('Wykonano 7 z 8 · pozostało 1 szt.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'formularz klienta pojawia się dopiero po Nowe zamówienie i nie ma overflow',
     (tester) async {
@@ -710,6 +757,16 @@ void main() {
                   'sort_at': 1787349600,
                   'is_archived': true,
                 },
+                {
+                  'id': 5,
+                  'title': 'Tuszów - szablon',
+                  'subtitle': '28.09.2026',
+                  'meta': '17 pkt',
+                  'sort_at': 1789941600,
+                  'is_archived': true,
+                  'is_recurring': true,
+                  'recurrence_interval_days': 14,
+                },
               ],
             ),
           ],
@@ -727,6 +784,13 @@ void main() {
       );
       expect(tester.takeException(), isNull);
 
+      final recurringTab = find.textContaining('Cykliczne');
+      await tester.ensureVisible(recurringTab);
+      await tester.tap(recurringTab);
+      await tester.pumpAndSettle();
+      expect(find.text('Tuszów - szablon'), findsOneWidget);
+      expect(find.text('Archiwalna najnowsza'), findsNothing);
+
       final archiveTab = find.textContaining('Archiwum');
       await tester.ensureVisible(archiveTab);
       await tester.tap(archiveTab);
@@ -735,6 +799,7 @@ void main() {
         tester.getTopLeft(find.text('Archiwalna najnowsza')).dy,
         lessThan(tester.getTopLeft(find.text('Archiwalna starsza')).dy),
       );
+      expect(find.text('Tuszów - szablon'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

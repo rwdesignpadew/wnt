@@ -30,6 +30,9 @@ class AdminDashboardScreen extends ConsumerWidget {
           final stats = _list(data['stats']);
           final routes = _list(data['routes']);
           final orders = _list(data['orders']);
+          final unfinishedSanitizations = _list(
+            data['unfinished_sanitizations'],
+          );
           return RefreshIndicator(
             onRefresh: () async => ref.refresh(adminSummaryProvider.future),
             child: ListView(
@@ -43,6 +46,52 @@ class AdminDashboardScreen extends ConsumerWidget {
                 const Text(
                   'Sprawy wymagające reakcji i realizacja dzisiejszych tras.',
                 ),
+                if (unfinishedSanitizations.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Niedokończone sanityzacje',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: WntColors.error,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${unfinishedSanitizations.length}',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelLarge?.copyWith(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Kierowca wykonał mniej urządzeń, niż zostało zlecone.',
+                  ),
+                  const SizedBox(height: 8),
+                  for (final item in unfinishedSanitizations)
+                    _UnfinishedSanitizationCard(
+                      item: item,
+                      onTap: () => _open(
+                        context,
+                        const AdminOperationsScreen(
+                          dataKey: 'sanitizations',
+                          title: 'Sanityzacje',
+                          initialSanitizationStatus: 'in_progress',
+                        ),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 20),
                 Text(
                   'Realizacja dzisiaj',
@@ -169,6 +218,67 @@ class AdminDashboardScreen extends ConsumerWidget {
           );
         },
       );
+}
+
+class _UnfinishedSanitizationCard extends StatelessWidget {
+  const _UnfinishedSanitizationCard({required this.item, required this.onTap});
+
+  final Map<String, dynamic> item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final assigned = int.tryParse('${item['assigned_count']}') ?? 0;
+    final completed = int.tryParse('${item['completed_count']}') ?? 0;
+    final remaining = int.tryParse('${item['remaining_count']}') ?? 0;
+    final details = [
+      item['location_name']?.toString(),
+      item['driver_name']?.toString(),
+      item['route_name']?.toString(),
+    ].where((value) => value?.trim().isNotEmpty == true).join(' · ');
+
+    return Card(
+      color: WntColors.errorSoft,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.cleaning_services_outlined,
+                color: WntColors.error,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['client_name']?.toString() ?? 'Klient',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (details.isNotEmpty) Text(details),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Wykonano $completed z $assigned · pozostało $remaining szt.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: WntColors.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: WntColors.error),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AlertCard extends StatelessWidget {

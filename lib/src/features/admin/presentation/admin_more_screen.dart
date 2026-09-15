@@ -349,12 +349,14 @@ class AdminOperationsScreen extends ConsumerWidget {
     required this.dataKey,
     required this.title,
     this.embedded = false,
+    this.initialSanitizationStatus = 'open',
     super.key,
   });
 
   final String dataKey;
   final String title;
   final bool embedded;
+  final String initialSanitizationStatus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
@@ -405,6 +407,7 @@ class AdminOperationsScreen extends ConsumerWidget {
               return _AdminSanitizationsContent(
                 data: data,
                 items: items,
+                initialStatus: initialSanitizationStatus,
                 onRefresh: () async =>
                     ref.refresh(adminOperationsProvider.future),
                 onEdit: (item) =>
@@ -759,6 +762,7 @@ class _AdminSanitizationsContent extends StatefulWidget {
   const _AdminSanitizationsContent({
     required this.data,
     required this.items,
+    required this.initialStatus,
     required this.onRefresh,
     required this.onEdit,
     required this.onAction,
@@ -766,6 +770,7 @@ class _AdminSanitizationsContent extends StatefulWidget {
 
   final Map<String, dynamic> data;
   final List<Map<String, dynamic>> items;
+  final String initialStatus;
   final Future<void> Function() onRefresh;
   final Future<void> Function(Map<String, dynamic> item) onEdit;
   final Future<void> Function(Map<String, dynamic> item, String action)
@@ -779,12 +784,18 @@ class _AdminSanitizationsContent extends StatefulWidget {
 class _AdminSanitizationsContentState
     extends State<_AdminSanitizationsContent> {
   final TextEditingController _search = TextEditingController();
-  String _status = 'open';
+  late String _status;
   String _kind = 'all';
   String _due = 'all';
   int? _clientId;
   int? _driverId;
   bool _filtersVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.initialStatus;
+  }
 
   @override
   void dispose() {

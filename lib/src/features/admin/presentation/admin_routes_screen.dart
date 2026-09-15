@@ -34,15 +34,20 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
           onRetry: () => ref.invalidate(adminRoutesProvider),
         ),
         data: (allItems) {
-          final active = allItems
-              .where((item) => item['is_archived'] != true)
-              .toList();
-          final recurringCount = active
+          final recurringCount = allItems
               .where((item) => item['is_recurring'] == true)
               .length;
-          final currentCount = active.length - recurringCount;
+          final currentCount = allItems
+              .where(
+                (item) =>
+                    item['is_archived'] != true && item['is_recurring'] != true,
+              )
+              .length;
           final archiveCount = allItems
-              .where((item) => item['is_archived'] == true)
+              .where(
+                (item) =>
+                    item['is_archived'] == true && item['is_recurring'] != true,
+              )
               .length;
           final missedCount = _list(
             ref.watch(adminMissedRoutesProvider(null)).valueOrNull?['items'],
@@ -51,10 +56,10 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
               allItems
                   .where(
                     (item) => switch (_tab) {
-                      'recurring' =>
-                        item['is_archived'] != true &&
-                            item['is_recurring'] == true,
-                      'archive' => item['is_archived'] == true,
+                      'recurring' => item['is_recurring'] == true,
+                      'archive' =>
+                        item['is_archived'] == true &&
+                            item['is_recurring'] != true,
                       _ =>
                         item['is_archived'] != true &&
                             item['is_recurring'] != true,

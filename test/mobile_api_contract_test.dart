@@ -199,17 +199,22 @@ void main() {
     expect(documents, contains("where('number', '!=', '')"));
   });
 
-  test('trasy cykliczne utrzymują bieżące i jedno następne wystąpienie', () {
+  test('trasa cykliczna tworzy niezależną trasę dopiero dzień wcześniej', () {
     final admin = File(
-      '../../remote_live/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+      '../../sanitization-test-app-20260910/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
     ).readAsStringSync();
     final recurring = admin.substring(
       admin.indexOf('private function ensureRecurringRoutes'),
-      admin.indexOf('private function syncMobileRoute'),
+      admin.indexOf('private function legacyEnsureRecurringRoutes'),
     );
-    expect(recurring, contains(r'$futureOccurrences->skip(2)'));
-    expect(recurring, contains(r'while ($availableOccurrences < 2)'));
-    expect(recurring, contains(r'$copy->is_recurring = false'));
+    final service = File(
+      '../../sanitization-test-app-20260910/app/Services/RecurringRouteService.php',
+    ).readAsStringSync();
+    expect(recurring, contains('RecurringRouteService::class'));
+    expect(service, contains(r'$horizon = today()->addDay()'));
+    expect(service, contains("'recurring_template_id' => \$template->id"));
+    expect(service, contains("'is_recurring' => false"));
+    expect(service, contains(r'$client->pivot->is_active'));
   });
 
   test('pomaranczowe oznaczenie dotyczy tylko przyszlej zaplanowanej trasy', () {
