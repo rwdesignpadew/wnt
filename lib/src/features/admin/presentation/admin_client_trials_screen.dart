@@ -35,11 +35,31 @@ class _AdminClientTrialsScreenState
     if (changed == true) ref.invalidate(adminClientTrialsProvider);
   }
 
+  Future<void> _create(Map<String, dynamic> data) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _NewClientTrialSheet(data: data),
+    );
+    if (changed == true) ref.invalidate(adminClientTrialsProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(adminClientTrialsProvider(_query));
+    final loadedData = state.asData?.value;
     return Scaffold(
-      appBar: AppBar(title: const Text('Klienci testowi')),
+      appBar: AppBar(
+        title: const Text('Klienci testowi'),
+        actions: [
+          IconButton(
+            tooltip: 'Dodaj testy obecnemu klientowi',
+            onPressed: loadedData == null ? null : () => _create(loadedData),
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
       bottomNavigationBar: adminBottomNavigation(context, ref),
       body: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -118,6 +138,375 @@ class _AdminClientTrialsScreenState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _NewClientTrialSheet extends ConsumerStatefulWidget {
+  const _NewClientTrialSheet({required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  ConsumerState<_NewClientTrialSheet> createState() =>
+      _NewClientTrialSheetState();
+}
+
+class _NewClientTrialSheetState extends ConsumerState<_NewClientTrialSheet> {
+  int? _clientId;
+  int? _locationId;
+  int? _routeId;
+  int? _driverId;
+  String _routeMode = 'existing';
+  bool _saving = false;
+  final _duration = TextEditingController(text: '14');
+  final _notes = TextEditingController();
+  final _routeName = TextEditingController(text: 'Wydanie testów');
+  final _date = TextEditingController(
+    text: DateTime.now().toIso8601String().substring(0, 10),
+  );
+  final List<Map<String, int>> _items = [
+    {'product_id': 0, 'quantity': 1},
+  ];
+
+  List<Map<String, dynamic>> get _clients => _maps(widget.data['clients']);
+  List<Map<String, dynamic>> get _products => _maps(widget.data['products']);
+  List<Map<String, dynamic>> get _locations {
+    final client = _clients.where((item) => _int(item['id']) == _clientId);
+    return client.isEmpty ? [] : _maps(client.first['locations']);
+  }
+
+  @override
+  void dispose() {
+    _duration.dispose();
+    _notes.dispose();
+    _routeName.dispose();
+    _date.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final duration = int.tryParse(_duration.text);
+    final selectedItems = _items
+        .where((item) => (item['product_id'] ?? 0) > 0)
+        .toList();
+    if (_clientId == null || _locationId == null) {
+      _message('Wybierz klienta i lokalizację.');
+      return;
+    }
+    if (duration == null || duration < 1) {
+      _message('Podaj prawidłową liczbę dni testów.');
+      return;
+    }
+    if (selectedItems.isEmpty ||
+        selectedItems.any((item) => (item['quantity'] ?? 0) < 1)) {
+      _message('Wybierz co najmniej jedną pozycję i jej ilość.');
+      return;
+    }
+    if (selectedItems.map((item) => item['product_id']).toSet().length !=
+        selectedItems.length) {
+      _message('Ten sam produkt może wystąpić tylko raz.');
+      return;
+    }
+    if (_routeMode == 'existing' && _routeId == null) {
+      _message('Wybierz istniejącą trasę.');
+      return;
+    }
+    if (_routeMode == 'new' && _driverId == null) {
+      _message('Wybierz kierowcę dla nowej trasy.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .createClientTrial(token, {
+            'client_id': _clientId,
+            'client_location_id': _locationId,
+            'duration_days': duration,
+            'notes': _notes.text.trim(),
+            'items': selectedItems,
+            'route_mode': _routeMode,
+            'delivery_route_id': _routeMode == 'existing' ? _routeId : null,
+            'route_name': _routeMode == 'new' ? _routeName.text.trim() : null,
+            'scheduled_date': _routeMode == 'new' ? _date.text.trim() : null,
+            'driver_id': _routeMode == 'new' ? _driverId : null,
+          });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${response['message'] ?? 'Dodano testy.'}'),
+          backgroundColor: WntColors.success,
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) _message('$error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _message(String value) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value), backgroundColor: WntColors.error),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final routes = _maps(widget.data['routes']);
+    final drivers = _maps(widget.data['drivers']);
+    return FractionallySizedBox(
+      heightFactor: .95,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dodaj testy obecnemu klientowi',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Text(
+                        'Wybierz klienta, lokalizację i co otrzyma bez opłaty.',
+                        style: TextStyle(color: WntColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownMenu<int>(
+                  width: MediaQuery.sizeOf(context).width - 32,
+                  enableFilter: true,
+                  enableSearch: true,
+                  label: const Text('Wyszukaj i wybierz klienta'),
+                  dropdownMenuEntries: _clients
+                      .map(
+                        (client) => DropdownMenuEntry<int>(
+                          value: _int(client['id']),
+                          label: '${client['name']}',
+                        ),
+                      )
+                      .toList(),
+                  onSelected: (value) => setState(() {
+                    _clientId = value;
+                    final locations = _locations;
+                    _locationId = locations.isEmpty
+                        ? null
+                        : _int(locations.first['id']);
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('trial-location-$_clientId-$_locationId'),
+                  initialValue: _locationId,
+                  decoration: const InputDecoration(labelText: 'Lokalizacja'),
+                  items: _locations
+                      .map(
+                        (location) => DropdownMenuItem<int>(
+                          value: _int(location['id']),
+                          child: Text(
+                            '${location['name']} — ${location['address'] ?? ''}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _locationId = value),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _duration,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Liczba dni testów',
+                    suffixText: 'dni',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Co klient dostaje',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => setState(
+                        () => _items.add({'product_id': 0, 'quantity': 1}),
+                      ),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Dodaj pozycję'),
+                    ),
+                  ],
+                ),
+                for (var index = 0; index < _items.length; index++) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          DropdownButtonFormField<int>(
+                            initialValue: (_items[index]['product_id'] ?? 0) > 0
+                                ? _items[index]['product_id']
+                                : null,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Produkt / sprzęt',
+                            ),
+                            items: _products
+                                .map(
+                                  (product) => DropdownMenuItem<int>(
+                                    value: _int(product['id']),
+                                    child: Text(
+                                      '${product['name']} (stan ${_int(product['stock'])})',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) => setState(
+                              () => _items[index]['product_id'] = value ?? 0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  initialValue:
+                                      '${_items[index]['quantity'] ?? 1}',
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Ilość',
+                                  ),
+                                  onChanged: (value) =>
+                                      _items[index]['quantity'] =
+                                          int.tryParse(value) ?? 0,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: _items.length == 1
+                                    ? null
+                                    : () => setState(
+                                        () => _items.removeAt(index),
+                                      ),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: WntColors.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: 'existing',
+                      label: Text('Istniejąca trasa'),
+                    ),
+                    ButtonSegment(value: 'new', label: Text('Nowa trasa')),
+                  ],
+                  selected: {_routeMode},
+                  onSelectionChanged: (value) =>
+                      setState(() => _routeMode = value.first),
+                ),
+                const SizedBox(height: 12),
+                if (_routeMode == 'existing')
+                  DropdownButtonFormField<int>(
+                    initialValue: _routeId,
+                    decoration: const InputDecoration(labelText: 'Trasa'),
+                    items: routes
+                        .map(
+                          (route) => DropdownMenuItem<int>(
+                            value: _int(route['id']),
+                            child: Text(
+                              '${route['date']} — ${route['name']}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _routeId = value),
+                  )
+                else ...[
+                  TextField(
+                    controller: _routeName,
+                    decoration: const InputDecoration(labelText: 'Nazwa trasy'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _date,
+                    decoration: const InputDecoration(
+                      labelText: 'Data (RRRR-MM-DD)',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    initialValue: _driverId,
+                    decoration: const InputDecoration(labelText: 'Kierowca'),
+                    items: drivers
+                        .map(
+                          (driver) => DropdownMenuItem<int>(
+                            value: _int(driver['id']),
+                            child: Text('${driver['name']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _driverId = value),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _notes,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Uwagi do testów',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(
+                  _saving ? 'Zapisywanie...' : 'Dodaj testy do trasy',
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

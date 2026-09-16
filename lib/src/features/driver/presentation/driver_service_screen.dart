@@ -1643,6 +1643,19 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       final quantity = _packageQuantities[_int(packageItem['id'])] ?? 0;
       if (quantity > 0) {
         wzLines.add('${packageItem['name']} — $quantity szt.');
+        for (final component in _list(packageItem['components'])) {
+          final productId = _int(component['product_id']);
+          final componentQuantity =
+              _packageComponentQuantities[_int(
+                packageItem['id'],
+              )]?[productId] ??
+              _int(component['selected_quantity'] ?? component['quantity']);
+          if (componentQuantity > 0) {
+            wzLines.add(
+              '  ${component['name'] ?? 'Produkt'} — $componentQuantity szt.',
+            );
+          }
+        }
       }
     }
     if (_showSanitization) {

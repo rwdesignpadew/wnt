@@ -82,6 +82,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 'location_id': _locationId(stop),
                 'products': _intMap(stop['products']),
                 'packages': _intMap(stop['packages']),
+                'package_components': _nestedIntMap(stop['package_components']),
                 'sanitization_equipment': _strings(
                   stop['sanitization_equipment'],
                 ),
@@ -133,6 +134,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'location_id': _int(location['id']),
       'products': <String, int>{},
       'packages': <String, int>{},
+      'package_components': <String, Map<String, int>>{},
       'sanitization_equipment': <String>[],
     });
     _initialProductsStopIndex = _stops.length - 1;
@@ -230,6 +232,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'location_id': _int(location['id']),
       'products': <String, int>{},
       'packages': <String, int>{},
+      'package_components': <String, Map<String, int>>{},
       'sanitization_equipment': <String>[],
     };
     if (_stops.any((item) => _stopKey(item) == _stopKey(stop))) {
@@ -258,12 +261,16 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
         packageQuantities: Map<String, int>.from(
           _intMap(_stops[index]['packages']),
         ),
+        packageComponentQuantities: _nestedIntMap(
+          _stops[index]['package_components'],
+        ),
       ),
     );
     if (result != null && mounted) {
       setState(() {
         _stops[index]['products'] = result['products'];
         _stops[index]['packages'] = result['packages'];
+        _stops[index]['package_components'] = result['package_components'];
       });
     }
   }
@@ -658,6 +665,8 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                           stop['location_id'] = value;
                           stop['products'] = <String, int>{};
                           stop['packages'] = <String, int>{};
+                          stop['package_components'] =
+                              <String, Map<String, int>>{};
                           stop['sanitization_equipment'] = <String>[];
                         });
                       }
@@ -923,6 +932,7 @@ class _ProductPicker extends StatefulWidget {
     required this.quantities,
     required this.packages,
     required this.packageQuantities,
+    required this.packageComponentQuantities,
   });
   final List<Map<String, dynamic>> products;
   final Set<int> visibleIds;
@@ -930,6 +940,7 @@ class _ProductPicker extends StatefulWidget {
   final Map<String, int> quantities;
   final List<Map<String, dynamic>> packages;
   final Map<String, int> packageQuantities;
+  final Map<String, Map<String, int>> packageComponentQuantities;
 
   @override
   State<_ProductPicker> createState() => _ProductPickerState();
@@ -940,6 +951,10 @@ class _ProductPickerState extends State<_ProductPicker> {
   late Map<String, int> packageQuantities = Map<String, int>.from(
     widget.packageQuantities,
   );
+  late Map<String, Map<String, int>> packageComponentQuantities = {
+    for (final entry in widget.packageComponentQuantities.entries)
+      entry.key: Map<String, int>.from(entry.value),
+  };
   String query = '';
   bool showAll = false;
 
@@ -1012,26 +1027,118 @@ class _ProductPickerState extends State<_ProductPicker> {
                   final package = widget.packages[index];
                   final id = '${package['id']}';
                   final quantity = packageQuantities[id] ?? 0;
-                  final components = _maps(package['components'])
-                      .map(
-                        (item) => '${item['name']} x ${_int(item['quantity'])}',
-                      )
-                      .join(', ');
-                  return ListTile(
-                    leading: const Icon(Icons.inventory_2_outlined),
-                    title: Text('${package['name']}'),
-                    subtitle: Text(
-                      '${package['price']} zł${components.isEmpty ? '' : ' - $components'}',
+                  final components = _maps(package['components']);
+                  final selected = packageComponentQuantities.putIfAbsent(
+                    id,
+                    () => <String, int>{},
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                    trailing: _Counter(
-                      value: quantity,
-                      onChanged: (value) => setState(() {
-                        if (value == 0) {
-                          packageQuantities.remove(id);
-                        } else {
-                          packageQuantities[id] = value;
-                        }
-                      }),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: quantity > 0
+                            ? WntColors.brandSoft
+                            : Colors.white,
+                        border: Border.all(
+                          color: quantity > 0
+                              ? WntColors.brand
+                              : WntColors.line,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            secondary: const Icon(Icons.inventory_2_outlined),
+                            title: Text('${package['name']}'),
+                            subtitle: Text('${package['price']} zł za pakiet'),
+                            value: quantity > 0,
+                            onChanged: (enabled) => setState(() {
+                              if (!enabled) {
+                                packageQuantities.remove(id);
+                                selected.clear();
+                                return;
+                              }
+                              packageQuantities[id] = 1;
+                              for (final component in components) {
+                                selected['${component['product_id']}'] = _int(
+                                  component['quantity'],
+                                );
+                              }
+                            }),
+                          ),
+                          if (quantity > 0) ...[
+                            const Divider(height: 1),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Faktycznie do wydania',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  for (
+                                    var componentIndex = 0;
+                                    componentIndex < components.length;
+                                    componentIndex++
+                                  ) ...[
+                                    Builder(
+                                      builder: (context) {
+                                        final component =
+                                            components[componentIndex];
+                                        final productId =
+                                            '${component['product_id']}';
+                                        final included = _int(
+                                          component['quantity'],
+                                        );
+                                        return Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text('${component['name']}'),
+                                                  Text(
+                                                    'Pakiet obejmuje do $included szt.',
+                                                    style: const TextStyle(
+                                                      color: WntColors.muted,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            _Counter(
+                                              value:
+                                                  selected[productId] ??
+                                                  included,
+                                              onChanged: (value) =>
+                                                  setState(() {
+                                                    selected[productId] = value
+                                                        .clamp(0, included);
+                                                  }),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                    if (componentIndex < components.length - 1)
+                                      const SizedBox(height: 8),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -1074,6 +1181,7 @@ class _ProductPickerState extends State<_ProductPicker> {
                   onPressed: () => Navigator.pop(context, {
                     'products': quantities,
                     'packages': packageQuantities,
+                    'package_components': packageComponentQuantities,
                   }),
                   child: const Text('Dodaj produkty'),
                 ),
@@ -1142,6 +1250,9 @@ Map<String, dynamic> _map(dynamic value) => value is Map
     : <String, dynamic>{};
 Map<String, int> _intMap(dynamic value) => value is Map
     ? value.map((key, value) => MapEntry('$key', _int(value)))
+    : {};
+Map<String, Map<String, int>> _nestedIntMap(dynamic value) => value is Map
+    ? value.map((key, nested) => MapEntry('$key', _intMap(nested)))
     : {};
 List<int> _ints(dynamic value) =>
     value is List ? value.map(_int).where((id) => id > 0).toList() : [];

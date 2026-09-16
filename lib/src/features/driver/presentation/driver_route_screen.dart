@@ -552,7 +552,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                               package['components'],
                             ))
                               Text(
-                                '  ${component['name'] ?? 'Produkt'}: ${_int(component['quantity']) * _int(package['quantity'])} szt.',
+                                '  ${component['name'] ?? 'Produkt'}: ${_int(component['selected_quantity'] ?? component['quantity'])} szt.',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                           ],

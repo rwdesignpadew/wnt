@@ -210,6 +210,10 @@ class AdminRepository {
     '/mobile/admin/client-trials?${Uri(queryParameters: {'status': status, if (search.trim().isNotEmpty) 'search': search.trim()}).query}',
     token: token,
   );
+  Future<Map<String, dynamic>> createClientTrial(
+    String token,
+    Map<String, dynamic> body,
+  ) => _api.post('/mobile/admin/client-trials', token: token, body: body);
   Future<Map<String, dynamic>> convertClientTrial(
     String token,
     int id,
