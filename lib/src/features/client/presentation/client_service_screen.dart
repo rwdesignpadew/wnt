@@ -47,9 +47,12 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
     }
   }
 
-  Future<bool> sendSanitization(int locationId, int count) async {
-    if (locationId < 1 || count < 1) {
-      _message('Wybierz lokalizację i liczbę elementów.', error: true);
+  Future<bool> sendSanitization(
+    int locationId,
+    List<String> equipmentUnits,
+  ) async {
+    if (locationId < 1 || equipmentUnits.isEmpty) {
+      _message('Wybierz lokalizację i konkretne urządzenia.', error: true);
       return false;
     }
     try {
@@ -59,7 +62,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
           .requestSanitization(
             token: token,
             locationId: locationId,
-            dispenserCount: count,
+            equipmentUnits: equipmentUnits,
           );
       ref.invalidate(clientHomeProvider);
       _message(
@@ -210,9 +213,15 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
     List<Map<String, dynamic>> locations,
   ) async {
     var locationId = _int(locations.first['id']);
-    var maximum = _int(locations.first['max_dispenser_count']);
-    var count = 1;
+    final selectedUnits = <String>{};
     var sheetSaving = false;
+    List<Map<String, dynamic>> equipmentForLocation() {
+      final selectedLocation = locations.firstWhere(
+        (location) => _int(location['id']) == locationId,
+      );
+      return _mapList(selectedLocation['equipment']);
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -247,7 +256,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Wybierz lokalizację i liczbę elementów.',
+                  'Wybierz konkretne urządzenia, które mają zostać poddane sanityzacji.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 16),
@@ -260,7 +269,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                         (location) => DropdownMenuItem<int>(
                           value: _int(location['id']),
                           child: Text(
-                            '${location['name']} — maks. ${location['max_dispenser_count']} szt.',
+                            '${location['name']} — ${location['max_dispenser_count']} szt.',
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -268,60 +277,60 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                       .toList(),
                   onChanged: (value) => setSheetState(() {
                     locationId = value ?? 0;
-                    final selected = locations.firstWhere(
-                      (location) => _int(location['id']) == locationId,
-                    );
-                    maximum = _int(selected['max_dispenser_count']);
-                    count = count.clamp(1, maximum);
+                    selectedUnits.clear();
                   }),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Liczba elementów do sanityzacji',
+                  'Urządzenia do sanityzacji',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  height: 50,
+                  constraints: const BoxConstraints(maxHeight: 320),
                   decoration: BoxDecoration(
                     border: Border.all(color: WntColors.inputLine),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Row(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     children: [
-                      IconButton(
-                        tooltip: 'Zmniejsz',
-                        onPressed: count > 1
-                            ? () => setSheetState(() => count--)
-                            : null,
-                        icon: const Icon(Icons.remove),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '$count z $maximum',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                      for (final equipment in equipmentForLocation())
+                        CheckboxListTile(
+                          dense: true,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                          ),
+                          title: Text('${equipment['label'] ?? 'Urządzenie'}'),
+                          value: selectedUnits.contains('${equipment['key']}'),
+                          onChanged: (selected) => setSheetState(() {
+                            final key = '${equipment['key']}';
+                            if (selected == true) {
+                              selectedUnits.add(key);
+                            } else {
+                              selectedUnits.remove(key);
+                            }
+                          }),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Zwiększ',
-                        onPressed: count < maximum
-                            ? () => setSheetState(() => count++)
-                            : null,
-                        icon: const Icon(Icons.add),
-                      ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  '${selectedUnits.length} wybranych',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: 18),
                 FilledButton.icon(
-                  onPressed: sheetSaving
+                  onPressed: sheetSaving || selectedUnits.isEmpty
                       ? null
                       : () async {
                           setSheetState(() => sheetSaving = true);
                           final saved = await sendSanitization(
                             locationId,
-                            count,
+                            selectedUnits.toList(growable: false),
                           );
                           if (saved && sheetContext.mounted) {
                             Navigator.of(sheetContext).pop();
@@ -751,6 +760,7 @@ class _SanitizationRequestCard extends StatelessWidget {
       subtitle:
           '${request['dispenser_count'] ?? 0} szt. · '
           '${request['created_at'] ?? ''}',
+      body: '${request['equipment_summary'] ?? ''}',
       details: details,
     );
   }

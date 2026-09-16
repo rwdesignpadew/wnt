@@ -22,11 +22,11 @@ class ClientRepository {
   Future<Map<String, dynamic>> requestSanitization({
     required String token,
     required int locationId,
-    required int dispenserCount,
+    required List<String> equipmentUnits,
   }) => _api.post(
     '/mobile/client/sanitizations',
     token: token,
-    body: {'client_location_id': locationId, 'dispenser_count': dispenserCount},
+    body: {'client_location_id': locationId, 'equipment_units': equipmentUnits},
   );
 
   Future<Map<String, dynamic>> requestRental({

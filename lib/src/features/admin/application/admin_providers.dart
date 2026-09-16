@@ -29,6 +29,17 @@ final adminRoutesProvider = FutureProvider<List<Map<String, dynamic>>>(
 final adminClientsProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.watch(adminRepositoryProvider).clients(_token(ref)),
 );
+typedef AdminClientTrialsQuery = ({String status, String search});
+final adminClientTrialsProvider =
+    FutureProvider.family<Map<String, dynamic>, AdminClientTrialsQuery>(
+      (ref, query) => ref
+          .watch(adminRepositoryProvider)
+          .clientTrials(
+            _token(ref),
+            status: query.status,
+            search: query.search,
+          ),
+    );
 typedef AdminDocumentsQuery = ({
   String type,
   String search,

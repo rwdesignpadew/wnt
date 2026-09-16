@@ -29,6 +29,9 @@ class _AdminClientFullEditScreenState
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _locations = [];
   List<Map<String, dynamic>> _rentals = [];
+  List<Map<String, dynamic>> _trialRoutes = [];
+  List<Map<String, dynamic>> _drivers = [];
+  final List<Map<String, dynamic>> _trialItems = [];
   Set<int> _visibleProducts = {};
   bool _loading = true;
   bool _saving = false;
@@ -39,6 +42,15 @@ class _AdminClientFullEditScreenState
   bool _emailMonthlyWzWithInvoice = false;
   String _payment = 'transfer';
   String _productQuery = '';
+  bool _trialEnabled = false;
+  int _trialDurationDays = 14;
+  String? _trialLocationUid;
+  String _trialRouteMode = 'new';
+  int? _trialRouteId;
+  int? _trialDriverId;
+  late final TextEditingController _trialRouteName;
+  late final TextEditingController _trialDate;
+  late final TextEditingController _trialNotes;
 
   List<Map<String, dynamic>> get _rentalProducts {
     final existingIds = _rentals
@@ -59,12 +71,22 @@ class _AdminClientFullEditScreenState
       .where((product) => _bool(product['available_for_rental']))
       .toList();
 
+  List<Map<String, dynamic>> get _trialProducts => _products
+      .where((product) => '${product['kind'] ?? 'product'}' != 'service')
+      .toList();
+
   @override
   void initState() {
     super.initState();
+    _trialRouteName = TextEditingController(text: 'Testy');
+    _trialDate = TextEditingController(
+      text: DateTime.now().toIso8601String().substring(0, 10),
+    );
+    _trialNotes = TextEditingController();
+    _trialItems.add(_newTrialItem());
     _tabs = TabController(
-      length: 4,
-      initialIndex: widget.initialTab.clamp(0, 3),
+      length: 5,
+      initialIndex: widget.initialTab.clamp(0, 4),
       vsync: this,
     );
     _load();
@@ -73,6 +95,9 @@ class _AdminClientFullEditScreenState
   @override
   void dispose() {
     _tabs.dispose();
+    _trialRouteName.dispose();
+    _trialDate.dispose();
+    _trialNotes.dispose();
     for (final controller in [
       ..._controllers.values,
       ..._priceControllers.values,
@@ -104,6 +129,8 @@ class _AdminClientFullEditScreenState
             }
           : _map(response['client']);
       _products = _maps(response['products']);
+      _trialRoutes = _maps(response['routes']);
+      _drivers = _maps(response['drivers']);
       _locations = _maps(_client['locations']);
       _rentals = _maps(_client['rental_items']);
       _visibleProducts = _ints(_client['visible_product_ids']).toSet();
@@ -127,6 +154,7 @@ class _AdminClientFullEditScreenState
           ? 'cash'
           : 'transfer';
       if (_locations.isEmpty) _addLocation();
+      _trialLocationUid ??= '${_defaultLocation['uid'] ?? ''}';
     } catch (error) {
       if (mounted) _error(error);
     } finally {
@@ -140,6 +168,27 @@ class _AdminClientFullEditScreenState
       _tabs.index = 1;
       _error('Dodaj co najmniej jedną aktywną lokalizację.');
       return;
+    }
+    if (widget.id == null && _trialEnabled) {
+      if (_trialItems.isEmpty ||
+          _trialItems.any(
+            (item) =>
+                _int(item['product_id']) < 1 || _int(item['quantity']) < 1,
+          )) {
+        _tabs.index = 4;
+        _error('Wybierz produkty i ilości wydawane na testy.');
+        return;
+      }
+      if (_trialRouteMode == 'existing' && _trialRouteId == null) {
+        _tabs.index = 4;
+        _error('Wybierz trasę wydania testów.');
+        return;
+      }
+      if (_trialRouteMode == 'new' && _trialDriverId == null) {
+        _tabs.index = 4;
+        _error('Wybierz kierowcę nowej trasy testowej.');
+        return;
+      }
     }
     setState(() => _saving = true);
     try {
@@ -181,6 +230,27 @@ class _AdminClientFullEditScreenState
         'visible_product_ids': _visibleProducts.toList(),
         'prices': prices,
         'rental_items': _rentals,
+        if (widget.id == null)
+          'trial': {
+            'enabled': _trialEnabled,
+            if (_trialEnabled) ...{
+              'duration_days': _trialDurationDays,
+              'client_location_uid': _trialLocationUid,
+              'notes': _trialNotes.text.trim(),
+              'items': _trialItems,
+              'route_mode': _trialRouteMode,
+              'delivery_route_id': _trialRouteMode == 'existing'
+                  ? _trialRouteId
+                  : null,
+              'route_name': _trialRouteMode == 'new'
+                  ? _trialRouteName.text.trim()
+                  : null,
+              'scheduled_date': _trialRouteMode == 'new'
+                  ? _trialDate.text.trim()
+                  : null,
+              'driver_id': _trialRouteMode == 'new' ? _trialDriverId : null,
+            },
+          },
       };
       final response = widget.id == null
           ? await ref
@@ -230,7 +300,14 @@ class _AdminClientFullEditScreenState
       'invoice_recipient_enabled': false,
       'invoice_recipient_jst': false,
     });
+    _trialLocationUid ??= uid;
   }
+
+  Map<String, dynamic> _newTrialItem() => {
+    'product_id': null,
+    'quantity': 1,
+    'is_rental': false,
+  };
 
   void _setDefaultLocation(int index) {
     for (var i = 0; i < _locations.length; i++) {
@@ -291,6 +368,7 @@ class _AdminClientFullEditScreenState
           Tab(text: 'Lokalizacje'),
           Tab(text: 'Produkty'),
           Tab(text: 'Dzierżawy'),
+          Tab(text: 'Testy'),
         ],
       ),
     ),
@@ -340,10 +418,271 @@ class _AdminClientFullEditScreenState
                 _locationsTab(),
                 _productsTab(),
                 _rentalsTab(),
+                _trialsTab(),
               ],
             ),
           ),
   );
+
+  Widget _trialsTab() {
+    if (widget.id != null) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: const [
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.science_outlined,
+                    size: 40,
+                    color: WntColors.brand,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Aktywne testy i decyzje po terminie są dostępne na ekranie „Klienci testowi”.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Klient otrzymuje produkty na testy'),
+                  subtitle: const Text(
+                    'Stan magazynu zmieni się dopiero po podpisanym wydaniu. WZ będzie miało wartość 0,00 zł.',
+                  ),
+                  value: _trialEnabled,
+                  onChanged: (value) => setState(() => _trialEnabled = value),
+                ),
+                if (_trialEnabled) ...[
+                  const Divider(),
+                  TextFormField(
+                    initialValue: '$_trialDurationDays',
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Liczba dni testów',
+                    ),
+                    onChanged: (value) =>
+                        _trialDurationDays = int.tryParse(value) ?? 14,
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: _trialLocationUid,
+                    decoration: const InputDecoration(
+                      labelText: 'Lokalizacja wydania',
+                    ),
+                    items: [
+                      for (final location in _locations)
+                        DropdownMenuItem(
+                          value: '${location['uid']}',
+                          child: Text('${location['name']}'),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _trialLocationUid = value),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Co klient dostaje',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  for (var index = 0; index < _trialItems.length; index++) ...[
+                    _trialItemCard(index),
+                    const SizedBox(height: 8),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        setState(() => _trialItems.add(_newTrialItem())),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Dodaj kolejną pozycję'),
+                  ),
+                  const Divider(height: 30),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'existing',
+                        label: Text('Istniejąca trasa'),
+                      ),
+                      ButtonSegment(value: 'new', label: Text('Nowa trasa')),
+                    ],
+                    selected: {_trialRouteMode},
+                    onSelectionChanged: (value) =>
+                        setState(() => _trialRouteMode = value.first),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_trialRouteMode == 'existing')
+                    DropdownButtonFormField<int>(
+                      initialValue: _trialRouteId,
+                      decoration: const InputDecoration(
+                        labelText: 'Trasa wydania',
+                      ),
+                      items: [
+                        for (final route in _trialRoutes)
+                          DropdownMenuItem(
+                            value: _int(route['id']),
+                            child: Text(
+                              '${route['date']} — ${route['name']} — ${route['driver'] ?? ''}',
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _trialRouteId = value),
+                    )
+                  else ...[
+                    TextField(
+                      controller: _trialRouteName,
+                      decoration: const InputDecoration(
+                        labelText: 'Nazwa trasy',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _trialDate,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Data wydania',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      onTap: () async {
+                        final selected = await showDatePicker(
+                          context: context,
+                          initialDate:
+                              DateTime.tryParse(_trialDate.text) ??
+                              DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (selected != null) {
+                          _trialDate.text = selected
+                              .toIso8601String()
+                              .substring(0, 10);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int>(
+                      initialValue: _trialDriverId,
+                      decoration: const InputDecoration(labelText: 'Kierowca'),
+                      items: [
+                        for (final driver in _drivers)
+                          DropdownMenuItem(
+                            value: _int(driver['id']),
+                            child: Text('${driver['name']}'),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _trialDriverId = value),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _trialNotes,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Uwagi do testów',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _trialItemCard(int index) {
+    final item = _trialItems[index];
+    final product = _trialProducts.cast<Map<String, dynamic>?>().firstWhere(
+      (candidate) => _int(candidate?['id']) == _int(item['product_id']),
+      orElse: () => null,
+    );
+    final canRent = _bool(product?['available_for_rental']);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: WntColors.canvas,
+        border: Border.all(color: WntColors.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          DropdownButtonFormField<int>(
+            initialValue: _int(item['product_id']) > 0
+                ? _int(item['product_id'])
+                : null,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Produkt / sprzęt'),
+            items: [
+              for (final option in _trialProducts)
+                DropdownMenuItem(
+                  value: _int(option['id']),
+                  child: Text(
+                    '${option['name']} (stan: ${_int(option['stock'])} ${option['unit'] ?? 'szt.'})',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (value) => setState(() {
+              item['product_id'] = value;
+              final selected = _trialProducts.firstWhere(
+                (option) => _int(option['id']) == value,
+              );
+              item['is_rental'] = _bool(selected['available_for_rental']);
+            }),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: '${_int(item['quantity']).clamp(1, 999999)}',
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Ilość'),
+                  onChanged: (value) => item['quantity'] = int.tryParse(value),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Sprzęt do zwrotu (automatycznie)'),
+                  value: canRent && _bool(item['is_rental']),
+                  onChanged: null,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Usuń',
+                onPressed: _trialItems.length > 1
+                    ? () => setState(() => _trialItems.removeAt(index))
+                    : null,
+                icon: const Icon(Icons.delete_outline, color: WntColors.error),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _detailsTab() => ListView(
     padding: const EdgeInsets.all(16),
@@ -720,8 +1059,14 @@ class _AdminClientFullEditScreenState
       'quantity': 1,
       'unit_price_net': product['default_price']?.toString() ?? '0',
       'vat_rate': product['vat_rate']?.toString() ?? '23',
-      'requires_sanitization': rentalProductRequiresSanitization(product['name']),
+      'requires_sanitization': rentalProductRequiresSanitization(
+        product['name'],
+      ),
       'sanitization_price_net': null,
+      'equipment_label': '',
+      'last_sanitized_on': _controller('last_sanitized_on').text.trim(),
+      'sanitization_interval_days':
+          int.tryParse(_controller('sanitization_interval_days').text) ?? 180,
     };
   }
 
@@ -821,12 +1166,40 @@ class _AdminClientFullEditScreenState
                 : (value) =>
                       setState(() => rental['requires_sanitization'] = value),
           ),
-          if (_rentalRequiresSanitization(rental))
+          if (_rentalRequiresSanitization(rental)) ...[
+            _rentalText(
+              rental,
+              'equipment_label',
+              'Miejsce / oznaczenie (np. Lakiernia)',
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _rentalText(
+                    rental,
+                    'last_sanitized_on',
+                    'Ostatnia sanityzacja',
+                    keyboard: TextInputType.datetime,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _rentalNumber(
+                    rental,
+                    'sanitization_interval_days',
+                    'Co ile dni',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             _rentalNumber(
               rental,
               'sanitization_price_net',
               'Cena sanityzacji netto',
             ),
+          ],
         ],
       ),
     ),
@@ -852,6 +1225,18 @@ class _AdminClientFullEditScreenState
         decoration: InputDecoration(labelText: label),
         onChanged: (value) => rental[key] = value.replaceAll(',', '.'),
       );
+
+  Widget _rentalText(
+    Map<String, dynamic> rental,
+    String key,
+    String label, {
+    TextInputType? keyboard,
+  }) => TextFormField(
+    initialValue: rental[key]?.toString() ?? '',
+    keyboardType: keyboard,
+    decoration: InputDecoration(labelText: label),
+    onChanged: (value) => rental[key] = value.trim(),
+  );
 
   String _locationKey(Map<String, dynamic> location) => location['id'] != null
       ? 'id:${location['id']}'

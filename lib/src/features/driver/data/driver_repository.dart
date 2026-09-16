@@ -163,6 +163,7 @@ class DriverRepository {
     required int documentId,
     required Map<int, int> quantities,
     Map<int, int> packageQuantities = const {},
+    Map<int, Map<int, int>> packageComponentQuantities = const {},
     required String paymentMethod,
     required String signatureData,
     required String signedBy,
@@ -185,6 +186,14 @@ class DriverRepository {
       'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
       'package_quantities': packageQuantities.map(
         (id, quantity) => MapEntry('$id', quantity),
+      ),
+      'package_component_quantities': packageComponentQuantities.map(
+        (packageId, components) => MapEntry(
+          '$packageId',
+          components.map(
+            (productId, quantity) => MapEntry('$productId', quantity),
+          ),
+        ),
       ),
       'payment_method': paymentMethod,
       'signature_data': signatureData,
@@ -256,6 +265,7 @@ class DriverRepository {
     required int documentId,
     required Map<int, int> quantities,
     Map<int, int> packageQuantities = const {},
+    Map<int, Map<int, int>> packageComponentQuantities = const {},
     required String paymentMethod,
     required String signatureData,
     required String signedBy,
@@ -279,6 +289,14 @@ class DriverRepository {
       'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
       'package_quantities': packageQuantities.map(
         (id, quantity) => MapEntry('$id', quantity),
+      ),
+      'package_component_quantities': packageComponentQuantities.map(
+        (packageId, components) => MapEntry(
+          '$packageId',
+          components.map(
+            (productId, quantity) => MapEntry('$productId', quantity),
+          ),
+        ),
       ),
       'payment_method': paymentMethod,
       'signature_data': signatureData,

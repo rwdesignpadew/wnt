@@ -157,6 +157,139 @@ void main() {
   });
 
   testWidgets(
+    'wydanie testowe pokazuje tylko darmowe pozycje i blokuje zmianę ilości',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: WntTheme.light(),
+            home: DriverServiceScreen(
+              document: const {
+                'id': 2001,
+                'status': 'planned',
+                'payment_method': 'cash',
+                'available_product_ids': [9],
+                'client_assigned_product_ids': [9],
+                'items': [
+                  {'product_id': 9, 'quantity': 1},
+                ],
+                'client': {
+                  'name': 'Klient testowy',
+                  'recurring_invoice_enabled': false,
+                },
+                'trial_request': {
+                  'action': 'issue',
+                  'duration_days': 14,
+                  'items': [
+                    {'product_id': 9, 'quantity': 1, 'is_rental': true},
+                  ],
+                },
+                'packages': [],
+              },
+              products: const [
+                {
+                  'id': 9,
+                  'name': 'Dystrybutor wody',
+                  'unit': 'szt.',
+                  'default_price': 650,
+                  'vat_rate': 23,
+                  'kind': 'product',
+                },
+                {
+                  'id': 70,
+                  'name': 'Woda spoza testu',
+                  'unit': 'szt.',
+                  'default_price': 20,
+                  'vat_rate': 23,
+                  'kind': 'product',
+                },
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Wydanie testowe bez opłat'), findsOneWidget);
+      expect(find.text('Dystrybutor wody'), findsOneWidget);
+      expect(find.text('Woda spoza testu'), findsNothing);
+      expect(find.text('1 szt.'), findsOneWidget);
+      expect(find.textContaining('Cena do zapłaty'), findsNothing);
+      expect(find.textContaining('650.00'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'pakiet pobiera pełną cenę i pozwala podać faktyczną ilość wody',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: WntTheme.light(),
+            home: DriverServiceScreen(
+              document: const {
+                'id': 2002,
+                'status': 'planned',
+                'payment_method': 'cash',
+                'items': [],
+                'client': {
+                  'name': 'Klient z pakietem',
+                  'recurring_invoice_enabled': false,
+                },
+                'packages': [
+                  {
+                    'id': 7,
+                    'name': 'Dzierżawa + 4 galony',
+                    'price': 59,
+                    'vat_rate': 23,
+                    'quantity': 1,
+                    'available': true,
+                    'components': [
+                      {
+                        'product_id': 9,
+                        'name': 'Dystrybutor wody',
+                        'quantity': 1,
+                        'selected_quantity': 1,
+                        'is_rental': true,
+                      },
+                      {
+                        'product_id': 70,
+                        'name': 'Woda 18,9l',
+                        'quantity': 4,
+                        'selected_quantity': 2,
+                        'is_rental': false,
+                      },
+                    ],
+                  },
+                ],
+              },
+              products: const [],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dzierżawa + 4 galony'), findsOneWidget);
+      expect(find.textContaining('W pakiecie do 4 szt.'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('Cena do zapłaty: 59.00 zł'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'opłata pierwszego miesiąca dzierżawy jest wybierana przy obsłudze klienta',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);

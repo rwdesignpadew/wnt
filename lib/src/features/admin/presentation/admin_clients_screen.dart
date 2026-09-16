@@ -8,6 +8,7 @@ import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
 import 'admin_client_full_edit_screen.dart';
+import 'admin_client_trials_screen.dart';
 import 'admin_client_stats_screen.dart';
 import 'admin_monthly_wz_summary_screen.dart';
 import 'admin_route_edit_screen.dart';
@@ -198,17 +199,29 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                   );
                 }
                 if (index == 2) {
-                  return SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const AdminMonthlyWzSummaryScreen(),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AdminClientTrialsScreen(),
+                          ),
                         ),
+                        icon: const Icon(Icons.science_outlined),
+                        label: const Text('Klienci testowi'),
                       ),
-                      icon: const Icon(Icons.attach_email_outlined),
-                      label: const Text('WZ do faktur miesięcznych'),
-                    ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AdminMonthlyWzSummaryScreen(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.attach_email_outlined),
+                        label: const Text('WZ do faktur miesięcznych'),
+                      ),
+                    ],
                   );
                 }
                 if (index == 3) {

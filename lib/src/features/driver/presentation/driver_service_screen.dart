@@ -35,6 +35,7 @@ class DriverServiceScreen extends ConsumerStatefulWidget {
 class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _quantities = <int, int>{};
   final _packageQuantities = <int, int>{};
+  final _packageComponentQuantities = <int, Map<int, int>>{};
   final _returnQuantities = <int, int>{};
   final _rentalReturns = <int, int>{};
   final _damagedRentalIds = <int>{};
@@ -54,6 +55,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   bool _showSanitization = false;
   Map<String, dynamic>? _sanitization;
   final Map<int, int> _completedSanitizationEquipment = {};
+  final Set<String> _completedSanitizationUnitKeys = {};
   late String _paymentMethod;
 
   DriverNavigationDestination? get _clientDestination {
@@ -120,9 +122,29 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
     for (final packageItem in _list(widget.document['packages'])) {
-      _packageQuantities[_int(packageItem['id'])] = _int(
-        packageItem['quantity'],
-      );
+      final packageId = _int(packageItem['id']);
+      final available =
+          packageItem['available'] != false ||
+          packageItem['used_by_this_document'] == true;
+      _packageQuantities[packageId] = available
+          ? _int(packageItem['quantity'])
+          : 0;
+      _packageComponentQuantities[packageId] = {
+        for (final component in _list(packageItem['components']))
+          _int(component['product_id']): _int(
+            component['selected_quantity'] ?? component['quantity'],
+          ),
+      };
+    }
+    final trialRequest = _map(widget.document['trial_request']);
+    if (trialRequest?['action']?.toString() == 'pickup') {
+      for (final item in _list(trialRequest?['items'])) {
+        final rentalItemId = _int(item['rental_item_id']);
+        if (rentalItemId > 0) {
+          _rentalReturns[rentalItemId] = _int(item['quantity']);
+        }
+      }
+      _showRentalReturns = true;
     }
     for (final product in widget.products) {
       if (_isReturnProduct(product) &&
@@ -224,7 +246,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ? _selectedSanitizationCount()
         : 0;
     if (sanitizationSelected && selectedSanitizationCount < 1) {
-      _message('Wybierz wykonane dystrybutory do sanityzacji.', error: true);
+      _message('Wybierz wykonane urządzenia do sanityzacji.', error: true);
       return;
     }
     final sanitizationId = sanitizationSelected
@@ -273,6 +295,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         documentId: documentId,
         quantities: _quantities,
         packageQuantities: _packageQuantities,
+        packageComponentQuantities: _packageComponentQuantities,
         paymentMethod: _paymentMethod,
         signatureData: _signatureData!,
         signedBy: _signedBy.text.trim(),
@@ -474,6 +497,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         documentId: documentId,
         quantities: _quantities,
         packageQuantities: _packageQuantities,
+        packageComponentQuantities: _packageComponentQuantities,
         paymentMethod: _paymentMethod,
         signatureData: _signatureData!,
         signedBy: _signedBy.text.trim(),
@@ -709,9 +733,23 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         isCompany ||
         recurringInvoice ||
         _customerRequestsInvoice;
-    final hideTransferPrices = _paymentMethod == 'transfer';
     final location = _map(widget.document['location']);
     final rentalRequest = _map(widget.document['rental_request']);
+    final trialRequest = _map(widget.document['trial_request']);
+    final isTrialDocument = trialRequest != null;
+    final trialIssueProductIds = trialRequest?['action'] == 'issue'
+        ? _list(trialRequest?['items'])
+              .map((item) => _int(item['product_id']))
+              .where((id) => id > 0)
+              .toSet()
+        : <int>{};
+    final trialPickupRentalIds = trialRequest?['action'] == 'pickup'
+        ? _list(trialRequest?['items'])
+              .map((item) => _int(item['rental_item_id']))
+              .where((id) => id > 0)
+              .toSet()
+        : <int>{};
+    final hideTransferPrices = _paymentMethod == 'transfer' || isTrialDocument;
     final permanentDocumentNotes = '${widget.document['document_notes'] ?? ''}'
         .trim();
     final returnAvailability =
@@ -731,20 +769,24 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   _returnKind(product) == _ReturnKind.smallBottleDeposit),
         )
         .toList();
-    final returnProducts = _returnProductsForDisplay(allReturnProducts)
-        .where(
-          (product) =>
-              _isAlwaysVisibleReturn(product) ||
-              _returnKind(product) == _ReturnKind.co2Bottle ||
-              _returnKind(product) == _ReturnKind.damagedGallon ||
-              _returnAvailableQuantity(product, returnAvailability) > 0,
-        )
-        .toList();
+    final returnProducts = isTrialDocument
+        ? <Map<String, dynamic>>[]
+        : _returnProductsForDisplay(allReturnProducts)
+              .where(
+                (product) =>
+                    _isAlwaysVisibleReturn(product) ||
+                    _returnKind(product) == _ReturnKind.co2Bottle ||
+                    _returnKind(product) == _ReturnKind.damagedGallon ||
+                    _returnAvailableQuantity(product, returnAvailability) > 0,
+              )
+              .toList();
     final saleProducts = widget.products
         .where(
           (product) =>
               !_isReturnProduct(product) &&
-              _returnKind(product) != _ReturnKind.smallBottleDeposit,
+              _returnKind(product) != _ReturnKind.smallBottleDeposit &&
+              (!isTrialDocument ||
+                  trialIssueProductIds.contains(_int(product['id']))),
         )
         .toList();
     // The API already limits this collection to products explicitly enabled
@@ -774,10 +816,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final rentals = _list(widget.document['rental_items'])
         .where(
           (item) =>
-              _int(item['quantity']) > 0 && !_isRackName(item['product_name']),
+              _int(item['quantity']) > 0 &&
+              !_isRackName(item['product_name']) &&
+              (!isTrialDocument ||
+                  trialPickupRentalIds.contains(_int(item['id']))),
         )
         .toList();
-    final packages = _list(widget.document['packages']);
+    final packages = isTrialDocument
+        ? <Map<String, dynamic>>[]
+        : _list(widget.document['packages']);
     final locationName = location?['name']?.toString();
     final clientName = client['name']?.toString() ?? 'Klient';
     final title = locationName?.isNotEmpty == true
@@ -869,6 +916,30 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               context,
             ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
           ),
+          if (trialRequest != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: trialRequest['action'] == 'pickup'
+                    ? WntColors.errorSoft
+                    : WntColors.brand.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: trialRequest['action'] == 'pickup'
+                      ? WntColors.error
+                      : WntColors.brand,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                trialRequest['action'] == 'pickup'
+                    ? 'Odbiór sprzętu po testach. Sprawdź ilości zwrotu i pobierz podpis.'
+                    : 'Wydanie testowe bez opłat na ${_int(trialRequest['duration_days'])} dni. Produkty schodzą ze stanu, ale WZ ma wartość 0,00 zł.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
           if (widget.document['delivery_route_id'] != null &&
               widget.document['status'] != 'completed') ...[
             const SizedBox(height: 12),
@@ -908,6 +979,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     netUnitPrice: _effectiveProductPrice(visible[index]),
                     useGross: useGross,
                     showPrices: !hideTransferPrices,
+                    locked: trialIssueProductIds.contains(
+                      _int(visible[index]['id']),
+                    ),
                     onChanged: (value) => setState(
                       () => _quantities[_int(visible[index]['id'])] = value,
                     ),
@@ -934,10 +1008,34 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       packageItem: packages[index],
                       value:
                           _packageQuantities[_int(packages[index]['id'])] ?? 0,
-                      onChanged: (value) => setState(
-                        () => _packageQuantities[_int(packages[index]['id'])] =
-                            value,
-                      ),
+                      componentQuantities:
+                          _packageComponentQuantities[_int(
+                            packages[index]['id'],
+                          )] ??
+                          const {},
+                      onChanged: (value) => setState(() {
+                        final packageId = _int(packages[index]['id']);
+                        _packageQuantities[packageId] = value.clamp(0, 1);
+                        if (value > 0) {
+                          final selected = _packageComponentQuantities
+                              .putIfAbsent(packageId, () => {});
+                          for (final component in _list(
+                            packages[index]['components'],
+                          )) {
+                            selected.putIfAbsent(
+                              _int(component['product_id']),
+                              () => _int(component['quantity']),
+                            );
+                          }
+                        }
+                      }),
+                      onComponentChanged: (productId, value) => setState(() {
+                        final packageId = _int(packages[index]['id']);
+                        _packageComponentQuantities.putIfAbsent(
+                          packageId,
+                          () => {},
+                        )[productId] = value;
+                      }),
                     ),
                     if (index < packages.length - 1) const Divider(),
                   ],
@@ -1084,6 +1182,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   _showSanitization = !_showSanitization;
                   if (!_showSanitization) {
                     _completedSanitizationEquipment.clear();
+                    _completedSanitizationUnitKeys.clear();
                     _sanitizationNotes.clear();
                   }
                 }),
@@ -1119,7 +1218,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Wybierz typ i liczbę urządzeń'),
+                        Text(
+                          _sanitizationEquipmentUnits().isNotEmpty
+                              ? 'Wybierz wykonane urządzenia'
+                              : 'Wybierz typ i liczbę urządzeń',
+                        ),
                         Text(
                           '${_selectedSanitizationCount()} z ${_int(_sanitization!['dispenser_count'])}',
                           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -1127,8 +1230,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    for (final equipment in _sanitizationEquipment())
-                      _sanitizationEquipmentRow(equipment),
+                    if (_sanitizationEquipmentUnits().isNotEmpty)
+                      for (final unit in _sanitizationEquipmentUnits())
+                        _sanitizationEquipmentUnitRow(unit)
+                    else
+                      for (final equipment in _sanitizationEquipment())
+                        _sanitizationEquipmentRow(equipment),
                     if (_selectedSanitizationCount() <
                         _int(_sanitization!['dispenser_count']))
                       Padding(
@@ -1206,6 +1313,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                         damageController: _damageNotes.putIfAbsent(
                           _int(rentals[index]['id']),
                           TextEditingController.new,
+                        ),
+                        locked: trialPickupRentalIds.contains(
+                          _int(rentals[index]['id']),
                         ),
                         onChanged: (value) => setState(
                           () => _rentalReturns[_int(rentals[index]['id'])] =
@@ -1536,9 +1646,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       }
     }
     if (_showSanitization) {
-      for (final equipment in _sanitizationEquipment()) {
-        final rentalItemId = _int(equipment['rental_item_id']);
-        final quantity = _completedSanitizationEquipment[rentalItemId] ?? 0;
+      for (final equipment in _selectedSanitizationEquipment()) {
+        final quantity = _int(equipment['quantity']);
         if (quantity > 0) {
           wzLines.add(
             'Sanityzacja - ${equipment['equipment_name']} — $quantity szt.',
@@ -1698,26 +1807,75 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     ];
   }
 
-  int _selectedSanitizationCount() => _completedSanitizationEquipment.values
-      .fold<int>(0, (sum, quantity) => sum + quantity);
+  List<Map<String, dynamic>> _sanitizationEquipmentUnits() =>
+      _list(_sanitization?['equipment_units']);
 
-  List<Map<String, dynamic>> _selectedSanitizationEquipment() => [
-    for (final equipment in _sanitizationEquipment())
-      if (equipment['legacy'] != true &&
-          (_completedSanitizationEquipment[_int(equipment['rental_item_id'])] ??
-                  0) >
-              0)
-        {
-          'rental_item_id': _int(equipment['rental_item_id']),
-          'quantity':
-              _completedSanitizationEquipment[_int(
-                equipment['rental_item_id'],
-              )]!,
-        },
-  ];
+  int _selectedSanitizationCount() {
+    if (_sanitizationEquipmentUnits().isNotEmpty) {
+      return _completedSanitizationUnitKeys.length;
+    }
+
+    return _completedSanitizationEquipment.values.fold<int>(
+      0,
+      (sum, quantity) => sum + quantity,
+    );
+  }
+
+  List<Map<String, dynamic>> _selectedSanitizationEquipment() {
+    final units = _sanitizationEquipmentUnits();
+    if (units.isNotEmpty) {
+      final grouped = <int, List<Map<String, dynamic>>>{};
+      for (final unit in units) {
+        final key = '${unit['key']}';
+        if (!_completedSanitizationUnitKeys.contains(key)) continue;
+        grouped.putIfAbsent(_int(unit['rental_item_id']), () => []).add(unit);
+      }
+
+      return grouped.entries.map((entry) {
+        final first = entry.value.first;
+        return <String, dynamic>{
+          'rental_item_id': entry.key,
+          'equipment_name':
+              '${first['equipment_name'] ?? first['label'] ?? 'Urządzenie'}',
+          'quantity': entry.value.length,
+          'unit_keys': entry.value.map((unit) => '${unit['key']}').toList(),
+        };
+      }).toList();
+    }
+
+    return [
+      for (final equipment in _sanitizationEquipment())
+        if (equipment['legacy'] != true &&
+            (_completedSanitizationEquipment[_int(
+                      equipment['rental_item_id'],
+                    )] ??
+                    0) >
+                0)
+          {
+            'rental_item_id': _int(equipment['rental_item_id']),
+            'equipment_name': '${equipment['equipment_name'] ?? 'Urządzenie'}',
+            'quantity':
+                _completedSanitizationEquipment[_int(
+                  equipment['rental_item_id'],
+                )]!,
+          },
+    ];
+  }
 
   double _sanitizationCharge({required bool gross}) {
     if (!_showSanitization) return 0;
+
+    final units = _sanitizationEquipmentUnits();
+    if (units.isNotEmpty) {
+      return units.fold<double>(0, (sum, unit) {
+        if (!_completedSanitizationUnitKeys.contains('${unit['key']}')) {
+          return sum;
+        }
+        final net = double.tryParse('${unit['unit_price_net'] ?? 0}') ?? 0;
+        final vat = double.tryParse('${unit['vat_rate'] ?? 23}') ?? 23;
+        return sum + net * (gross ? 1 + vat / 100 : 1);
+      });
+    }
 
     return _sanitizationEquipment().fold<double>(0, (sum, equipment) {
       final quantity =
@@ -1727,6 +1885,35 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       final vat = double.tryParse('${equipment['vat_rate'] ?? 23}') ?? 23;
       return sum + quantity * net * (gross ? 1 + vat / 100 : 1);
     });
+  }
+
+  Widget _sanitizationEquipmentUnitRow(Map<String, dynamic> unit) {
+    final key = '${unit['key']}';
+    final selected = _completedSanitizationUnitKeys.contains(key);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: selected ? WntColors.brand : WntColors.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: CheckboxListTile(
+        value: selected,
+        onChanged: (checked) => setState(() {
+          if (checked == true) {
+            _completedSanitizationUnitKeys.add(key);
+          } else {
+            _completedSanitizationUnitKeys.remove(key);
+          }
+        }),
+        title: Text(
+          '${unit['label'] ?? unit['equipment_name'] ?? 'Urządzenie'}',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        controlAffinity: ListTileControlAffinity.leading,
+      ),
+    );
   }
 
   Widget _sanitizationEquipmentRow(Map<String, dynamic> equipment) {
@@ -2207,42 +2394,113 @@ class _PackageRow extends StatelessWidget {
   const _PackageRow({
     required this.packageItem,
     required this.value,
+    required this.componentQuantities,
     required this.onChanged,
+    required this.onComponentChanged,
   });
   final Map<String, dynamic> packageItem;
   final int value;
+  final Map<int, int> componentQuantities;
   final ValueChanged<int> onChanged;
+  final void Function(int productId, int value) onComponentChanged;
 
   @override
   Widget build(BuildContext context) {
     final components = _list(packageItem['components']);
+    final available =
+        packageItem['available'] != false ||
+        packageItem['used_by_this_document'] == true;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${packageItem['name']}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${packageItem['name']}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      available
+                          ? 'Pakiet można rozliczyć raz w miesiącu.'
+                          : 'Pakiet wykorzystany w tym miesiącu. Kolejne wydanie wody jest płatne normalnie.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: available ? WntColors.muted : WntColors.error,
+                        fontWeight: available ? null : FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                for (final component in components)
-                  Text(
-                    '${_int(component['quantity'])} x ${component['name']}'
-                    '${component['is_rental'] == true ? ' (dzierżawa)' : ''}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
-                  ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Switch.adaptive(
+                value: value > 0,
+                onChanged: available
+                    ? (selected) => onChanged(selected ? 1 : 0)
+                    : null,
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          QuantityStepper(value: value, onChanged: onChanged),
+          if (value > 0) ...[
+            const SizedBox(height: 8),
+            for (final component in components)
+              Container(
+                margin: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: WntColors.canvas,
+                  border: Border.all(color: WntColors.line),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${component['name']}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            component['is_rental'] == true
+                                ? 'Sprzęt w pakiecie — wydanie jednorazowe'
+                                : 'W pakiecie do ${_int(component['quantity'])} szt.; wpisz faktycznie wydaną ilość.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: WntColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (component['is_rental'] == true)
+                      Text(
+                        '${_int(component['quantity'])} szt.',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      )
+                    else
+                      QuantityStepper(
+                        value:
+                            componentQuantities[_int(
+                              component['product_id'],
+                            )] ??
+                            _int(component['quantity']),
+                        compact: true,
+                        onChanged: (next) => onComponentChanged(
+                          _int(component['product_id']),
+                          next.clamp(0, _int(component['quantity'])),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -2256,6 +2514,7 @@ class _ProductRow extends StatelessWidget {
     required this.netUnitPrice,
     required this.useGross,
     required this.showPrices,
+    required this.locked,
     required this.onChanged,
   });
   final Map<String, dynamic> product;
@@ -2263,6 +2522,7 @@ class _ProductRow extends StatelessWidget {
   final double netUnitPrice;
   final bool useGross;
   final bool showPrices;
+  final bool locked;
   final ValueChanged<int> onChanged;
   @override
   Widget build(BuildContext context) {
@@ -2297,7 +2557,21 @@ class _ProductRow extends StatelessWidget {
               ],
             ),
           ),
-          QuantityStepper(value: value, onChanged: onChanged, compact: true),
+          if (locked)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: WntColors.canvas,
+                border: Border.all(color: WntColors.line),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$value szt.',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          else
+            QuantityStepper(value: value, onChanged: onChanged, compact: true),
         ],
       ),
     );
@@ -2310,6 +2584,7 @@ class _RentalReturnRow extends StatelessWidget {
     required this.value,
     required this.damaged,
     required this.damageController,
+    required this.locked,
     required this.onChanged,
     required this.onDamaged,
   });
@@ -2317,6 +2592,7 @@ class _RentalReturnRow extends StatelessWidget {
   final int value;
   final bool damaged;
   final TextEditingController damageController;
+  final bool locked;
   final ValueChanged<int> onChanged;
   final ValueChanged<bool> onDamaged;
   @override
@@ -2332,7 +2608,28 @@ class _RentalReturnRow extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            QuantityStepper(value: value, onChanged: onChanged, compact: true),
+            if (locked)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: WntColors.canvas,
+                  border: Border.all(color: WntColors.line),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$value szt.',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              )
+            else
+              QuantityStepper(
+                value: value,
+                onChanged: onChanged,
+                compact: true,
+              ),
           ],
         ),
         if (value > 0)

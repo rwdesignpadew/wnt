@@ -67,10 +67,7 @@ void main() {
       expect(mobile, contains("value: 'new'"));
       expect(routes, contains('/sanitizations/{sanitization}/plan-route'));
       expect(controller, contains('function planSanitizationRoute'));
-      expect(
-        controller,
-        contains("['overdue', 'in_progress']"),
-      );
+      expect(controller, contains("['overdue', 'in_progress']"));
       expect(mobile, contains('WntSearchableSelectField('));
       expect(mobile, contains('Wpisz nazwę klienta'));
     },
@@ -311,7 +308,7 @@ void main() {
     }
   });
 
-  test('klient może zamówić sanityzację z limitem lokalizacji', () {
+  test('klient wybiera konkretne urządzenia do sanityzacji na żądanie', () {
     final screen = File(
       'lib/src/features/client/presentation/client_service_screen.dart',
     ).readAsStringSync();
@@ -330,13 +327,72 @@ void main() {
 
     expect(screen, contains('Sanityzacje na żądanie'));
     expect(screen, contains('max_dispenser_count'));
+    expect(screen, contains('CheckboxListTile'));
+    expect(screen, contains('selectedUnits'));
+    expect(screen, isNot(contains('Liczba elementów do sanityzacji')));
     expect(screen, contains('Zamów sanityzację'));
     expect(repository, contains('/mobile/client/sanitizations'));
+    expect(repository, contains("'equipment_units': equipmentUnits"));
     expect(routes, contains("/client/sanitizations'"));
     expect(controller, contains('function storeSanitization'));
+    expect(controller, contains("'equipment_units'"));
     expect(service, contains("'is_on_request' => true"));
-    expect(service, contains('Wybierz od 1 do '));
+    expect(service, contains("'equipment_plan' => \$equipmentPlan"));
     expect(service, contains('jest już otwarte zgłoszenie'));
+  });
+
+  test('mobilny administrator wybiera konkretne urządzenia na trasie', () {
+    final screen = File(
+      'lib/src/features/admin/presentation/admin_route_edit_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+
+    expect(screen, contains('Sanityzacje na trasie'));
+    expect(screen, contains('Wybierz konkretne urządzenia'));
+    expect(screen, contains("'sanitization_equipment': _strings"));
+    expect(screen, contains('_SanitizationEquipmentPicker'));
+    expect(screen, contains('CheckboxListTile'));
+    expect(screen, contains("sanitization['sanitization_task_equipment']"));
+    expect(screen, contains('Sanityzacja na żądanie'));
+    expect(screen, isNot(contains('sanitization_count')));
+    expect(controller, contains("'stops.*.sanitization_equipment'"));
+    expect(controller, contains('syncMobileRouteSanitizations'));
+    expect(controller, contains('array_key_exists(\'sanitization_equipment\''));
+    expect(controller, contains('syncRouteSelections'));
+  });
+
+  test('edycja klienta zachowuje opis i osobny cykl urzadzenia', () {
+    final screen = File(
+      'lib/src/features/admin/presentation/admin_client_full_edit_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+
+    expect(screen, contains("'equipment_label'"));
+    expect(screen, contains("'last_sanitized_on'"));
+    expect(screen, contains("'sanitization_interval_days'"));
+    expect(controller, contains("'rental_items.*.equipment_label'"));
+    expect(controller, contains("'equipment_label' =>"));
+  });
+
+  test('kierowca potwierdza dokładnie urządzenia wybrane do sanityzacji', () {
+    final screen = File(
+      'lib/src/features/driver/presentation/driver_service_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileDriverController.php',
+    ).readAsStringSync();
+
+    expect(screen, contains('_completedSanitizationUnitKeys'));
+    expect(screen, contains("_sanitization?['equipment_units']"));
+    expect(screen, contains("'unit_keys': entry.value.map"));
+    expect(screen, contains('Wybierz wykonane urządzenia'));
+    expect(screen, contains('_sanitizationEquipmentUnitRow'));
+    expect(controller, contains("'equipment_units' =>"));
+    expect(controller, contains("'sanitization_equipment.*.unit_keys'"));
   });
 
   test('klient zawsze widzi usługi i może zamówić dzierżawę dystrybutora', () {

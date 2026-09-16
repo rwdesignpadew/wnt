@@ -202,6 +202,32 @@ class AdminRepository {
       _api.delete('/mobile/admin/routes/$id', token: token);
   Future<List<Map<String, dynamic>>> clients(String token) async =>
       _items(await _api.get('/mobile/admin/clients', token: token));
+  Future<Map<String, dynamic>> clientTrials(
+    String token, {
+    String status = 'open',
+    String search = '',
+  }) => _api.get(
+    '/mobile/admin/client-trials?${Uri(queryParameters: {'status': status, if (search.trim().isNotEmpty) 'search': search.trim()}).query}',
+    token: token,
+  );
+  Future<Map<String, dynamic>> convertClientTrial(
+    String token,
+    int id,
+    Map<int, double> prices,
+  ) => _api.post(
+    '/mobile/admin/client-trials/$id/convert',
+    token: token,
+    body: {'prices': prices.map((key, value) => MapEntry('$key', value))},
+  );
+  Future<Map<String, dynamic>> pickupClientTrial(
+    String token,
+    int id,
+    Map<String, dynamic> body,
+  ) => _api.post(
+    '/mobile/admin/client-trials/$id/pickup',
+    token: token,
+    body: body,
+  );
   Future<Map<String, dynamic>> client(String token, int id) =>
       _api.get('/mobile/admin/clients/$id', token: token);
   Future<Map<String, dynamic>> clientStats(

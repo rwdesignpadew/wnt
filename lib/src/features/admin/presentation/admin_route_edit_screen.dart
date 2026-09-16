@@ -82,6 +82,9 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 'location_id': _locationId(stop),
                 'products': _intMap(stop['products']),
                 'packages': _intMap(stop['packages']),
+                'sanitization_equipment': _strings(
+                  stop['sanitization_equipment'],
+                ),
               },
             )
             .toList();
@@ -130,6 +133,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'location_id': _int(location['id']),
       'products': <String, int>{},
       'packages': <String, int>{},
+      'sanitization_equipment': <String>[],
     });
     _initialProductsStopIndex = _stops.length - 1;
   }
@@ -226,6 +230,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'location_id': _int(location['id']),
       'products': <String, int>{},
       'packages': <String, int>{},
+      'sanitization_equipment': <String>[],
     };
     if (_stops.any((item) => _stopKey(item) == _stopKey(stop))) {
       _message('Ta lokalizacja jest już na trasie.', error: true);
@@ -244,8 +249,10 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       useSafeArea: true,
       builder: (_) => _ProductPicker(
         products: _products,
-        visibleIds: _ints(client['visible_product_ids']).toSet(),
-        prices: _map(client['prices']),
+        visibleIds: _ints(
+          location?['visible_product_ids'] ?? client['visible_product_ids'],
+        ).toSet(),
+        prices: _map(location?['prices'] ?? client['prices']),
         quantities: Map<String, int>.from(_intMap(_stops[index]['products'])),
         packages: _maps(location?['packages']),
         packageQuantities: Map<String, int>.from(
@@ -258,6 +265,45 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
         _stops[index]['products'] = result['products'];
         _stops[index]['packages'] = result['packages'];
       });
+    }
+  }
+
+  Future<void> _editSanitization(int index) async {
+    final location = _location(_stops[index]);
+    final sanitization = _map(location?['sanitization']);
+    final dueDate = DateTime.tryParse(
+      '${sanitization['sanitization_due_date'] ?? ''}',
+    );
+    final status = '${sanitization['sanitization_status'] ?? ''}';
+    final dueForRoute =
+        status == 'in_progress' ||
+        status == 'overdue' ||
+        sanitization['sanitization_is_overdue'] == true ||
+        (dueDate != null && !dueDate.isAfter(_date));
+    final allEquipment = _maps(sanitization['sanitization_equipment']);
+    final taskEquipment = _maps(sanitization['sanitization_task_equipment']);
+    final equipment = dueForRoute && taskEquipment.isNotEmpty
+        ? taskEquipment
+        : allEquipment;
+    if (equipment.isEmpty) {
+      _message(
+        'Ta lokalizacja nie ma sprzętu wymagającego sanityzacji.',
+        error: true,
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _SanitizationEquipmentPicker(
+        equipment: equipment,
+        selected: _strings(_stops[index]['sanitization_equipment']),
+        selectAllInitially: dueForRoute,
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _stops[index]['sanitization_equipment'] = selected);
     }
   }
 
@@ -522,6 +568,28 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       ...quantities.values,
       ...packageQuantities.values,
     ].fold<int>(0, (sum, value) => sum + value);
+    final sanitization = _map(location?['sanitization']);
+    final sanitizationEquipment = _maps(sanitization['sanitization_equipment']);
+    final selectedSanitizationEquipment = _strings(
+      stop['sanitization_equipment'],
+    );
+    final sanitationStatus = '${sanitization['sanitization_status'] ?? ''}';
+    final sanitationDueDate = DateTime.tryParse(
+      '${sanitization['sanitization_due_date'] ?? ''}',
+    );
+    final sanitationUrgent =
+        sanitationStatus == 'in_progress' ||
+        sanitationStatus == 'overdue' ||
+        sanitization['sanitization_is_overdue'] == true ||
+        (sanitationDueDate != null && !sanitationDueDate.isAfter(_date));
+    final sanitationSelected = selectedSanitizationEquipment.isNotEmpty;
+    final sanitationLabel = sanitationSelected
+        ? 'Sanityzacja do wykonania: ${selectedSanitizationEquipment.length} szt.'
+        : sanitationStatus == 'in_progress'
+        ? 'Sanityzacja do dokończenia'
+        : sanitationUrgent
+        ? 'Zaległa sanityzacja'
+        : 'Sanityzacja na żądanie';
     return Card(
       key: ValueKey('${_stopKey(stop)}-$index'),
       margin: const EdgeInsets.only(bottom: 10),
@@ -585,8 +653,13 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                         )
                         .toList(),
                     onChanged: (value) {
-                      if (value != null) {
-                        setState(() => stop['location_id'] = value);
+                      if (value != null && value != _int(stop['location_id'])) {
+                        setState(() {
+                          stop['location_id'] = value;
+                          stop['products'] = <String, int>{};
+                          stop['packages'] = <String, int>{};
+                          stop['sanitization_equipment'] = <String>[];
+                        });
                       }
                     },
                   ),
@@ -603,6 +676,26 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 ),
               ],
             ),
+            if (sanitizationEquipment.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: sanitationUrgent || sanitationSelected
+                    ? FilledButton.icon(
+                        onPressed: () => _editSanitization(index),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: WntColors.error,
+                        ),
+                        icon: const Icon(Icons.cleaning_services_outlined),
+                        label: Text(sanitationLabel),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: () => _editSanitization(index),
+                        icon: const Icon(Icons.cleaning_services_outlined),
+                        label: Text(sanitationLabel),
+                      ),
+              ),
+            ],
           ],
         ),
       ),
@@ -617,6 +710,156 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       ),
     );
   }
+}
+
+class _SanitizationEquipmentPicker extends StatefulWidget {
+  const _SanitizationEquipmentPicker({
+    required this.equipment,
+    required this.selected,
+    required this.selectAllInitially,
+  });
+
+  final List<Map<String, dynamic>> equipment;
+  final List<String> selected;
+  final bool selectAllInitially;
+
+  @override
+  State<_SanitizationEquipmentPicker> createState() =>
+      _SanitizationEquipmentPickerState();
+}
+
+class _SanitizationEquipmentPickerState
+    extends State<_SanitizationEquipmentPicker> {
+  late final Set<String> selected;
+
+  @override
+  void initState() {
+    super.initState();
+    final allowed = widget.equipment
+        .where((item) => item['selectable'] != false)
+        .map((item) => '${item['key']}')
+        .where((key) => key.isNotEmpty)
+        .toSet();
+    selected = widget.selected.where(allowed.contains).toSet();
+    if (selected.isEmpty && widget.selectAllInitially) {
+      selected.addAll(allowed);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .9,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sanityzacje na trasie',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Wybierz konkretne urządzenia, które kierowca ma poddać sanityzacji.',
+                      style: TextStyle(color: WntColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Zamknij',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: widget.equipment.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final item = widget.equipment[index];
+              final key = '${item['key']}';
+              final selectable = item['selectable'] != false;
+              final completed =
+                  item['completed'] == true ||
+                  '${item['selection_state']}' == 'completed';
+              return Container(
+                decoration: BoxDecoration(
+                  color: selectable ? Colors.white : WntColors.canvas,
+                  border: Border.all(color: WntColors.line),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: CheckboxListTile(
+                  value: selected.contains(key),
+                  onChanged: selectable
+                      ? (checked) => setState(() {
+                          if (checked == true) {
+                            selected.add(key);
+                          } else {
+                            selected.remove(key);
+                          }
+                        })
+                      : null,
+                  title: Text(
+                    '${item['label'] ?? item['equipment_name'] ?? 'Urządzenie'}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: selectable ? null : WntColors.muted,
+                    ),
+                  ),
+                  subtitle: !selectable
+                      ? Text(completed ? 'Wykonana' : 'Poza tym zadaniem')
+                      : null,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: WntColors.line)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, <String>[]),
+                    child: const Text('Usuń z trasy'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: selected.isEmpty
+                        ? null
+                        : () => Navigator.pop(
+                            context,
+                            selected.toList(growable: false),
+                          ),
+                    child: Text('Zapisz (${selected.length})'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ClientPicker extends StatefulWidget {
@@ -902,6 +1145,12 @@ Map<String, int> _intMap(dynamic value) => value is Map
     : {};
 List<int> _ints(dynamic value) =>
     value is List ? value.map(_int).where((id) => id > 0).toList() : [];
+List<String> _strings(dynamic value) => value is List
+    ? value
+          .map((item) => '$item'.trim())
+          .where((item) => item.isNotEmpty)
+          .toList()
+    : [];
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
 int _locationId(Map<String, dynamic> stop) =>
     _int(stop['location_id'] ?? stop['client_location_id']);
