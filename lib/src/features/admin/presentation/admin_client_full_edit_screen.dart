@@ -1415,32 +1415,42 @@ class _LocationPackageEditorState extends State<_LocationPackageEditor> {
               final product = widget.products[index];
               final id = _int(product['id']);
               final quantity = quantities[id] ?? 0;
+              final canBeRental = _bool(product['available_for_rental']);
+              final isRental = rentalIds.contains(id);
               return ListTile(
                 title: Text('${product['name']}'),
-                subtitle: quantity > 0
+                subtitle: canBeRental
                     ? CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
-                        title: const Text('Element dzierżawy'),
-                        value: rentalIds.contains(id),
-                        onChanged: (value) => setState(
-                          () => value == true
-                              ? rentalIds.add(id)
-                              : rentalIds.remove(id),
+                        title: const Text('Dzierżawa / wydawany sprzęt'),
+                        subtitle: const Text(
+                          'Bez licznika — pakiet może wydać maksymalnie 1 szt.',
                         ),
+                        value: isRental,
+                        onChanged: (value) => setState(() {
+                          if (value == true) {
+                            rentalIds.add(id);
+                            quantities[id] = 1;
+                          } else {
+                            rentalIds.remove(id);
+                          }
+                        }),
                       )
                     : null,
-                trailing: _PackageCounter(
-                  value: quantity,
-                  onChanged: (value) => setState(() {
-                    if (value < 1) {
-                      quantities.remove(id);
-                      rentalIds.remove(id);
-                    } else {
-                      quantities[id] = value;
-                    }
-                  }),
-                ),
+                trailing: isRental
+                    ? const Chip(label: Text('1 szt.'))
+                    : _PackageCounter(
+                        value: quantity,
+                        onChanged: (value) => setState(() {
+                          if (value < 1) {
+                            quantities.remove(id);
+                            rentalIds.remove(id);
+                          } else {
+                            quantities[id] = value;
+                          }
+                        }),
+                      ),
               );
             },
           ),

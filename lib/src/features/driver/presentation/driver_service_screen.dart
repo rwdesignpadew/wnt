@@ -181,6 +181,123 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     super.dispose();
   }
 
+  int _packageAllowanceForProduct(int productId) {
+    var total = 0;
+    for (final packageItem in _list(widget.document['packages'])) {
+      final packageId = _int(packageItem['id']);
+      final packageQuantity = _packageQuantities[packageId] ?? 0;
+      if (packageQuantity < 1) continue;
+      for (final component in _list(packageItem['components'])) {
+        if (_flag(component['is_rental']) ||
+            _int(component['product_id']) != productId) {
+          continue;
+        }
+        total += _int(component['quantity']) * packageQuantity;
+      }
+    }
+    return total;
+  }
+
+  int _packageCoveredForProduct(int productId) {
+    var total = 0;
+    for (final packageItem in _list(widget.document['packages'])) {
+      final packageId = _int(packageItem['id']);
+      if ((_packageQuantities[packageId] ?? 0) < 1) continue;
+      for (final component in _list(packageItem['components'])) {
+        if (_flag(component['is_rental']) ||
+            _int(component['product_id']) != productId) {
+          continue;
+        }
+        total += _packageComponentQuantities[packageId]?[productId] ?? 0;
+      }
+    }
+    return total;
+  }
+
+  int _deliveredProductQuantity(int productId) =>
+      (_quantities[productId] ?? 0) + _packageCoveredForProduct(productId);
+
+  void _setDeliveredProductQuantity(int productId, int quantity) {
+    var remaining = quantity.clamp(0, 999999);
+    for (final packageItem in _list(widget.document['packages'])) {
+      final packageId = _int(packageItem['id']);
+      final packageQuantity = _packageQuantities[packageId] ?? 0;
+      if (packageQuantity < 1) continue;
+      for (final component in _list(packageItem['components'])) {
+        if (_flag(component['is_rental']) ||
+            _int(component['product_id']) != productId) {
+          continue;
+        }
+        final included = _int(component['quantity']) * packageQuantity;
+        final covered = remaining.clamp(0, included);
+        _packageComponentQuantities.putIfAbsent(
+          packageId,
+          () => {},
+        )[productId] = covered;
+        remaining -= covered;
+      }
+    }
+    _quantities[productId] = remaining;
+  }
+
+  void _setPackageSelected(Map<String, dynamic> packageItem, bool selected) {
+    final packageId = _int(packageItem['id']);
+    final components = _list(packageItem['components']);
+    final selectedComponents = _packageComponentQuantities.putIfAbsent(
+      packageId,
+      () => {},
+    );
+    if (!selected) {
+      for (final component in components) {
+        final productId = _int(component['product_id']);
+        final selectedQuantity = selectedComponents[productId] ?? 0;
+        if (!_flag(component['is_rental']) && selectedQuantity > 0) {
+          _quantities[productId] =
+              (_quantities[productId] ?? 0) + selectedQuantity;
+        }
+        selectedComponents[productId] = 0;
+      }
+      _packageQuantities[packageId] = 0;
+      return;
+    }
+
+    _packageQuantities[packageId] = 1;
+    for (final component in components) {
+      final productId = _int(component['product_id']);
+      if (_flag(component['is_rental'])) {
+        selectedComponents[productId] = _flag(component['issue_default'])
+            ? 1
+            : 0;
+        continue;
+      }
+      final included = _int(component['quantity']);
+      final paid = _quantities[productId] ?? 0;
+      if (paid > 0) {
+        final covered = paid.clamp(0, included);
+        selectedComponents[productId] = covered;
+        _quantities[productId] = paid - covered;
+      } else {
+        selectedComponents[productId] = _int(
+          component['selected_quantity'] ?? component['quantity'],
+        ).clamp(0, included);
+      }
+    }
+  }
+
+  String? _packageProductStatus(int productId) {
+    final allowance = _packageAllowanceForProduct(productId);
+    if (allowance < 1) return null;
+    final covered = _packageCoveredForProduct(productId);
+    final paid = _quantities[productId] ?? 0;
+    if (paid > 0) {
+      return 'Pakiet $allowance szt. wykorzystany. Płatne dodatkowo: $paid szt.';
+    }
+    if (covered >= allowance) {
+      return 'Wykorzystano $covered z $allowance szt. z pakietu. Kolejne sztuki będą płatne.';
+    }
+    return 'W pakiecie: $covered z $allowance szt.';
+  }
+
   void _restoreTransporterBottleCount() {
     final transporter = _productForReturnKind(_ReturnKind.transporter);
     final bottles = _productForReturnKind(_ReturnKind.smallBottle);
@@ -761,6 +878,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final itemsIds = _list(
       widget.document['items'],
     ).map((e) => _int(e['product_id'])).toSet();
+    final packageProductIds = _list(widget.document['packages'])
+        .expand((packageItem) => _list(packageItem['components']))
+        .where((component) => !_flag(component['is_rental']))
+        .map((component) => _int(component['product_id']))
+        .where((id) => id > 0)
+        .toSet();
     final allReturnProducts = widget.products
         .where(
           (product) =>
@@ -796,7 +919,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         .where(
           (product) =>
               assignedIds.contains(_int(product['id'])) ||
-              itemsIds.contains(_int(product['id'])),
+              itemsIds.contains(_int(product['id'])) ||
+              packageProductIds.contains(_int(product['id'])),
         )
         .toList();
     final remaining = saleProducts
@@ -975,7 +1099,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 for (var index = 0; index < visible.length; index++) ...[
                   _ProductRow(
                     product: visible[index],
-                    value: _quantities[_int(visible[index]['id'])] ?? 0,
+                    value: _deliveredProductQuantity(
+                      _int(visible[index]['id']),
+                    ),
+                    paidValue: _quantities[_int(visible[index]['id'])] ?? 0,
+                    packageStatus: _packageProductStatus(
+                      _int(visible[index]['id']),
+                    ),
                     netUnitPrice: _effectiveProductPrice(visible[index]),
                     useGross: useGross,
                     showPrices: !hideTransferPrices,
@@ -983,7 +1113,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       _int(visible[index]['id']),
                     ),
                     onChanged: (value) => setState(
-                      () => _quantities[_int(visible[index]['id'])] = value,
+                      () => _setDeliveredProductQuantity(
+                        _int(visible[index]['id']),
+                        value,
+                      ),
                     ),
                   ),
                   if (index < visible.length - 1) const Divider(),
@@ -1013,22 +1146,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                             packages[index]['id'],
                           )] ??
                           const {},
-                      onChanged: (value) => setState(() {
-                        final packageId = _int(packages[index]['id']);
-                        _packageQuantities[packageId] = value.clamp(0, 1);
-                        if (value > 0) {
-                          final selected = _packageComponentQuantities
-                              .putIfAbsent(packageId, () => {});
-                          for (final component in _list(
-                            packages[index]['components'],
-                          )) {
-                            selected.putIfAbsent(
-                              _int(component['product_id']),
-                              () => _int(component['quantity']),
-                            );
-                          }
-                        }
-                      }),
+                      onChanged: (value) => setState(
+                        () => _setPackageSelected(packages[index], value > 0),
+                      ),
                       onComponentChanged: (productId, value) => setState(() {
                         final packageId = _int(packages[index]['id']);
                         _packageComponentQuantities.putIfAbsent(
@@ -2463,55 +2583,77 @@ class _PackageRow extends StatelessWidget {
           if (value > 0) ...[
             const SizedBox(height: 8),
             for (final component in components)
-              Container(
-                margin: const EdgeInsets.only(top: 6),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: WntColors.canvas,
-                  border: Border.all(color: WntColors.line),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${component['name']}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            component['is_rental'] == true
-                                ? 'Sprzęt w pakiecie — wydanie jednorazowe'
-                                : 'W pakiecie do ${_int(component['quantity'])} szt.; wpisz faktycznie wydaną ilość.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: WntColors.muted),
-                          ),
-                        ],
-                      ),
+              Builder(
+                builder: (context) {
+                  final productId = _int(component['product_id']);
+                  final included = _int(component['quantity']);
+                  final isRental = _flag(component['is_rental']);
+                  final existingQuantity = _int(component['existing_quantity']);
+                  final availableQuantity = _int(
+                    component['available_quantity'] ?? component['quantity'],
+                  );
+                  final selectedQuantity =
+                      componentQuantities[productId] ??
+                      _int(
+                        component['selected_quantity'] ?? component['quantity'],
+                      );
+                  return Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: WntColors.canvas,
+                      border: Border.all(color: WntColors.line),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 8),
-                    if (component['is_rental'] == true)
-                      Text(
-                        '${_int(component['quantity'])} szt.',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      )
-                    else
-                      QuantityStepper(
-                        value:
-                            componentQuantities[_int(
-                              component['product_id'],
-                            )] ??
-                            _int(component['quantity']),
-                        compact: true,
-                        onChanged: (next) => onComponentChanged(
-                          _int(component['product_id']),
-                          next.clamp(0, _int(component['quantity'])),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${component['name']}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                isRental
+                                    ? existingQuantity > 0
+                                          ? 'Pakiet korzysta ze sprzętu już będącego w tej lokalizacji.'
+                                          : 'Brak sprzętu w lokalizacji — wydanie zaznaczone automatycznie.'
+                                    : 'W pakiecie do $included szt.; wpisz faktycznie wydaną ilość.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: WntColors.muted),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                        const SizedBox(width: 8),
+                        if (isRental)
+                          Checkbox(
+                            value: selectedQuantity > 0,
+                            onChanged: availableQuantity > 0
+                                ? (selected) => onComponentChanged(
+                                    productId,
+                                    selected == true ? 1 : 0,
+                                  )
+                                : null,
+                            semanticLabel: 'Wydaj sprzęt',
+                          )
+                        else
+                          QuantityStepper(
+                            value: selectedQuantity,
+                            compact: true,
+                            onChanged: (next) => onComponentChanged(
+                              productId,
+                              next.clamp(0, included),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
               ),
           ],
         ],
@@ -2524,6 +2666,8 @@ class _ProductRow extends StatelessWidget {
   const _ProductRow({
     required this.product,
     required this.value,
+    required this.paidValue,
+    required this.packageStatus,
     required this.netUnitPrice,
     required this.useGross,
     required this.showPrices,
@@ -2532,6 +2676,8 @@ class _ProductRow extends StatelessWidget {
   });
   final Map<String, dynamic> product;
   final int value;
+  final int paidValue;
+  final String? packageStatus;
   final double netUnitPrice;
   final bool useGross;
   final bool showPrices;
@@ -2564,9 +2710,21 @@ class _ProductRow extends StatelessWidget {
                   ),
                 if (showPrices && value > 0)
                   Text(
-                    'Razem: ${(unitPrice * value).toStringAsFixed(2)} zł',
+                    'Razem płatne: ${(unitPrice * paidValue).toStringAsFixed(2)} zł',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                if (packageStatus != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    packageStatus!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: paidValue > 0
+                          ? WntColors.warning
+                          : WntColors.brand,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2584,7 +2742,12 @@ class _ProductRow extends StatelessWidget {
               ),
             )
           else
-            QuantityStepper(value: value, onChanged: onChanged, compact: true),
+            QuantityStepper(
+              key: ValueKey('product-quantity-${product['id']}'),
+              value: value,
+              onChanged: onChanged,
+              compact: true,
+            ),
         ],
       ),
     );

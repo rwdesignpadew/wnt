@@ -363,6 +363,42 @@ void main() {
     expect(controller, contains('syncRouteSelections'));
   });
 
+  test('edycja trasy pozwala odznaczyć klienta checkboxem', () {
+    final screen = File(
+      'lib/src/features/admin/presentation/admin_route_edit_screen.dart',
+    ).readAsStringSync();
+
+    expect(screen, contains('Checkbox('));
+    expect(screen, contains("value: true"));
+    expect(screen, contains("selected == false"));
+    expect(screen, contains("_stops.removeAt(index)"));
+    expect(screen, contains('Odznacz, aby usunąć klienta z trasy'));
+  });
+
+  test(
+    'pakiet rozdziela sprzęt od produktów i nie używa licznika dzierżawy',
+    () {
+      final clientEditor = File(
+        'lib/src/features/admin/presentation/admin_client_full_edit_screen.dart',
+      ).readAsStringSync();
+      final routeEditor = File(
+        'lib/src/features/admin/presentation/admin_route_edit_screen.dart',
+      ).readAsStringSync();
+      final driverService = File(
+        'lib/src/features/driver/presentation/driver_service_screen.dart',
+      ).readAsStringSync();
+
+      expect(clientEditor, contains('Dzierżawa / wydawany sprzęt'));
+      expect(clientEditor, contains('Bez licznika'));
+      expect(clientEditor, contains('quantities[id] = 1'));
+      expect(routeEditor, contains("component['issue_default']"));
+      expect(routeEditor, contains("semanticLabel: 'Wydaj sprzęt'"));
+      expect(driverService, contains('_packageAllowanceForProduct'));
+      expect(driverService, contains('Kolejne sztuki będą płatne'));
+      expect(driverService, contains('Razem płatne'));
+    },
+  );
+
   test('edycja klienta zachowuje opis i osobny cykl urzadzenia', () {
     final screen = File(
       'lib/src/features/admin/presentation/admin_client_full_edit_screen.dart',

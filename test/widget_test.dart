@@ -260,6 +260,9 @@ void main() {
                         'product_id': 9,
                         'name': 'Dystrybutor wody',
                         'quantity': 1,
+                        'available_quantity': 1,
+                        'existing_quantity': 0,
+                        'issue_default': true,
                         'selected_quantity': 1,
                         'is_rental': true,
                       },
@@ -274,7 +277,16 @@ void main() {
                   },
                 ],
               },
-              products: const [],
+              products: const [
+                {
+                  'id': 70,
+                  'name': 'Woda 18,9l',
+                  'unit': 'szt.',
+                  'default_price': 18,
+                  'vat_rate': 23,
+                  'kind': 'product',
+                },
+              ],
             ),
           ),
         ),
@@ -283,8 +295,34 @@ void main() {
 
       expect(find.text('Dzierżawa + 4 galony'), findsOneWidget);
       expect(find.textContaining('W pakiecie do 4 szt.'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('Cena do zapłaty: 59.00 zł'), findsOneWidget);
+      expect(find.text('W pakiecie: 2 z 4 szt.'), findsOneWidget);
+
+      final productStepper = find.byKey(const ValueKey('product-quantity-70'));
+      final addProduct = find.descendant(
+        of: productStepper,
+        matching: find.byIcon(Icons.add),
+      );
+      await tester.tap(addProduct);
+      await tester.pump();
+      await tester.tap(addProduct);
+      await tester.pump();
+      expect(
+        find.text(
+          'Wykorzystano 4 z 4 szt. z pakietu. Kolejne sztuki będą płatne.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(addProduct);
+      await tester.pump();
+      expect(
+        find.text('Pakiet 4 szt. wykorzystany. Płatne dodatkowo: 1 szt.'),
+        findsOneWidget,
+      );
+      expect(find.text('Razem płatne: 18.00 zł'), findsOneWidget);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -1200));
+      await tester.pumpAndSettle();
+      expect(find.text('Cena do zapłaty: 77.00 zł'), findsWidgets);
       expect(tester.takeException(), isNull);
     },
   );

@@ -606,6 +606,15 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
           children: [
             Row(
               children: [
+                Checkbox(
+                  value: true,
+                  onChanged: (selected) {
+                    if (selected == false) {
+                      setState(() => _stops.removeAt(index));
+                    }
+                  },
+                  semanticLabel: 'Odznacz, aby usunąć klienta z trasy',
+                ),
                 ReorderableDragStartListener(
                   index: index,
                   child: const Padding(
@@ -1064,9 +1073,12 @@ class _ProductPickerState extends State<_ProductPicker> {
                               }
                               packageQuantities[id] = 1;
                               for (final component in components) {
-                                selected['${component['product_id']}'] = _int(
-                                  component['quantity'],
-                                );
+                                selected['${component['product_id']}'] =
+                                    _bool(component['is_rental'])
+                                    ? (_bool(component['issue_default'])
+                                          ? 1
+                                          : 0)
+                                    : _int(component['quantity']);
                               }
                             }),
                           ),
@@ -1098,6 +1110,12 @@ class _ProductPickerState extends State<_ProductPicker> {
                                         final included = _int(
                                           component['quantity'],
                                         );
+                                        final isRental = _bool(
+                                          component['is_rental'],
+                                        );
+                                        final alreadyAtLocation = _int(
+                                          component['existing_quantity'],
+                                        );
                                         return Row(
                                           children: [
                                             Expanded(
@@ -1107,7 +1125,11 @@ class _ProductPickerState extends State<_ProductPicker> {
                                                 children: [
                                                   Text('${component['name']}'),
                                                   Text(
-                                                    'Pakiet obejmuje do $included szt.',
+                                                    isRental
+                                                        ? alreadyAtLocation > 0
+                                                              ? 'Pakiet korzysta ze sprzętu już będącego w tej lokalizacji.'
+                                                              : 'Brak sprzętu w lokalizacji — wydanie zaznaczone automatycznie.'
+                                                        : 'Pakiet obejmuje do $included szt.',
                                                     style: const TextStyle(
                                                       color: WntColors.muted,
                                                       fontSize: 12,
@@ -1116,16 +1138,35 @@ class _ProductPickerState extends State<_ProductPicker> {
                                                 ],
                                               ),
                                             ),
-                                            _Counter(
-                                              value:
-                                                  selected[productId] ??
-                                                  included,
-                                              onChanged: (value) =>
-                                                  setState(() {
+                                            if (isRental)
+                                              Checkbox(
+                                                value:
+                                                    (selected[productId] ??
+                                                        (_bool(
+                                                              component['issue_default'],
+                                                            )
+                                                            ? 1
+                                                            : 0)) >
+                                                    0,
+                                                onChanged: (value) =>
+                                                    setState(() {
+                                                      selected[productId] =
+                                                          value == true ? 1 : 0;
+                                                    }),
+                                                semanticLabel: 'Wydaj sprzęt',
+                                              )
+                                            else
+                                              _Counter(
+                                                value:
+                                                    selected[productId] ??
+                                                    included,
+                                                onChanged: (value) => setState(
+                                                  () {
                                                     selected[productId] = value
                                                         .clamp(0, included);
-                                                  }),
-                                            ),
+                                                  },
+                                                ),
+                                              ),
                                           ],
                                         );
                                       },
@@ -1263,6 +1304,7 @@ List<String> _strings(dynamic value) => value is List
           .toList()
     : [];
 int _int(dynamic value) => int.tryParse('$value') ?? 0;
+bool _bool(dynamic value) => value == true || value == 1 || value == '1';
 int _locationId(Map<String, dynamic> stop) =>
     _int(stop['location_id'] ?? stop['client_location_id']);
 String _stopKey(Map<String, dynamic> stop) =>
