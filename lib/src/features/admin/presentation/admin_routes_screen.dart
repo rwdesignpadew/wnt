@@ -13,6 +13,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../driver/application/driver_providers.dart';
 import '../../driver/presentation/driver_service_screen.dart';
 import '../application/admin_providers.dart';
+import 'admin_bottom_navigation.dart';
 import 'admin_route_edit_screen.dart';
 
 class AdminRoutesScreen extends ConsumerStatefulWidget {
@@ -173,10 +174,39 @@ class _AdminRoutesScreenState extends ConsumerState<AdminRoutesScreen> {
                         '${route['is_recurring'] == true ? ' · co ${route['recurrence_interval_days']} dni' : ''}',
                       ),
                       isThreeLine: true,
-                      trailing: IconButton(
-                        tooltip: 'Usuń trasę',
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _deleteRoute(context, ref, route),
+                      trailing: PopupMenuButton<String>(
+                        tooltip: 'Akcje trasy',
+                        onSelected: (action) async {
+                          if (action == 'edit') {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    AdminRouteEditScreen(id: _int(route['id'])),
+                              ),
+                            );
+                            ref.invalidate(adminRoutesProvider);
+                          } else if (action == 'delete') {
+                            await _deleteRoute(context, ref, route);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edytuj'),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.delete_outline),
+                              title: Text('Usuń'),
+                            ),
+                          ),
+                        ],
                       ),
                       onTap: () async {
                         await Navigator.of(context).push(
@@ -303,6 +333,7 @@ class _AdminRouteDetailScreenState
       icon: const Icon(Icons.edit_outlined),
       label: const Text('Edytuj'),
     ),
+    bottomNavigationBar: adminBottomNavigation(context, ref, selectedIndex: 1),
     body: FutureBuilder<Map<String, dynamic>>(
       future: _future,
       builder: (context, snapshot) {

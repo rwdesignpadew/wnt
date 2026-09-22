@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../home/application/home_navigation_provider.dart';
 
-Widget adminBottomNavigation(BuildContext context, WidgetRef ref) {
+Widget adminBottomNavigation(
+  BuildContext context,
+  WidgetRef ref, {
+  int selectedIndex = 4,
+}) {
   const destinations = [
     NavigationDestination(
       icon: Icon(Icons.dashboard_outlined),
@@ -32,10 +36,16 @@ Widget adminBottomNavigation(BuildContext context, WidgetRef ref) {
     ),
   ];
 
+  final safeIndex = selectedIndex < 0
+      ? 0
+      : selectedIndex >= destinations.length
+      ? destinations.length - 1
+      : selectedIndex;
+
   return MediaQuery.withClampedTextScaling(
     maxScaleFactor: 1,
     child: NavigationBar(
-      selectedIndex: 4,
+      selectedIndex: safeIndex,
       destinations: destinations,
       onDestinationSelected: (index) {
         ref.read(homeNavigationIndexProvider.notifier).state = index;
