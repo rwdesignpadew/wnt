@@ -61,6 +61,16 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     super.dispose();
   }
 
+  void _selectDocumentType(String type) {
+    if (_filter == type) return;
+    setState(() {
+      _filter = type;
+      _page = 1;
+      _hasMore = true;
+      _additionalDocuments.clear();
+    });
+  }
+
   void _onScroll() {
     if (_scrollController.position.extentAfter < 500) _loadMore();
   }
@@ -540,7 +550,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
   }
 
   int get _activeFilterCount =>
-      (_filter == 'all' ? 0 : 1) +
       (_search.trim().isEmpty ? 0 : 1) +
       (_dateFrom == null ? 0 : 1) +
       (_dateTo == null ? 0 : 1) +
@@ -573,7 +582,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
         .map((item) => item.cast<String, dynamic>())
         .toList(growable: false);
     final search = TextEditingController(text: _search);
-    var type = _filter;
     var dateFrom = _dateFrom;
     var dateTo = _dateTo;
     var source = _source;
@@ -618,26 +626,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                     prefixIcon: Icon(Icons.search),
                     labelText: 'Numer dokumentu, klient lub NIP',
                   ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  decoration: const InputDecoration(
-                    labelText: 'Rodzaj dokumentu',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'all',
-                      child: Text('Wszystkie dokumenty'),
-                    ),
-                    DropdownMenuItem(value: 'wz', child: Text('WZ / PZ')),
-                    DropdownMenuItem(
-                      value: 'invoice',
-                      child: Text('Tylko Faktury VAT'),
-                    ),
-                  ],
-                  onChanged: (value) =>
-                      setSheetState(() => type = value ?? 'all'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -783,7 +771,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                         onPressed: () => Navigator.pop(
                           sheetContext,
                           _DocumentFilterResult(
-                            type: type,
                             search: search.text.trim(),
                             dateFrom: dateFrom,
                             dateTo: dateTo,
@@ -808,7 +795,6 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
     search.dispose();
     if (result == null || !mounted) return;
     setState(() {
-      _filter = result.type;
       _search = result.search;
       _dateFrom = result.dateFrom;
       _dateTo = result.dateTo;
@@ -860,6 +846,11 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                       Text(
                         'Dokumenty',
                         style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 10),
+                      _DocumentTypeTabs(
+                        selected: _filter,
+                        onSelected: _selectDocumentType,
                       ),
                       const SizedBox(height: 10),
                       Row(
@@ -1029,9 +1020,73 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
       );
 }
 
+class _DocumentTypeTabs extends StatelessWidget {
+  const _DocumentTypeTabs({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  static const _tabs = <(String, String)>[
+    ('all', 'Wszystkie'),
+    ('wz', 'WZ'),
+    ('uninvoiced_wz', 'WZ bez faktury'),
+    ('pz', 'PZ'),
+    ('invoice', 'Faktury VAT'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: [
+        for (final tab in _tabs)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => onSelected(tab.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected == tab.$1
+                        ? WntColors.brand
+                        : WntColors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected == tab.$1
+                          ? WntColors.brand
+                          : WntColors.inputLine,
+                    ),
+                  ),
+                  child: Text(
+                    tab.$2,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected == tab.$1
+                          ? Colors.white
+                          : WntColors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 class _DocumentFilterResult {
   const _DocumentFilterResult({
-    this.type = 'all',
     this.search = '',
     this.dateFrom,
     this.dateTo,
@@ -1041,7 +1096,6 @@ class _DocumentFilterResult {
     this.driverId,
   });
 
-  final String type;
   final String search;
   final DateTime? dateFrom;
   final DateTime? dateTo;
