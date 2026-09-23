@@ -784,7 +784,6 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
   int routeId = 0;
   int driverId = 0;
   String routeMode = 'existing';
-  bool recurringBilling = true;
   bool saving = false;
   DateTime date = DateTime.now();
 
@@ -913,7 +912,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
           'unit_price_net':
               double.tryParse(price.text.replaceAll(',', '.')) ?? 0,
           'vat_rate': double.tryParse(vat.text.replaceAll(',', '.')) ?? 23,
-          'recurring_billing': recurringBilling,
+          'recurring_billing': true,
           'route_mode': routeMode,
           'delivery_route_id': routeMode == 'existing' ? routeId : null,
           'route_name': routeMode == 'new' ? routeName.text.trim() : null,
@@ -1048,18 +1047,15 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 ],
               ),
               const SizedBox(height: 8),
-              CheckboxListTile(
-                value: recurringBilling,
+              ListTile(
                 contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('Pobieraj opłatę co miesiąc'),
+                leading: const Icon(Icons.event_repeat_outlined),
+                title: const Text('Opłata naliczana co miesiąc'),
                 subtitle: Text(
                   selectedClientUsesPrivateBalance
                       ? 'Opłata netto będzie naliczana od razu na saldo ujemne, również za pominięte miesiące. Pobranie pierwszej opłaty potwierdza kierowca przy wydaniu.'
                       : 'Opłata będzie doliczana co miesiąc do faktury. Pobranie pierwszej opłaty potwierdza kierowca przy wydaniu.',
                 ),
-                onChanged: (value) =>
-                    setState(() => recurringBilling = value ?? false),
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(

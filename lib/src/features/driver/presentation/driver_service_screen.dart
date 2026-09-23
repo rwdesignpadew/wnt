@@ -51,6 +51,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   String _productQuery = '';
   bool _saving = false;
   bool _customerRequestsInvoice = false;
+  bool _chargeLargeBottleDeposit = false;
+  bool _refundLargeBottleDeposit = false;
   bool _rentalInitialFeeCollected = false;
   bool _showSanitization = false;
   Map<String, dynamic>? _sanitization;
@@ -136,6 +138,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ),
       };
     }
+    final largeBottleDeposit = _productForReturnKind(
+      _ReturnKind.largeBottleDeposit,
+    );
+    _chargeLargeBottleDeposit = largeBottleDeposit != null &&
+        (_quantities[_int(largeBottleDeposit['id'])] ?? 0) > 0;
+    _refundLargeBottleDeposit = largeBottleDeposit != null &&
+        (_quantities[_int(largeBottleDeposit['id'])] ?? 0) < 0;
     final trialRequest = _map(widget.document['trial_request']);
     if (trialRequest?['action']?.toString() == 'pickup') {
       for (final item in _list(trialRequest?['items'])) {
@@ -153,6 +162,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             _quantities[_int(product['id'])] ?? 0;
       }
     }
+    _syncLargeBottleDepositQuantity();
     if (widget.document['status']?.toString() != 'completed') {
       _restoreTransporterBottleCount();
     }
@@ -238,6 +248,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       }
     }
     _quantities[productId] = remaining;
+    _syncLargeBottleDepositQuantity();
   }
 
   void _setPackageSelected(Map<String, dynamic> packageItem, bool selected) {
@@ -258,6 +269,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         selectedComponents[productId] = 0;
       }
       _packageQuantities[packageId] = 0;
+      _syncLargeBottleDepositQuantity();
       return;
     }
 
@@ -282,6 +294,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ).clamp(0, included);
       }
     }
+    _syncLargeBottleDepositQuantity();
   }
 
   String? _packageProductStatus(int productId) {
@@ -322,6 +335,60 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       if (_returnKind(product) == kind) return product;
     }
     return null;
+  }
+
+  int _largeBottleWaterQuantity() => widget.products
+      .where(_isLargeBottleWaterProduct)
+      .fold<int>(
+        0,
+        (sum, product) => sum + _deliveredProductQuantity(_int(product['id'])),
+      );
+
+  void _syncLargeBottleDepositQuantity() {
+    final deposit = _productForReturnKind(_ReturnKind.largeBottleDeposit);
+    if (deposit == null) return;
+
+    // The signed deposit quantity is derived and validated by the server.
+    // Do not submit a negative quantity because public request validation only
+    // accepts physical/user-entered quantities greater than or equal to zero.
+    _quantities[_int(deposit['id'])] = 0;
+  }
+
+  int _largeBottleReturnQuantity() {
+    Map<String, dynamic>? returned;
+    for (final product in widget.products) {
+      if (_isReturnProduct(product) &&
+          _returnKind(product) == _ReturnKind.gallon) {
+        returned = product;
+        break;
+      }
+    }
+    return returned == null ? 0 : (_returnQuantities[_int(returned['id'])] ?? 0);
+  }
+
+  int _refundableLargeBottleDepositQuantity() {
+    return _int(widget.document['refundable_large_bottle_deposits']).clamp(
+      0,
+      999999,
+    );
+  }
+
+  int _largeBottleDepositRefundQuantity() {
+    if (_isCompanyDocument(widget.document) || !_refundLargeBottleDeposit) {
+      return 0;
+    }
+    return _largeBottleReturnQuantity().clamp(
+      0,
+      _refundableLargeBottleDepositQuantity(),
+    );
+  }
+
+  int _largeBottleDepositNetQuantity() {
+    if (_isCompanyDocument(widget.document)) return 0;
+    final charged = _chargeLargeBottleDeposit
+        ? _largeBottleWaterQuantity()
+        : 0;
+    return charged - _largeBottleDepositRefundQuantity();
   }
 
   void _syncTransporterBottleReturn() {
@@ -379,6 +446,19 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         ? (configuredInterval == 0 ? 180 : configuredInterval)
         : null;
 
+    final hasSelectedService = widget.products.any(
+      (product) =>
+          _isServiceWorkProduct(product) &&
+          (_quantities[_int(product['id'])] ?? 0) > 0,
+    );
+    if (hasSelectedService && _notes.text.trim().isEmpty) {
+      _message(
+        'Opisz, czego dotyczył serwis lub co było uszkodzone.',
+        error: true,
+      );
+      return;
+    }
+
     if (_signedBy.text.trim().isEmpty) {
       _message('Wpisz imię i nazwisko osoby odbierającej.', error: true);
       return;
@@ -419,6 +499,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         notes: _notes.text.trim(),
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
+        chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
+        refundLargeBottleDeposit: _refundLargeBottleDeposit &&
+            _largeBottleDepositRefundQuantity() > 0,
         correction: correction,
         rentalInitialFeeCollected: _rentalInitialFeeCollected,
         rentalReturns: rentalReturns,
@@ -621,6 +704,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         notes: _notes.text.trim(),
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
+        chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
+        refundLargeBottleDeposit: _refundLargeBottleDeposit &&
+            _largeBottleDepositRefundQuantity() > 0,
         correction: correction,
         rentalInitialFeeCollected: _rentalInitialFeeCollected,
         rentalReturns: rentalReturns,
@@ -908,6 +994,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           (product) =>
               !_isReturnProduct(product) &&
               _returnKind(product) != _ReturnKind.smallBottleDeposit &&
+              _returnKind(product) != _ReturnKind.largeBottleDeposit &&
               (!isTrialDocument ||
                   trialIssueProductIds.contains(_int(product['id']))),
         )
@@ -937,6 +1024,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           ),
         )
         .toList();
+    final hasSelectedService = widget.products.any(
+      (product) =>
+          _isServiceWorkProduct(product) &&
+          (_quantities[_int(product['id'])] ?? 0) > 0,
+    );
     final rentals = _list(widget.document['rental_items'])
         .where(
           (item) =>
@@ -972,7 +1064,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               (_packageQuantities[_int(packageItem['id'])] ?? 0) *
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
         ) +
-        sanitizationNet;
+        sanitizationNet +
+        _largeBottleDepositNetQuantity() *
+            _largeBottleDepositUnitPrice(false);
     final total =
         widget.products.where(_isBillableProduct).fold<double>(0, (
           sum,
@@ -990,7 +1084,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   net *
                   (1 + vat / 100);
         }) +
-        sanitizationGross;
+        sanitizationGross +
+        _largeBottleDepositNetQuantity() *
+            _largeBottleDepositUnitPrice(true);
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final credit =
         double.tryParse('${widget.document['credit_amount'] ?? 0}') ?? 0;
@@ -1127,6 +1223,60 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     icon: const Icon(Icons.expand_more),
                     label: Text('Pokaż więcej produktów (${remaining.length})'),
                   ),
+                if (!isCompany && _largeBottleWaterQuantity() > 0) ...[
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: _chargeLargeBottleDeposit,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Dolicz kaucję za butle 18,9 l'),
+                    subtitle: Text(
+                      '${_largeBottleWaterQuantity()} szt. × '
+                      '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
+                    ),
+                    onChanged: (value) => setState(() {
+                      _chargeLargeBottleDeposit = value == true;
+                      _syncLargeBottleDepositQuantity();
+                    }),
+                  ),
+                ],
+                if (!isCompany &&
+                    _largeBottleReturnQuantity() > 0 &&
+                    _refundableLargeBottleDepositQuantity() > 0) ...[
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: _refundLargeBottleDeposit,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Zwróć kaucję klientowi'),
+                    subtitle: Text(
+                      '${_largeBottleDepositRefundQuantity()} szt. × '
+                      '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
+                    ),
+                    onChanged: (value) => setState(() {
+                      _refundLargeBottleDeposit = value == true;
+                      _syncLargeBottleDepositQuantity();
+                    }),
+                  ),
+                ],
+                if (hasSelectedService) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _notes,
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    minLines: 3,
+                    maxLines: 5,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis serwisu / usterki *',
+                      hintText:
+                          'Czego dotyczył serwis, co było uszkodzone i co wykonano',
+                      helperText:
+                          'Opis trafi do zgłoszenia serwisowego i dokumentu WZ.',
+                      prefixIcon: Icon(Icons.build_outlined),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1155,6 +1305,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                           packageId,
                           () => {},
                         )[productId] = value;
+                        _syncLargeBottleDepositQuantity();
                       }),
                     ),
                     if (index < packages.length - 1) const Divider(),
@@ -1241,6 +1392,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       returnKind == _ReturnKind.smallBottle) {
                     _syncTransporterBottleReturn();
                   }
+                  _syncLargeBottleDepositQuantity();
                 });
               },
             ),
@@ -1683,17 +1835,18 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  TextField(
-                    controller: _notes,
-                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Dodatkowe uwagi do WZ',
-                      hintText:
-                          'Np. numer magazynu lub informacja dla odbiorcy',
+                  if (!hasSelectedService)
+                    TextField(
+                      controller: _notes,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Dodatkowe uwagi do WZ',
+                        hintText:
+                            'Np. numer magazynu lub informacja dla odbiorcy',
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -1758,6 +1911,14 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           _returnKind(product) != _ReturnKind.smallBottleDeposit) {
         pzLines.add('${product['name']} — $returned szt.');
       }
+    }
+    final depositNetQuantity = _largeBottleDepositNetQuantity();
+    if (depositNetQuantity > 0) {
+      wzLines.add('Kaucja Butla 18,9L — $depositNetQuantity szt.');
+    } else if (depositNetQuantity < 0) {
+      wzLines.add(
+        'Zwrot kaucji Butla 18,9L — ${depositNetQuantity.abs()} szt.',
+      );
     }
     for (final packageItem in _list(widget.document['packages'])) {
       final quantity = _packageQuantities[_int(packageItem['id'])] ?? 0;
@@ -2148,6 +2309,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     return _productGrossPrice(product);
   }
 
+  double _largeBottleDepositUnitPrice(bool gross) {
+    final deposit = _productForReturnKind(_ReturnKind.largeBottleDeposit);
+    if (deposit == null) return 0;
+
+    return gross
+        ? _effectiveProductGrossPrice(deposit)
+        : _effectiveProductPrice(deposit);
+  }
+
   double _rentalRequestFee(bool gross) {
     if (!_rentalInitialFeeCollected) return 0;
 
@@ -2192,6 +2362,7 @@ enum _ReturnKind {
   transporter,
   smallBottle,
   smallBottleDeposit,
+  largeBottleDeposit,
   euroPallet,
   gallon,
   co2Bottle,
@@ -2211,7 +2382,14 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
   // classified every dispenser as a small-bottle return and removed it from
   // both the sales list and the rental-return section.
   if (isDriverRentalEquipment(product)) return _ReturnKind.other;
-  if (name.contains('kauc') && name.contains('but')) {
+  if (name.contains('kauc') &&
+      (name.contains('18,9') || name.contains('18.9')) &&
+      name.contains('but')) {
+    return _ReturnKind.largeBottleDeposit;
+  }
+  if (name.contains('kauc') &&
+      (name.contains('0,3') || name.contains('0.3')) &&
+      name.contains('but')) {
     return _ReturnKind.smallBottleDeposit;
   }
   if (name.contains('uszk') && name.contains('butl')) {
@@ -2254,6 +2432,21 @@ bool _isBillableProduct(Map<String, dynamic> product) {
     return true;
   }
   return !_isReturnProduct(product);
+}
+
+bool _isServiceWorkProduct(Map<String, dynamic> product) {
+  final name = _normalizedProductName(product);
+  return '${product['kind'] ?? ''}' == 'service' &&
+      name.contains('serwis') &&
+      !name.contains('sanityzac');
+}
+
+bool _isLargeBottleWaterProduct(Map<String, dynamic> product) {
+  final name = _normalizedProductName(product);
+  return name.startsWith('woda ') &&
+      (name.contains('18,9') || name.contains('18.9')) &&
+      !name.contains('zwrot') &&
+      !name.contains('kauc');
 }
 
 bool _isRackName(Object? value) =>
