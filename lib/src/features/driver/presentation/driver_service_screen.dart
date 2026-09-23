@@ -2623,6 +2623,7 @@ class _ReturnRow extends StatelessWidget {
       _ReturnKind.transporter => 'Transportery',
       _ReturnKind.smallBottle => 'Butelki 0,3 l',
       _ReturnKind.smallBottleDeposit => 'Kaucja za brakujące butelki',
+      _ReturnKind.largeBottleDeposit => 'Kaucja za butle 18,9 l',
       _ReturnKind.euroPallet => 'Palety EURO',
       _ReturnKind.gallon => 'Butle 18,9 l',
       _ReturnKind.co2Bottle => 'Butle CO2',
