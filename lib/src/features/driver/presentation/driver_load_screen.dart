@@ -110,6 +110,12 @@ class _LoadStopCard extends StatelessWidget {
     final packages = _list(
       document['packages'],
     ).where((item) => _int(item['quantity']) > 0).toList();
+    final sanitization = document['sanitization'] is Map
+        ? (document['sanitization'] as Map).cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final replacementEquipment = _list(
+      sanitization['replacement_equipment'],
+    ).where((item) => _int(item['quantity']) > 0).toList();
     final address = (location['address'] ?? document['delivery_address'] ?? '')
         .toString();
     final locationName = location['name']?.toString();
@@ -149,8 +155,62 @@ class _LoadStopCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (packages.isNotEmpty || items.isNotEmpty) ...[
+            if (packages.isNotEmpty || items.isNotEmpty || replacementEquipment.isNotEmpty) ...[
               const Divider(height: 18),
+              if (replacementEquipment.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: WntColors.warningSoft,
+                    border: Border.all(color: WntColors.warning),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'NA PODMIANĘ DO SANITYZACJI',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: WntColors.warning,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      for (final equipment in replacementEquipment)
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.swap_horiz,
+                              size: 20,
+                              color: WntColors.warning,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                equipment['name']?.toString() ?? 'Dystrybutor wody',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            Text(
+                              '${_int(equipment['quantity'])} szt.',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Zabierz czyste urządzenia, zostaw je u klienta i odbierz sprzęt przeznaczony do sanityzacji.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: WntColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               for (final package in packages)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 3),

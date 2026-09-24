@@ -984,6 +984,16 @@ class _AdminSanitizationsContentState
         children: [
           _SanitizationStatistics(summary: summary),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _quickStatusButton('Otwarte', 'open')),
+              const SizedBox(width: 8),
+              Expanded(child: _quickStatusButton('Wykonane', 'completed')),
+              const SizedBox(width: 8),
+              Expanded(child: _quickStatusButton('Wszystkie', 'all')),
+            ],
+          ),
+          const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
               final searchField = TextField(
@@ -1153,6 +1163,8 @@ class _AdminSanitizationsContentState
 
   Widget _sanitizationCard(Map<String, dynamic> item) {
     final overdue = item['status']?.toString() == 'overdue';
+    final resultNotes = '${item['result_notes'] ?? ''}'.trim();
+    final documentNumber = '${item['document_number'] ?? ''}'.trim();
     return Card(
       color: overdue ? WntColors.errorSoft : null,
       child: ListTile(
@@ -1167,6 +1179,29 @@ class _AdminSanitizationsContentState
             ),
             const SizedBox(height: 4),
             _StatusBadge(status: item['status']?.toString() ?? ''),
+            if (documentNumber.isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Text(
+                'WZ: $documentNumber',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WntColors.brand,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (resultNotes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: WntColors.brandSoft,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: WntColors.brand.withValues(alpha: .25)),
+                ),
+                child: Text('Uwagi kierowcy / wykonania:\n$resultNotes'),
+              ),
+            ],
           ],
         ),
         trailing: PopupMenuButton<String>(
@@ -1212,6 +1247,21 @@ class _AdminSanitizationsContentState
             ? () => widget.onEdit(item)
             : null,
       ),
+    );
+  }
+
+  Widget _quickStatusButton(String label, String value) {
+    final selected = _status == value ||
+        (value == 'open' && {'planned', 'overdue', 'in_progress'}.contains(_status));
+    return OutlinedButton(
+      onPressed: () => setState(() => _status = value),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: selected ? Colors.white : WntColors.text,
+        backgroundColor: selected ? WntColors.brand : Colors.white,
+        side: BorderSide(color: selected ? WntColors.brand : WntColors.inputLine),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      ),
+      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 }
