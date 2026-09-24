@@ -39,6 +39,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _returnQuantities = <int, int>{};
   final _rentalReturns = <int, int>{};
   final _damagedRentalIds = <int>{};
+  final _confirmedReturnProductIds = <int>{};
+  final _returnConfirmationInProgress = <int>{};
+  final _plannedReturnOnlyProductIds = <int>{};
   final _damageNotes = <int, TextEditingController>{};
   final _notes = TextEditingController();
   final _signedBy = TextEditingController();
@@ -52,6 +55,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   bool _saving = false;
   bool _customerRequestsInvoice = false;
   bool _chargeLargeBottleDeposit = false;
+  int _largeBottleDepositChargeQuantity = 0;
   bool _refundLargeBottleDeposit = false;
   bool _rentalInitialFeeCollected = false;
   bool _showSanitization = false;
@@ -123,6 +127,17 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
+    for (final product in widget.products) {
+      final productId = _int(product['id']);
+      if ((_quantities[productId] ?? 0) <= 0) continue;
+      if (_isReturnProduct(product) ||
+          _requiresWzReturnConfirmation(product)) {
+        _plannedReturnOnlyProductIds.add(productId);
+      }
+      if (_requiresWzReturnConfirmation(product)) {
+        _confirmedReturnProductIds.add(productId);
+      }
+    }
     for (final packageItem in _list(widget.document['packages'])) {
       final packageId = _int(packageItem['id']);
       final available =
@@ -143,6 +158,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     );
     _chargeLargeBottleDeposit = largeBottleDeposit != null &&
         (_quantities[_int(largeBottleDeposit['id'])] ?? 0) > 0;
+    _largeBottleDepositChargeQuantity = largeBottleDeposit == null
+        ? 0
+        : (_quantities[_int(largeBottleDeposit['id'])] ?? 0).clamp(
+            0,
+            999999,
+          );
     _refundLargeBottleDeposit = largeBottleDeposit != null &&
         (_quantities[_int(largeBottleDeposit['id'])] ?? 0) < 0;
     final trialRequest = _map(widget.document['trial_request']);
@@ -348,6 +369,20 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final deposit = _productForReturnKind(_ReturnKind.largeBottleDeposit);
     if (deposit == null) return;
 
+    final waterQuantity = _largeBottleWaterQuantity();
+    if (!_chargeLargeBottleDeposit || waterQuantity < 1) {
+      _largeBottleDepositChargeQuantity = 0;
+      _chargeLargeBottleDeposit = false;
+    } else if (_largeBottleDepositChargeQuantity < 1) {
+      _largeBottleDepositChargeQuantity = waterQuantity;
+    } else {
+      _largeBottleDepositChargeQuantity =
+          _largeBottleDepositChargeQuantity.clamp(0, waterQuantity);
+    }
+    _refundLargeBottleDeposit = !_isCompanyDocument(widget.document) &&
+        _largeBottleReturnQuantity() > 0 &&
+        _refundableLargeBottleDepositQuantity() > 0;
+
     // The signed deposit quantity is derived and validated by the server.
     // Do not submit a negative quantity because public request validation only
     // accepts physical/user-entered quantities greater than or equal to zero.
@@ -386,7 +421,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   int _largeBottleDepositNetQuantity() {
     if (_isCompanyDocument(widget.document)) return 0;
     final charged = _chargeLargeBottleDeposit
-        ? _largeBottleWaterQuantity()
+        ? _largeBottleDepositChargeQuantity
         : 0;
     return charged - _largeBottleDepositRefundQuantity();
   }
@@ -420,7 +455,109 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     }
   }
 
+  bool _requiresWzReturnConfirmation(Map<String, dynamic> product) {
+    if (_flag(product['requires_wz_return_confirmation'])) return true;
+
+    // Keep the warning available for an offline route cached before the API
+    // started returning the explicit flag.
+    final name = _normalizedProductName(product);
+    final isLargeBottle = name.contains('18,9') ||
+        name.contains('18.9') ||
+        name.contains('18 9') ||
+        name.contains('galon');
+    return isLargeBottle &&
+        name.contains('butla') &&
+        !const ['woda', 'kauc', 'uszk', 'co2', 'wymian'].any(name.contains);
+  }
+
+  Future<bool> _showReturnProductConfirmation(
+    List<Map<String, dynamic>> products,
+  ) async {
+    final names = products
+        .map((product) => product['name']?.toString().trim() ?? 'Produkt')
+        .where((name) => name.isNotEmpty)
+        .join(', ');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          color: WntColors.warning,
+          size: 34,
+        ),
+        title: const Text('Produkt przeznaczony do zwrotów'),
+        content: Text(
+          '$names służy do ewidencji zwracanych opakowań. '
+          'Czy na pewno chcesz dodać ten produkt do WZ jako wydanie?\n\n'
+          'Jeśli wydajesz wodę, wybierz „Woda Źródlana 18,9l”.',
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Nie, wróć'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Tak, dodaj do WZ'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _setProductQuantityWithReturnConfirmation(
+    Map<String, dynamic> product,
+    int value,
+  ) async {
+    final productId = _int(product['id']);
+    if (value <= 0) {
+      setState(() {
+        _confirmedReturnProductIds.remove(productId);
+        _setDeliveredProductQuantity(productId, 0);
+      });
+      return;
+    }
+
+    if (_requiresWzReturnConfirmation(product) &&
+        !_confirmedReturnProductIds.contains(productId)) {
+      if (_returnConfirmationInProgress.contains(productId)) return;
+      _returnConfirmationInProgress.add(productId);
+      final confirmed = await _showReturnProductConfirmation([product]);
+      _returnConfirmationInProgress.remove(productId);
+      if (!mounted || !confirmed) return;
+      _confirmedReturnProductIds.add(productId);
+    }
+
+    if (!mounted) return;
+    setState(() => _setDeliveredProductQuantity(productId, value));
+  }
+
+  Future<bool> _confirmSelectedReturnProducts() async {
+    final pending = widget.products
+        .where(
+          (product) =>
+              _requiresWzReturnConfirmation(product) &&
+              _deliveredProductQuantity(_int(product['id'])) > 0 &&
+              !_confirmedReturnProductIds.contains(_int(product['id'])),
+        )
+        .toList();
+    if (pending.isEmpty) return true;
+
+    final confirmed = await _showReturnProductConfirmation(pending);
+    if (!mounted || !confirmed) return false;
+    setState(
+      () => _confirmedReturnProductIds.addAll(
+        pending.map((product) => _int(product['id'])),
+      ),
+    );
+    return true;
+  }
+
   Future<void> _save() async {
+    if (!await _confirmSelectedReturnProducts()) return;
+
     final sanitization = _sanitization;
     final sanitizationSelected = _showSanitization && sanitization != null;
     final sanitizationEquipment = sanitizationSelected
@@ -500,6 +637,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
+        chargeLargeBottleDepositQuantity:
+            _largeBottleDepositChargeQuantity,
         refundLargeBottleDeposit: _refundLargeBottleDeposit &&
             _largeBottleDepositRefundQuantity() > 0,
         correction: correction,
@@ -705,6 +844,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
+        chargeLargeBottleDepositQuantity:
+            _largeBottleDepositChargeQuantity,
         refundLargeBottleDeposit: _refundLargeBottleDeposit &&
             _largeBottleDepositRefundQuantity() > 0,
         correction: correction,
@@ -718,6 +859,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         sanitizationResultNotes: sanitizationSelected
             ? _sanitizationNotes.text.trim()
             : null,
+        confirmedReturnProductIds: _confirmedReturnProductIds,
       );
       if (!mounted) return;
       ref.invalidate(driverRouteProvider);
@@ -1206,15 +1348,23 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     netUnitPrice: _effectiveProductPrice(visible[index]),
                     useGross: useGross,
                     showPrices: !hideTransferPrices,
-                    locked: trialIssueProductIds.contains(
+                    requiresReturnConfirmation:
+                        _requiresWzReturnConfirmation(visible[index]),
+                    returnQuantityLocked: _plannedReturnOnlyProductIds.contains(
                       _int(visible[index]['id']),
                     ),
-                    onChanged: (value) => setState(
-                      () => _setDeliveredProductQuantity(
-                        _int(visible[index]['id']),
-                        value,
-                      ),
-                    ),
+                    locked:
+                        trialIssueProductIds.contains(
+                          _int(visible[index]['id']),
+                        ) ||
+                        _plannedReturnOnlyProductIds.contains(
+                          _int(visible[index]['id']),
+                        ),
+                    onChanged: (value) =>
+                        _setProductQuantityWithReturnConfirmation(
+                          visible[index],
+                          value,
+                        ),
                   ),
                   if (index < visible.length - 1) const Divider(),
                 ],
@@ -1232,32 +1382,57 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     controlAffinity: ListTileControlAffinity.leading,
                     title: const Text('Dolicz kaucję za butle 18,9 l'),
                     subtitle: Text(
-                      '${_largeBottleWaterQuantity()} szt. × '
+                      '${_largeBottleDepositChargeQuantity} z ${_largeBottleWaterQuantity()} wydanych szt. × '
                       '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
                     ),
                     onChanged: (value) => setState(() {
                       _chargeLargeBottleDeposit = value == true;
+                      _largeBottleDepositChargeQuantity = value == true
+                          ? _largeBottleWaterQuantity()
+                          : 0;
                       _syncLargeBottleDepositQuantity();
                     }),
                   ),
+                  if (_chargeLargeBottleDeposit)
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Liczba nowych butli objętych kaucją',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        QuantityStepper(
+                          value: _largeBottleDepositChargeQuantity,
+                          compact: true,
+                          onChanged: (value) => setState(() {
+                            _largeBottleDepositChargeQuantity = value.clamp(
+                              0,
+                              _largeBottleWaterQuantity(),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
                 ],
                 if (!isCompany &&
                     _largeBottleReturnQuantity() > 0 &&
                     _refundableLargeBottleDepositQuantity() > 0) ...[
                   const SizedBox(height: 8),
-                  CheckboxListTile(
-                    value: _refundLargeBottleDeposit,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Zwróć kaucję klientowi'),
-                    subtitle: Text(
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: WntColors.successSoft,
+                      border: Border.all(color: WntColors.success),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Zwrot butli automatycznie pomniejszy kaucję: '
                       '${_largeBottleDepositRefundQuantity()} szt. × '
                       '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    onChanged: (value) => setState(() {
-                      _refundLargeBottleDeposit = value == true;
-                      _syncLargeBottleDepositQuantity();
-                    }),
                   ),
                 ],
                 if (hasSelectedService) ...[
@@ -1343,6 +1518,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               products: returnProducts,
               quantities: _returnQuantities,
               availability: returnAvailability,
+              lockedProductIds: _plannedReturnOnlyProductIds,
               onChanged: (product, value) {
                 setState(() {
                   final id = _int(product['id']);
@@ -2611,12 +2787,14 @@ class _ReturnSection extends StatelessWidget {
     required this.products,
     required this.quantities,
     required this.availability,
+    required this.lockedProductIds,
     required this.onChanged,
   });
 
   final List<Map<String, dynamic>> products;
   final Map<int, int> quantities;
   final Map<String, dynamic> availability;
+  final Set<int> lockedProductIds;
   final void Function(Map<String, dynamic> product, int value) onChanged;
 
   @override
@@ -2650,6 +2828,7 @@ class _ReturnSection extends StatelessWidget {
               maximum: _returnKind(ordered[index]) == _ReturnKind.damagedGallon
                   ? gallonReturn
                   : _returnMaximum(ordered[index], availability),
+              locked: lockedProductIds.contains(_int(ordered[index]['id'])),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),
@@ -2672,12 +2851,14 @@ class _ReturnRow extends StatelessWidget {
     required this.product,
     required this.value,
     required this.maximum,
+    required this.locked,
     required this.onChanged,
   });
 
   final Map<String, dynamic> product;
   final int value;
   final int maximum;
+  final bool locked;
   final ValueChanged<int> onChanged;
 
   @override
@@ -2712,11 +2893,29 @@ class _ReturnRow extends StatelessWidget {
               ],
             ),
           ),
-          QuantityStepper(
-            value: value,
-            onChanged: (next) => onChanged(next.clamp(0, maximum)),
-            compact: true,
-          ),
+          if (locked)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: WntColors.canvas,
+                border: Border.all(color: WntColors.line),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 17),
+                  const SizedBox(width: 6),
+                  Text('$value szt.'),
+                ],
+              ),
+            )
+          else
+            QuantityStepper(
+              value: value,
+              onChanged: (next) => onChanged(next.clamp(0, maximum)),
+              compact: true,
+            ),
         ],
       ),
     );
@@ -2928,6 +3127,8 @@ class _ProductRow extends StatelessWidget {
     required this.netUnitPrice,
     required this.useGross,
     required this.showPrices,
+    required this.requiresReturnConfirmation,
+    required this.returnQuantityLocked,
     required this.locked,
     required this.onChanged,
   });
@@ -2938,6 +3139,8 @@ class _ProductRow extends StatelessWidget {
   final double netUnitPrice;
   final bool useGross;
   final bool showPrices;
+  final bool requiresReturnConfirmation;
+  final bool returnQuantityLocked;
   final bool locked;
   final ValueChanged<int> onChanged;
   @override
@@ -2978,6 +3181,18 @@ class _ProductRow extends StatelessWidget {
                       color: paidValue > 0
                           ? WntColors.warning
                           : WntColors.brand,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                if (requiresReturnConfirmation) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    returnQuantityLocked
+                        ? 'Produkt tylko do zwrotów — ilość ustalił administrator.'
+                        : 'Produkt do zwrotów — dodanie do WZ wymaga potwierdzenia.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: WntColors.error,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

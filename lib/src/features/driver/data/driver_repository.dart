@@ -171,6 +171,7 @@ class DriverRepository {
     double? cashCollected,
     bool customerRequestsInvoice = false,
     bool chargeLargeBottleDeposit = false,
+    int? chargeLargeBottleDepositQuantity,
     bool refundLargeBottleDeposit = false,
     bool correction = false,
     bool rentalInitialFeeCollected = false,
@@ -181,6 +182,7 @@ class DriverRepository {
     List<Map<String, dynamic>> sanitizationEquipment = const [],
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
+    Set<int> confirmedReturnProductIds = const {},
   }) async {
     final operationId = _newOperationId(userId, documentId, 'complete');
     final body = <String, dynamic>{
@@ -204,6 +206,8 @@ class DriverRepository {
       'cash_collected': cashCollected,
       'customer_requests_invoice': customerRequestsInvoice,
       'charge_large_bottle_deposit': chargeLargeBottleDeposit,
+      'charge_large_bottle_deposit_quantity':
+          ?chargeLargeBottleDepositQuantity,
       'refund_large_bottle_deposit': refundLargeBottleDeposit,
       'correction': correction,
       'rental_initial_fee_collected': rentalInitialFeeCollected,
@@ -215,6 +219,7 @@ class DriverRepository {
       'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
+      'confirmed_return_product_ids': confirmedReturnProductIds.toList()..sort(),
     };
     try {
       final response = await _api.post(
@@ -277,6 +282,7 @@ class DriverRepository {
     double? cashCollected,
     bool customerRequestsInvoice = false,
     bool chargeLargeBottleDeposit = false,
+    int? chargeLargeBottleDepositQuantity,
     bool refundLargeBottleDeposit = false,
     bool correction = false,
     bool rentalInitialFeeCollected = false,
@@ -311,6 +317,8 @@ class DriverRepository {
       'cash_collected': cashCollected,
       'customer_requests_invoice': customerRequestsInvoice,
       'charge_large_bottle_deposit': chargeLargeBottleDeposit,
+      'charge_large_bottle_deposit_quantity':
+          ?chargeLargeBottleDepositQuantity,
       'refund_large_bottle_deposit': refundLargeBottleDeposit,
       'correction': correction,
       'rental_initial_fee_collected': rentalInitialFeeCollected,
