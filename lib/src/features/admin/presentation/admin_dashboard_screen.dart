@@ -6,6 +6,7 @@ import '../../../shared/widgets/async_state_view.dart';
 import '../../home/application/home_navigation_provider.dart';
 import '../application/admin_providers.dart';
 import 'admin_more_screen.dart';
+import 'admin_service_requests_screen.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
@@ -144,6 +145,8 @@ class AdminDashboardScreen extends ConsumerWidget {
                       final kind = '${alert['kind']}';
                       if (kind == 'routes') {
                         _openRoutes(ref);
+                      } else if (kind == 'service') {
+                        _open(context, const AdminServiceRequestsScreen());
                       } else {
                         _open(
                           context,

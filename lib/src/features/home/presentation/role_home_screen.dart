@@ -52,8 +52,12 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
     final session = ref.watch(authControllerProvider).session!;
     final destinations = _destinations(session.user.role);
     final isTablet = MediaQuery.sizeOf(context).width >= 800;
-    final newOrders = session.user.role == UserRole.admin
-        ? _newOrdersCount(ref.watch(adminSummaryProvider).valueOrNull)
+    final summary = session.user.role == UserRole.admin
+        ? ref.watch(adminSummaryProvider).valueOrNull
+        : null;
+    final newOrders = _adminAlertCount(summary, 'orders');
+    final openServices = session.user.hasAdminPermission('service')
+        ? _adminAlertCount(summary, 'service')
         : 0;
     var index = ref.watch(homeNavigationIndexProvider);
     if (index >= destinations.length) {
@@ -116,11 +120,17 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
                   destinations: [
                     for (final item in destinations)
                       NavigationRailDestination(
-                        icon: _navigationIcon(item.icon, item.label, newOrders),
+                        icon: _navigationIcon(
+                          item.icon,
+                          item.label,
+                          newOrders: newOrders,
+                          openServices: openServices,
+                        ),
                         selectedIcon: _navigationIcon(
                           item.selectedIcon,
                           item.label,
-                          newOrders,
+                          newOrders: newOrders,
+                          openServices: openServices,
                         ),
                         label: Text(item.label),
                       ),
@@ -150,11 +160,17 @@ class _RoleHomeScreenState extends ConsumerState<RoleHomeScreen> {
                 destinations: [
                   for (final item in destinations)
                     NavigationDestination(
-                      icon: _navigationIcon(item.icon, item.label, newOrders),
+                      icon: _navigationIcon(
+                        item.icon,
+                        item.label,
+                        newOrders: newOrders,
+                        openServices: openServices,
+                      ),
                       selectedIcon: _navigationIcon(
                         item.selectedIcon,
                         item.label,
-                        newOrders,
+                        newOrders: newOrders,
+                        openServices: openServices,
                       ),
                       label: item.label,
                     ),
@@ -302,20 +318,31 @@ List<_Destination> _destinations(UserRole role) => switch (role) {
   ],
 };
 
-Widget _navigationIcon(IconData icon, String label, int newOrders) {
+Widget _navigationIcon(
+  IconData icon,
+  String label, {
+  required int newOrders,
+  required int openServices,
+}) {
   final child = Icon(icon);
-  if (label != 'Zamówienia' || newOrders < 1) return child;
+  final count = switch (label) {
+    'Zamówienia' => newOrders,
+    'Więcej' => openServices,
+    _ => 0,
+  };
+  if (count < 1) return child;
   return Badge(
-    label: Text(newOrders > 99 ? '99+' : '$newOrders'),
+    backgroundColor: WntColors.error,
+    label: Text(count > 99 ? '99+' : '$count'),
     child: child,
   );
 }
 
-int _newOrdersCount(Map<String, dynamic>? summary) {
+int _adminAlertCount(Map<String, dynamic>? summary, String kind) {
   final alerts = summary?['alerts'];
   if (alerts is! List) return 0;
   for (final raw in alerts.whereType<Map>()) {
-    if (raw['kind']?.toString() == 'orders') {
+    if (raw['kind']?.toString() == kind) {
       return int.tryParse('${raw['value']}') ?? 0;
     }
   }

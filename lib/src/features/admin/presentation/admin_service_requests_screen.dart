@@ -41,7 +41,10 @@ class _AdminServiceRequestsScreenState
         search: _searchController.text,
       );
 
-  void _reload() => setState(() => _request = _fetch());
+  void _reload() {
+    ref.invalidate(adminSummaryProvider);
+    setState(() => _request = _fetch());
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(

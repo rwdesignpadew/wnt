@@ -18,9 +18,21 @@ import 'admin_service_requests_screen.dart';
 class AdminMoreScreen extends ConsumerWidget {
   const AdminMoreScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(adminSummaryProvider).valueOrNull;
+    final canSeeService = ref
+        .watch(authControllerProvider)
+        .session!
+        .user
+        .hasAdminPermission('service');
+    final openServices = canSeeService
+        ? _adminAlertCount(summary, 'service')
+        : 0;
+    final newOrders = _adminAlertCount(summary, 'orders');
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
       Text('Więcej', style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 16),
       Card(
@@ -50,11 +62,7 @@ class AdminMoreScreen extends ConsumerWidget {
               ),
             ),
             const Divider(),
-            if (ref
-                .watch(authControllerProvider)
-                .session!
-                .user
-                .hasAdminPermission('service')) ...[
+            if (canSeeService) ...[
               ListTile(
                 leading: const Icon(
                   Icons.build_outlined,
@@ -62,7 +70,7 @@ class AdminMoreScreen extends ConsumerWidget {
                 ),
                 title: const Text('Serwis'),
                 subtitle: const Text('Zgłoszenia z WZ i od klientów'),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: _notificationTrailing(openServices),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const AdminServiceRequestsScreen(),
@@ -193,7 +201,9 @@ class AdminMoreScreen extends ConsumerWidget {
                 ListTile(
                   leading: Icon(section.$3, color: WntColors.brand),
                   title: Text(section.$2),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: _notificationTrailing(
+                    section.$1 == 'orders' ? newOrders : 0,
+                  ),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => AdminOperationsScreen(
@@ -213,8 +223,34 @@ class AdminMoreScreen extends ConsumerWidget {
           ],
         ),
       ),
+      ],
+    );
+  }
+}
+
+Widget _notificationTrailing(int count) => Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    if (count > 0) ...[
+      Badge(
+        backgroundColor: WntColors.error,
+        label: Text(count > 99 ? '99+' : '$count'),
+      ),
+      const SizedBox(width: 8),
     ],
-  );
+    const Icon(Icons.chevron_right),
+  ],
+);
+
+int _adminAlertCount(Map<String, dynamic>? summary, String kind) {
+  final alerts = summary?['alerts'];
+  if (alerts is! List) return 0;
+  for (final raw in alerts.whereType<Map>()) {
+    if (raw['kind']?.toString() == kind) {
+      return int.tryParse('${raw['value']}') ?? 0;
+    }
+  }
+  return 0;
 }
 
 Future<void> _selectDriverMode(BuildContext context, WidgetRef ref) async {

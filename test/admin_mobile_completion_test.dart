@@ -569,4 +569,37 @@ void main() {
     );
     expect(webController, contains("->where('quantity', '>', 0)"));
   });
+
+  test('menu administratora pokazuje liczniki zamówień i serwisów', () {
+    final providers = File(
+      'lib/src/features/admin/application/admin_providers.dart',
+    ).readAsStringSync();
+    final home = File(
+      'lib/src/features/home/presentation/role_home_screen.dart',
+    ).readAsStringSync();
+    final bottomNavigation = File(
+      'lib/src/features/admin/presentation/admin_bottom_navigation.dart',
+    ).readAsStringSync();
+    final more = File(
+      'lib/src/features/admin/presentation/admin_more_screen.dart',
+    ).readAsStringSync();
+    final dashboard = File(
+      'lib/src/features/admin/presentation/admin_dashboard_screen.dart',
+    ).readAsStringSync();
+    final controller = File(
+      '${backendRoot.path}/app/Http/Controllers/Api/Mobile/MobileAdminController.php',
+    ).readAsStringSync();
+
+    expect(providers, contains('Duration(seconds: 20)'));
+    expect(home, contains("_adminAlertCount(summary, 'orders')"));
+    expect(home, contains("_adminAlertCount(summary, 'service')"));
+    expect(bottomNavigation, contains("_alertCount(summary, 'orders')"));
+    expect(bottomNavigation, contains("_alertCount(summary, 'service')"));
+    expect(more, contains('_notificationTrailing(openServices)'));
+    expect(more, contains("section.\$1 == 'orders' ? newOrders : 0"));
+    expect(dashboard, contains("kind == 'service'"));
+    expect(dashboard, contains('AdminServiceRequestsScreen'));
+    expect(controller, contains("'kind' => 'service'"));
+    expect(controller, contains("whereIn('status', ['new', 'accepted', 'planned'])"));
+  });
 }

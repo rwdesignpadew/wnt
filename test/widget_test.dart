@@ -778,7 +778,9 @@ void main() {
         overrides: [
           adminSummaryProvider.overrideWith(
             (ref) async => {
-              'alerts': <Map<String, dynamic>>[],
+              'alerts': <Map<String, dynamic>>[
+                {'label': 'Nowe serwisy', 'value': 1, 'kind': 'service'},
+              ],
               'stats': <Map<String, dynamic>>[],
               'routes': <Map<String, dynamic>>[],
               'orders': <Map<String, dynamic>>[],
@@ -805,6 +807,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Niedokończone sanityzacje'), findsOneWidget);
+    expect(find.text('Nowe serwisy'), findsOneWidget);
     expect(find.text('RADO'), findsOneWidget);
     expect(find.text('Ławnica · Kamil Kaczor'), findsOneWidget);
     expect(find.text('Wykonano 7 z 8 · pozostało 1 szt.'), findsOneWidget);

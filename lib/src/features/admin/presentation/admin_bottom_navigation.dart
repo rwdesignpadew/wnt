@@ -1,37 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/wnt_colors.dart';
+import '../../auth/application/auth_controller.dart';
 import '../../home/application/home_navigation_provider.dart';
+import '../application/admin_providers.dart';
 
 Widget adminBottomNavigation(
   BuildContext context,
   WidgetRef ref, {
   int selectedIndex = 4,
 }) {
-  const destinations = [
-    NavigationDestination(
+  final summary = ref.watch(adminSummaryProvider).valueOrNull;
+  final newOrders = _alertCount(summary, 'orders');
+  final openServices =
+      ref
+          .watch(authControllerProvider)
+          .session!
+          .user
+          .hasAdminPermission('service')
+      ? _alertCount(summary, 'service')
+      : 0;
+  final destinations = [
+    const NavigationDestination(
       icon: Icon(Icons.dashboard_outlined),
       selectedIcon: Icon(Icons.dashboard),
       label: 'Start',
     ),
-    NavigationDestination(
+    const NavigationDestination(
       icon: Icon(Icons.route_outlined),
       selectedIcon: Icon(Icons.route),
       label: 'Trasy',
     ),
     NavigationDestination(
-      icon: Icon(Icons.shopping_cart_outlined),
-      selectedIcon: Icon(Icons.shopping_cart),
+      icon: _badgedIcon(Icons.shopping_cart_outlined, newOrders),
+      selectedIcon: _badgedIcon(Icons.shopping_cart, newOrders),
       label: 'Zamówienia',
     ),
-    NavigationDestination(
+    const NavigationDestination(
       icon: Icon(Icons.description_outlined),
       selectedIcon: Icon(Icons.description),
       label: 'Dokumenty',
     ),
     NavigationDestination(
-      icon: Icon(Icons.more_horiz),
-      selectedIcon: Icon(Icons.more_horiz),
+      icon: _badgedIcon(Icons.more_horiz, openServices),
+      selectedIcon: _badgedIcon(Icons.more_horiz, openServices),
       label: 'Więcej',
     ),
   ];
@@ -53,4 +66,25 @@ Widget adminBottomNavigation(
       },
     ),
   );
+}
+
+Widget _badgedIcon(IconData icon, int count) {
+  final child = Icon(icon);
+  if (count < 1) return child;
+  return Badge(
+    backgroundColor: WntColors.error,
+    label: Text(count > 99 ? '99+' : '$count'),
+    child: child,
+  );
+}
+
+int _alertCount(Map<String, dynamic>? summary, String kind) {
+  final alerts = summary?['alerts'];
+  if (alerts is! List) return 0;
+  for (final raw in alerts.whereType<Map>()) {
+    if (raw['kind']?.toString() == kind) {
+      return int.tryParse('${raw['value']}') ?? 0;
+    }
+  }
+  return 0;
 }
