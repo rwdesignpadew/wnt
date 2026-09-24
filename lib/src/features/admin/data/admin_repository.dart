@@ -326,6 +326,39 @@ class AdminRepository {
     token: token,
     body: {'service_prices': servicePrices},
   );
+  Future<Map<String, dynamic>> serviceRequests(
+    String token, {
+    String status = 'open',
+    String search = '',
+  }) => _api.get(
+    '/mobile/admin/service-requests',
+    token: token,
+    query: {
+      'status': status,
+      if (search.trim().isNotEmpty) 'search': search.trim(),
+    },
+  );
+  Future<Map<String, dynamic>> chargeServiceToBalance(
+    String token,
+    int id,
+    double price,
+  ) => _api.post(
+    '/mobile/admin/service-requests/$id/balance',
+    token: token,
+    body: {'price': price},
+  );
+  Future<Map<String, dynamic>> updateServiceRequestStatus(
+    String token,
+    int id,
+    String status, {
+    String? adminNotes,
+  }) => _api.post(
+    '/mobile/admin/service-requests/$id/status',
+    token: token,
+    body: {'status': status, 'admin_notes': adminNotes},
+  );
+  Future<Map<String, dynamic>> deleteServiceRequest(String token, int id) =>
+      _api.delete('/mobile/admin/service-requests/$id', token: token);
   Future<Map<String, dynamic>> deleteDocument(String token, int id) =>
       _api.delete('/mobile/admin/documents/$id', token: token);
   Future<Map<String, dynamic>> deleteExternalDocument(String token, int id) =>

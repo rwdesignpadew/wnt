@@ -13,6 +13,7 @@ import 'admin_administrators_screen.dart';
 import 'admin_driver_statistics_screen.dart';
 import 'admin_settings_edit_screen.dart';
 import 'admin_management_screens.dart';
+import 'admin_service_requests_screen.dart';
 
 class AdminMoreScreen extends ConsumerWidget {
   const AdminMoreScreen({super.key});
@@ -49,6 +50,27 @@ class AdminMoreScreen extends ConsumerWidget {
               ),
             ),
             const Divider(),
+            if (ref
+                .watch(authControllerProvider)
+                .session!
+                .user
+                .hasAdminPermission('service')) ...[
+              ListTile(
+                leading: const Icon(
+                  Icons.build_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Serwis'),
+                subtitle: const Text('Zgłoszenia z WZ i od klientów'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminServiceRequestsScreen(),
+                  ),
+                ),
+              ),
+              const Divider(),
+            ],
             ListTile(
               leading: const Icon(
                 Icons.sticky_note_2_outlined,
