@@ -46,7 +46,7 @@ jobs:
           printf '%s' 'biuro@rwdesign.pl' > fastlane/metadata/review_information/email_address.txt
           printf '%s' '+48570733733' > fastlane/metadata/review_information/phone_number.txt
 
-      - name: Close unresolved rejected submission
+      - name: Close active review submission before replacing its build
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -74,12 +74,13 @@ jobs:
           app = JSON.parse(app_response.body).fetch('data').first
           submissions_response = request(:get, "/v1/reviewSubmissions?filter%5Bapp%5D=#{app['id']}&limit=10", token)
           abort "Submissions HTTP #{submissions_response.code}: #{submissions_response.body}" unless submissions_response.is_a?(Net::HTTPSuccess)
+          active_states = %w[READY_FOR_REVIEW WAITING_FOR_REVIEW UNRESOLVED_ISSUES]
           JSON.parse(submissions_response.body).fetch('data').each do |submission|
-            next unless submission.dig('attributes', 'state') == 'UNRESOLVED_ISSUES'
+            next unless active_states.include?(submission.dig('attributes', 'state'))
             payload = { data: { type: 'reviewSubmissions', id: submission['id'], attributes: { canceled: true } } }
             response = request(:patch, "/v1/reviewSubmissions/#{submission['id']}", token, payload)
             abort "Cancel HTTP #{response.code}: #{response.body}" unless response.code.to_i.between?(200, 299)
-            puts "Canceling unresolved submission #{submission['id']}"
+            puts "Canceling active submission #{submission['id']} state=#{submission.dig('attributes', 'state')}"
           end
           RUBY
           ruby "$RUNNER_TEMP/close-review.rb"
@@ -94,7 +95,7 @@ jobs:
             --build_number "${{ inputs.build_number }}" \
             --metadata_path fastlane/metadata \
             --screenshots_path fastlane/screenshots \
-            --overwrite_screenshots true \
+            --skip_screenshots true \
             --skip_binary_upload true \
             --submit_for_review true \
             --automatic_release false \
