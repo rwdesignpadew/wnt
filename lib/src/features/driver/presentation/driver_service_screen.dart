@@ -1088,6 +1088,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         _largeBottleDepositNetQuantity() *
             _largeBottleDepositUnitPrice(true);
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
+    final debtSources = _list(widget.document['debt_sources']);
     final credit =
         double.tryParse('${widget.document['credit_amount'] ?? 0}') ?? 0;
     final balance = credit - debt;
@@ -1687,12 +1688,74 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                               ),
                             )
                           else if (balance < -0.005)
-                            Text(
-                              'Zaległość klienta: ${(-balance).toStringAsFixed(2)} zł',
-                              style: const TextStyle(
-                                color: WntColors.error,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Zaległość klienta: ${(-balance).toStringAsFixed(2)} zł',
+                                  style: const TextStyle(
+                                    color: WntColors.error,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (debtSources.isNotEmpty)
+                                  Theme(
+                                    data: Theme.of(context).copyWith(
+                                      dividerColor: Colors.transparent,
+                                    ),
+                                    child: ExpansionTile(
+                                      tilePadding: EdgeInsets.zero,
+                                      childrenPadding: const EdgeInsets.only(
+                                        bottom: 4,
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                      title: const Text(
+                                        'Skąd wynika zaległość?',
+                                        style: TextStyle(
+                                          color: WntColors.error,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      children: debtSources.map((source) {
+                                        final amount = double.tryParse(
+                                              '${source['amount'] ?? 0}',
+                                            ) ??
+                                            0;
+                                        final date = '${source['date'] ?? ''}'
+                                            .trim();
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 6,
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '${source['label'] ?? 'Zaległość'}${date.isNotEmpty ? ' · $date' : ''}',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: WntColors.muted,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                '${amount.toStringAsFixed(2)} zł',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                              ],
                             ),
                         ],
                       ),
