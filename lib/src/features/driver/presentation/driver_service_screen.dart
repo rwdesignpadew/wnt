@@ -1382,7 +1382,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     controlAffinity: ListTileControlAffinity.leading,
                     title: const Text('Dolicz kaucję za butle 18,9 l'),
                     subtitle: Text(
-                      '${_largeBottleDepositChargeQuantity} z ${_largeBottleWaterQuantity()} wydanych szt. × '
+                      '$_largeBottleDepositChargeQuantity z ${_largeBottleWaterQuantity()} wydanych szt. × '
                       '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
                     ),
                     onChanged: (value) => setState(() {
