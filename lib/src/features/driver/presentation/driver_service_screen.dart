@@ -369,19 +369,19 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final deposit = _productForReturnKind(_ReturnKind.largeBottleDeposit);
     if (deposit == null) return;
 
-    final waterQuantity = _largeBottleWaterQuantity();
-    if (!_chargeLargeBottleDeposit || waterQuantity < 1) {
+    final maximumChargeQuantity =
+        _largeBottleDepositMaximumChargeQuantity();
+    if (!_chargeLargeBottleDeposit || maximumChargeQuantity < 1) {
       _largeBottleDepositChargeQuantity = 0;
       _chargeLargeBottleDeposit = false;
     } else if (_largeBottleDepositChargeQuantity < 1) {
-      _largeBottleDepositChargeQuantity = waterQuantity;
+      _largeBottleDepositChargeQuantity = maximumChargeQuantity;
     } else {
       _largeBottleDepositChargeQuantity =
-          _largeBottleDepositChargeQuantity.clamp(0, waterQuantity);
+          _largeBottleDepositChargeQuantity.clamp(0, maximumChargeQuantity);
     }
     _refundLargeBottleDeposit = !_isCompanyDocument(widget.document) &&
-        _largeBottleReturnQuantity() > 0 &&
-        _refundableLargeBottleDepositQuantity() > 0;
+        _matchedLargeBottleDepositReturnQuantity() > 0;
 
     // The signed deposit quantity is derived and validated by the server.
     // Do not submit a negative quantity because public request validation only
@@ -408,14 +408,34 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     );
   }
 
-  int _largeBottleDepositRefundQuantity() {
-    if (_isCompanyDocument(widget.document) || !_refundLargeBottleDeposit) {
-      return 0;
-    }
+  int _matchedLargeBottleDepositReturnQuantity() {
+    if (_isCompanyDocument(widget.document)) return 0;
     return _largeBottleReturnQuantity().clamp(
       0,
       _refundableLargeBottleDepositQuantity(),
     );
+  }
+
+  int _largeBottleDepositTransferredQuantity() {
+    return _matchedLargeBottleDepositReturnQuantity().clamp(
+      0,
+      _largeBottleWaterQuantity(),
+    );
+  }
+
+  int _largeBottleDepositMaximumChargeQuantity() {
+    return (_largeBottleWaterQuantity() -
+            _largeBottleDepositTransferredQuantity())
+        .clamp(0, 999999);
+  }
+
+  int _largeBottleDepositRefundQuantity() {
+    if (_isCompanyDocument(widget.document) || !_refundLargeBottleDeposit) {
+      return 0;
+    }
+    return (_matchedLargeBottleDepositReturnQuantity() -
+            _largeBottleDepositTransferredQuantity())
+        .clamp(0, 999999);
   }
 
   int _largeBottleDepositNetQuantity() {
@@ -848,6 +868,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
             _largeBottleDepositChargeQuantity,
         refundLargeBottleDeposit: _refundLargeBottleDeposit &&
             _largeBottleDepositRefundQuantity() > 0,
+        sendEmailAfterCompletion: reviewAction == 'send',
         correction: correction,
         rentalInitialFeeCollected: _rentalInitialFeeCollected,
         rentalReturns: rentalReturns,
@@ -867,31 +888,16 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       if (response['queued_offline'] == true ||
           response['queued_for_sync'] == true) {
         widget.document['offline_sync_status'] = 'pending';
-        _message(
-          response['message']?.toString() ??
-              'Obsługa zapisana offline. Zostanie wysłana po odzyskaniu internetu.',
-        );
+        _message(reviewAction == 'send'
+            ? 'Obsługa i wysyłka e-mail zostały zapisane. Dokument zostanie wysłany po synchronizacji.'
+            : response['message']?.toString() ??
+                'Obsługa zapisana offline. Zostanie wysłana po odzyskaniu internetu.');
         Navigator.of(context).pop(true);
         return;
       }
 
-      final savedDocument = _map(response['document']) ?? widget.document;
-      final savedDocumentId = _int(savedDocument['id'] ?? documentId);
       if (reviewAction == 'send') {
-        try {
-          final message = await repository.emailDocument(
-            token,
-            savedDocumentId,
-          );
-          if (!mounted) return;
-          _message(message);
-        } catch (error) {
-          if (!mounted) return;
-          _message(
-            'WZ został zapisany, ale nie udało się wysłać e-maila: $error',
-            error: true,
-          );
-        }
+        _message('WZ został zapisany i przekazany do wysyłki e-mail.');
       } else {
         _message(response['message']?.toString() ?? 'WZ został zapisany.');
       }
@@ -1374,7 +1380,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     icon: const Icon(Icons.expand_more),
                     label: Text('Pokaż więcej produktów (${remaining.length})'),
                   ),
-                if (!isCompany && _largeBottleWaterQuantity() > 0) ...[
+                if (!isCompany &&
+                    _largeBottleDepositMaximumChargeQuantity() > 0) ...[
                   const SizedBox(height: 8),
                   CheckboxListTile(
                     value: _chargeLargeBottleDeposit,
@@ -1388,7 +1395,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     onChanged: (value) => setState(() {
                       _chargeLargeBottleDeposit = value == true;
                       _largeBottleDepositChargeQuantity = value == true
-                          ? _largeBottleWaterQuantity()
+                          ? _largeBottleDepositMaximumChargeQuantity()
                           : 0;
                       _syncLargeBottleDepositQuantity();
                     }),
@@ -1408,7 +1415,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                           onChanged: (value) => setState(() {
                             _largeBottleDepositChargeQuantity = value.clamp(
                               0,
-                              _largeBottleWaterQuantity(),
+                              _largeBottleDepositMaximumChargeQuantity(),
                             );
                           }),
                         ),
@@ -1417,7 +1424,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                 ],
                 if (!isCompany &&
                     _largeBottleReturnQuantity() > 0 &&
-                    _refundableLargeBottleDepositQuantity() > 0) ...[
+                    _matchedLargeBottleDepositReturnQuantity() > 0) ...[
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
@@ -1428,9 +1435,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'Zwrot butli automatycznie pomniejszy kaucję: '
-                      '${_largeBottleDepositRefundQuantity()} szt. × '
-                      '${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł',
+                      _largeBottleDepositRefundQuantity() > 0
+                          ? 'Kaucja z ${_largeBottleDepositTransferredQuantity()} zwróconych butli przechodzi na nowe wydanie. Zwrot kaucji: ${_largeBottleDepositRefundQuantity()} szt. × ${_largeBottleDepositUnitPrice(useGross).toStringAsFixed(2)} zł.'
+                          : 'Kaucja z ${_largeBottleDepositTransferredQuantity()} zwróconych butli przechodzi na nowe wydanie. Nowa kaucja dotyczy tylko pozostałych butli.',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),

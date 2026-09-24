@@ -206,12 +206,14 @@ void main() {
         signatureData: 'data:image/png;base64,dGVzdA==',
         signedBy: 'Odbiorca',
         rentalInitialFeeCollected: true,
+        sendEmailAfterCompletion: true,
       );
 
       expect(response['queued_offline'], isTrue);
       final queue = await store.readQueue(7);
       expect(queue, hasLength(1));
       expect(queue.single['body']['rental_initial_fee_collected'], isTrue);
+      expect(queue.single['body']['send_email_after_completion'], isTrue);
     },
   );
 

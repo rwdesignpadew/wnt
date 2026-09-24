@@ -173,6 +173,7 @@ class DriverRepository {
     bool chargeLargeBottleDeposit = false,
     int? chargeLargeBottleDepositQuantity,
     bool refundLargeBottleDeposit = false,
+    bool sendEmailAfterCompletion = false,
     bool correction = false,
     bool rentalInitialFeeCollected = false,
     List<Map<String, dynamic>> rentalReturns = const [],
@@ -209,6 +210,7 @@ class DriverRepository {
       'charge_large_bottle_deposit_quantity':
           ?chargeLargeBottleDepositQuantity,
       'refund_large_bottle_deposit': refundLargeBottleDeposit,
+      'send_email_after_completion': sendEmailAfterCompletion,
       'correction': correction,
       'rental_initial_fee_collected': rentalInitialFeeCollected,
       'rental_returns': rentalReturns,
