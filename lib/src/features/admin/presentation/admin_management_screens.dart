@@ -783,6 +783,8 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
   int productId = 0;
   int routeId = 0;
   int driverId = 0;
+  int co2BottleQuantity = 0;
+  int co2RegulatorQuantity = 0;
   String routeMode = 'existing';
   bool saving = false;
   DateTime date = DateTime.now();
@@ -795,8 +797,8 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
       final locations = _maps(clients.first['locations']);
       if (locations.isNotEmpty) locationId = _int(locations.first['id']);
     }
-    if (products.isNotEmpty) {
-      _selectProduct(_int(products.first['id']), notify: false);
+    if (selectableProducts.isNotEmpty) {
+      _selectProduct(_int(selectableProducts.first['id']), notify: false);
     }
     _applyClientBilling();
     if (routes.isNotEmpty) {
@@ -833,6 +835,36 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
 
   bool get selectedClientUsesPrivateBalance =>
       _truthy(selectedClient?['rental_private_balance']);
+
+  List<Map<String, dynamic>> get selectableProducts => products
+      .where((product) => !_truthy(product['is_co2_accessory']))
+      .toList();
+
+  Map<String, dynamic>? get selectedProduct {
+    for (final product in products) {
+      if (_int(product['id']) == productId) return product;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _co2Accessory(String type) {
+    for (final product in products) {
+      if ('${product['co2_accessory_type']}' == type) return product;
+    }
+    return null;
+  }
+
+  bool get selectedProductIsCarbonated =>
+      _truthy(selectedProduct?['is_carbonated_dispenser']);
+
+  int get selectedProductQuantity =>
+      (int.tryParse(quantity.text) ?? 0).clamp(0, 9999).toInt();
+
+  void _clampCo2Accessories() {
+    final maximum = selectedProductIsCarbonated ? selectedProductQuantity : 0;
+    co2BottleQuantity = co2BottleQuantity.clamp(0, maximum).toInt();
+    co2RegulatorQuantity = co2RegulatorQuantity.clamp(0, maximum).toInt();
+  }
 
   void _applyClientBilling() {
     vat.text = '${selectedClient?['rental_vat_rate'] ?? 23}';
@@ -878,6 +910,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     void update() {
       productId = value;
       price.text = '${product['default_price'] ?? 0}';
+      _clampCo2Accessories();
       _applyClientBilling();
     }
 
@@ -902,16 +935,44 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
     }
     setState(() => saving = true);
     try {
-      final response = await ref.read(adminRepositoryProvider).storeRental(
-        ref.read(authControllerProvider).session!.token,
-        <String, dynamic>{
-          'client_id': clientId,
-          'client_location_id': locationId,
+      final items = <Map<String, dynamic>>[
+        {
           'product_id': productId,
           'quantity': count,
           'unit_price_net':
               double.tryParse(price.text.replaceAll(',', '.')) ?? 0,
           'vat_rate': double.tryParse(vat.text.replaceAll(',', '.')) ?? 23,
+        },
+      ];
+      final bottle = _co2Accessory('bottle');
+      final regulator = _co2Accessory('regulator');
+      if (selectedProductIsCarbonated &&
+          bottle != null &&
+          co2BottleQuantity > 0) {
+        items.add({
+          'product_id': _int(bottle['id']),
+          'quantity': co2BottleQuantity,
+          'unit_price_net': 0,
+          'vat_rate': double.tryParse('${bottle['vat_rate'] ?? 23}') ?? 23,
+        });
+      }
+      if (selectedProductIsCarbonated &&
+          regulator != null &&
+          co2RegulatorQuantity > 0) {
+        items.add({
+          'product_id': _int(regulator['id']),
+          'quantity': co2RegulatorQuantity,
+          'unit_price_net': 0,
+          'vat_rate':
+              double.tryParse('${regulator['vat_rate'] ?? 23}') ?? 23,
+        });
+      }
+      final response = await ref.read(adminRepositoryProvider).storeRental(
+        ref.read(authControllerProvider).session!.token,
+        <String, dynamic>{
+          'client_id': clientId,
+          'client_location_id': locationId,
+          'items': items,
           'recurring_billing': true,
           'route_mode': routeMode,
           'delivery_route_id': routeMode == 'existing' ? routeId : null,
@@ -999,7 +1060,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Sprzęt / przedmiot dzierżawy',
                 ),
-                items: products
+                items: selectableProducts
                     .map(
                       (product) => DropdownMenuItem(
                         value: _int(product['id']),
@@ -1022,6 +1083,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                       controller: quantity,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'Ilość'),
+                      onChanged: (_) => setState(_clampCo2Accessories),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1046,6 +1108,51 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                   ),
                 ],
               ),
+              if (selectedProductIsCarbonated) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer
+                        .withValues(alpha: .28),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Wyposażenie dystrybutora gazującego',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Opcjonalne. Nic nie zostanie dodane automatycznie.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 10),
+                      if (_co2Accessory('bottle') case final bottle?)
+                        _co2AccessoryStepper(
+                          product: bottle,
+                          quantity: co2BottleQuantity,
+                          onChanged: (value) =>
+                              setState(() => co2BottleQuantity = value),
+                        ),
+                      if (_co2Accessory('regulator') case final regulator?) ...[
+                        const SizedBox(height: 8),
+                        _co2AccessoryStepper(
+                          product: regulator,
+                          quantity: co2RegulatorQuantity,
+                          onChanged: (value) =>
+                              setState(() => co2RegulatorQuantity = value),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1144,6 +1251,49 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
       ],
     ),
   );
+
+  Widget _co2AccessoryStepper({
+    required Map<String, dynamic> product,
+    required int quantity,
+    required ValueChanged<int> onChanged,
+  }) {
+    final maximum = selectedProductQuantity;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${product['name']}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                'stan: ${product['stock']} szt. · bez osobnej opłaty',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        IconButton.outlined(
+          onPressed: quantity > 0 ? () => onChanged(quantity - 1) : null,
+          icon: const Icon(Icons.remove),
+        ),
+        SizedBox(
+          width: 38,
+          child: Text(
+            '$quantity',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        IconButton.filled(
+          onPressed: quantity < maximum ? () => onChanged(quantity + 1) : null,
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    );
+  }
 }
 
 class AdminRouteNotesScreen extends ConsumerStatefulWidget {
