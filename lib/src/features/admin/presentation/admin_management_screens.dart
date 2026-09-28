@@ -408,6 +408,108 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
     }
   }
 
+  Future<void> _approveDriverReview(Map<String, dynamic> review) async {
+    final reviewItems = _maps(review['items']);
+    final controllers = <int, TextEditingController>{
+      for (final item in reviewItems)
+        _int(item['product_id']): TextEditingController(),
+    };
+    final prices = await showModalBottomSheet<Map<int, double>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Ustal ceny dzierżawy',
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${review['client_name']} • ${review['location_name']}\nWZ: ${review['number']}',
+              ),
+              const SizedBox(height: 16),
+              for (final item in reviewItems) ...[
+                Text(
+                  '${item['product_name']} • ${item['quantity']} szt.',
+                  style: Theme.of(sheetContext).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controllers[_int(item['product_id'])],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Cena miesięczna netto / szt.',
+                    suffixText: 'zł',
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              FilledButton(
+                onPressed: () {
+                  final result = <int, double>{};
+                  for (final item in reviewItems) {
+                    final productId = _int(item['product_id']);
+                    final parsed = double.tryParse(
+                      controllers[productId]!.text.trim().replaceAll(',', '.'),
+                    );
+                    if (parsed == null || parsed < 0) {
+                      _snack(
+                        sheetContext,
+                        'Podaj prawidłową cenę każdej dzierżawy.',
+                        error: true,
+                      );
+                      return;
+                    }
+                    result[productId] = parsed;
+                  }
+                  Navigator.pop(sheetContext, result);
+                },
+                child: const Text('Zapisz i utwórz dzierżawę'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+    if (prices == null || !mounted) return;
+
+    try {
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .approveDriverRental(
+            ref.read(authControllerProvider).session!.token,
+            _int(review['id']),
+            prices,
+          );
+      ref.invalidate(adminRentalsProvider);
+      ref.invalidate(adminClientsProvider);
+      if (mounted) {
+        _snack(
+          context,
+          '${response['message'] ?? 'Dzierżawa została przypisana do klienta.'}',
+        );
+      }
+    } catch (error) {
+      if (mounted) _snack(context, '$error', error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Dzierżawy')),
@@ -429,7 +531,22 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
           data: (data) {
             final pending = _maps(data['pending']);
             final active = _maps(data['active']);
-            final allRentals = <Map<String, dynamic>>[...active, ...pending];
+            final driverReviews = _maps(data['driver_reviews']);
+            final reviewFilterRows = driverReviews
+                .expand(
+                  (review) => _maps(review['items']).map(
+                    (item) => <String, dynamic>{
+                      ...review,
+                      'product_name': item['product_name'],
+                    },
+                  ),
+                )
+                .toList();
+            final allRentals = <Map<String, dynamic>>[
+              ...active,
+              ...pending,
+              ...reviewFilterRows,
+            ];
             final clients = _filterValues(allRentals, 'client_name');
             final locations = _filterValues(allRentals, 'location_name');
             final products = _filterValues(allRentals, 'product_name');
@@ -440,6 +557,16 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
             final filteredPending = pending
                 .where(_matchesRentalFilters)
                 .toList();
+            final filteredReviews = driverReviews.where((review) {
+              final rows = _maps(review['items']);
+              if (rows.isEmpty) return false;
+              return rows.any(
+                (item) => _matchesRentalFilters(<String, dynamic>{
+                  ...review,
+                  'product_name': item['product_name'],
+                }),
+              );
+            }).toList();
             final items = _tab == 'pending' ? filteredPending : filteredActive;
             return RefreshIndicator(
               onRefresh: () => ref.refresh(adminRentalsProvider.future),
@@ -453,6 +580,7 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
                     tabs: [
                       ('active', 'Aktywne', filteredActive.length),
                       ('pending', 'W realizacji', filteredPending.length),
+                      ('review', 'Do wyceny', filteredReviews.length),
                     ],
                     onChanged: (value) => setState(() => _tab = value),
                   ),
@@ -583,7 +711,47 @@ class _AdminRentalsScreenState extends ConsumerState<AdminRentalsScreen> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  if (items.isEmpty)
+                  if (_tab == 'review' && filteredReviews.isEmpty)
+                    const _EmptyMessage(
+                      'Brak sprzętu wydanego przez kierowców oczekującego na wycenę.',
+                    )
+                  else if (_tab == 'review')
+                    for (final review in filteredReviews)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                '${review['client_name']} • ${review['location_name']}',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${review['number']} • kierowca: ${review['driver_name'] ?? 'brak'}',
+                              ),
+                              const SizedBox(height: 10),
+                              for (final item in _maps(review['items']))
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text(
+                                    '${item['product_name']} • ${item['quantity']} szt.',
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              FilledButton.icon(
+                                onPressed: () => _approveDriverReview(review),
+                                icon: const Icon(Icons.price_change_outlined),
+                                label: const Text(
+                                  'Wpisz cenę i utwórz dzierżawę',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                  else if (items.isEmpty)
                     _EmptyMessage(
                       _rentalSearch.text.isNotEmpty || _activeFilterCount > 0
                           ? 'Brak dzierżaw pasujących do filtrów.'
@@ -963,8 +1131,7 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
           'product_id': _int(regulator['id']),
           'quantity': co2RegulatorQuantity,
           'unit_price_net': 0,
-          'vat_rate':
-              double.tryParse('${regulator['vat_rate'] ?? 23}') ?? 23,
+          'vat_rate': double.tryParse('${regulator['vat_rate'] ?? 23}') ?? 23,
         });
       }
       final response = await ref.read(adminRepositoryProvider).storeRental(
@@ -1113,8 +1280,9 @@ class _RentalEditorSheetState extends ConsumerState<_RentalEditorSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer
-                        .withValues(alpha: .28),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer.withValues(alpha: .28),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: Theme.of(context).colorScheme.primaryContainer,

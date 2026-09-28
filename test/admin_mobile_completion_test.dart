@@ -493,8 +493,8 @@ void main() {
       rentals,
       isNot(contains("'requires_sanitization': requiresSanitization")),
     );
-    expect(rentals, contains("'recurring_billing': recurringBilling"));
-    expect(rentals, contains('Pobieraj opłatę co miesiąc'));
+    expect(rentals, contains("'recurring_billing': true"));
+    expect(rentals, isNot(contains('Pobieraj opłatę co miesiąc')));
     expect(rentals, contains('Podsumowanie sprzętu'));
     expect(rentals, contains("statistics['sanitization_quantity']"));
     expect(rentals, contains("statistics['monthly_net']"));
@@ -513,12 +513,7 @@ void main() {
       controller,
       isNot(contains("LOWER(name) LIKE ?', ['%dystrybutor%']")),
     );
-    expect(
-      completion,
-      contains(
-        r"$rental->recurring_billing = (bool) ($request['recurring_billing'] ?? true)",
-      ),
-    );
+    expect(completion, contains(r'$rental->recurring_billing = true;'));
     expect(
       completion,
       isNot(contains(r"$request['recurring_billing'] = true")),
@@ -529,9 +524,37 @@ void main() {
       driverController,
       contains("'rental_initial_fee_collected' => ['nullable', 'boolean']"),
     );
-    expect(driverController, contains("'rental_request' => is_array"));
+    expect(
+      driverController,
+      contains("'rental_request' => \$document->hasValidRentalRequest()"),
+    );
     expect(clients, contains('Wyślij fakturę ze wszystkimi WZ z miesiąca'));
     expect(clients, contains("'email_monthly_wz_with_invoice'"));
+  });
+
+  test('sprzęt oznaczony przez kierowcę trafia do wyceny dzierżawy', () {
+    final rentals = File(
+      'lib/src/features/admin/presentation/admin_management_screens.dart',
+    ).readAsStringSync();
+    final adminRepository = File(
+      'lib/src/features/admin/data/admin_repository.dart',
+    ).readAsStringSync();
+    final driverService = File(
+      'lib/src/features/driver/presentation/driver_service_screen.dart',
+    ).readAsStringSync();
+    final driverRepository = File(
+      'lib/src/features/driver/data/driver_repository.dart',
+    ).readAsStringSync();
+
+    expect(rentals, contains("('review', 'Do wyceny'"));
+    expect(rentals, contains('Wpisz cenę i utwórz dzierżawę'));
+    expect(adminRepository, contains('approveDriverRental('));
+    expect(driverService, contains('Dzierżawa ustalona przez administratora'));
+    expect(driverService, contains('Dzierżawa zaznaczona'));
+    expect(
+      driverRepository,
+      contains("'rental_product_ids': rentalProductIds"),
+    );
   });
 
   test('dzierżawy mają filtry i nie pokazują zwróconego sprzętu w edycji', () {
@@ -600,6 +623,9 @@ void main() {
     expect(dashboard, contains("kind == 'service'"));
     expect(dashboard, contains('AdminServiceRequestsScreen'));
     expect(controller, contains("'kind' => 'service'"));
-    expect(controller, contains("whereIn('status', ['new', 'accepted', 'planned'])"));
+    expect(
+      controller,
+      contains("whereIn('status', ['new', 'accepted', 'planned'])"),
+    );
   });
 }

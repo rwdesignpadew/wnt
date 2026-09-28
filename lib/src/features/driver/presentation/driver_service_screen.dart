@@ -40,6 +40,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   final _rentalReturns = <int, int>{};
   final _damagedRentalIds = <int>{};
   final _confirmedReturnProductIds = <int>{};
+  final _driverRentalProductIds = <int>{};
   final _returnConfirmationInProgress = <int>{};
   final _plannedReturnOnlyProductIds = <int>{};
   final _damageNotes = <int, TextEditingController>{};
@@ -124,14 +125,21 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     _rentalInitialFeeCollected = _flag(
       _map(widget.document['rental_request'])?['initial_fee_collected'],
     );
+    for (final item in _list(
+      _map(widget.document['rental_request'])?['items'],
+    )) {
+      if (_flag(item['review_required'])) {
+        final productId = _int(item['product_id']);
+        if (productId > 0) _driverRentalProductIds.add(productId);
+      }
+    }
     for (final item in _list(widget.document['items'])) {
       _quantities[_int(item['product_id'])] = _int(item['quantity']);
     }
     for (final product in widget.products) {
       final productId = _int(product['id']);
       if ((_quantities[productId] ?? 0) <= 0) continue;
-      if (_isReturnProduct(product) ||
-          _requiresWzReturnConfirmation(product)) {
+      if (_isReturnProduct(product) || _requiresWzReturnConfirmation(product)) {
         _plannedReturnOnlyProductIds.add(productId);
       }
       if (_requiresWzReturnConfirmation(product)) {
@@ -156,15 +164,14 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final largeBottleDeposit = _productForReturnKind(
       _ReturnKind.largeBottleDeposit,
     );
-    _chargeLargeBottleDeposit = largeBottleDeposit != null &&
+    _chargeLargeBottleDeposit =
+        largeBottleDeposit != null &&
         (_quantities[_int(largeBottleDeposit['id'])] ?? 0) > 0;
     _largeBottleDepositChargeQuantity = largeBottleDeposit == null
         ? 0
-        : (_quantities[_int(largeBottleDeposit['id'])] ?? 0).clamp(
-            0,
-            999999,
-          );
-    _refundLargeBottleDeposit = largeBottleDeposit != null &&
+        : (_quantities[_int(largeBottleDeposit['id'])] ?? 0).clamp(0, 999999);
+    _refundLargeBottleDeposit =
+        largeBottleDeposit != null &&
         (_quantities[_int(largeBottleDeposit['id'])] ?? 0) < 0;
     final trialRequest = _map(widget.document['trial_request']);
     if (trialRequest?['action']?.toString() == 'pickup') {
@@ -369,18 +376,18 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final deposit = _productForReturnKind(_ReturnKind.largeBottleDeposit);
     if (deposit == null) return;
 
-    final maximumChargeQuantity =
-        _largeBottleDepositMaximumChargeQuantity();
+    final maximumChargeQuantity = _largeBottleDepositMaximumChargeQuantity();
     if (!_chargeLargeBottleDeposit || maximumChargeQuantity < 1) {
       _largeBottleDepositChargeQuantity = 0;
       _chargeLargeBottleDeposit = false;
     } else if (_largeBottleDepositChargeQuantity < 1) {
       _largeBottleDepositChargeQuantity = maximumChargeQuantity;
     } else {
-      _largeBottleDepositChargeQuantity =
-          _largeBottleDepositChargeQuantity.clamp(0, maximumChargeQuantity);
+      _largeBottleDepositChargeQuantity = _largeBottleDepositChargeQuantity
+          .clamp(0, maximumChargeQuantity);
     }
-    _refundLargeBottleDeposit = !_isCompanyDocument(widget.document) &&
+    _refundLargeBottleDeposit =
+        !_isCompanyDocument(widget.document) &&
         _matchedLargeBottleDepositReturnQuantity() > 0;
 
     // The signed deposit quantity is derived and validated by the server.
@@ -398,14 +405,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         break;
       }
     }
-    return returned == null ? 0 : (_returnQuantities[_int(returned['id'])] ?? 0);
+    return returned == null
+        ? 0
+        : (_returnQuantities[_int(returned['id'])] ?? 0);
   }
 
   int _refundableLargeBottleDepositQuantity() {
-    return _int(widget.document['refundable_large_bottle_deposits']).clamp(
-      0,
-      999999,
-    );
+    return _int(
+      widget.document['refundable_large_bottle_deposits'],
+    ).clamp(0, 999999);
   }
 
   int _matchedLargeBottleDepositReturnQuantity() {
@@ -481,7 +489,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     // Keep the warning available for an offline route cached before the API
     // started returning the explicit flag.
     final name = _normalizedProductName(product);
-    final isLargeBottle = name.contains('18,9') ||
+    final isLargeBottle =
+        name.contains('18,9') ||
         name.contains('18.9') ||
         name.contains('18 9') ||
         name.contains('galon');
@@ -535,6 +544,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     if (value <= 0) {
       setState(() {
         _confirmedReturnProductIds.remove(productId);
+        _driverRentalProductIds.remove(productId);
         _setDeliveredProductQuantity(productId, 0);
       });
       return;
@@ -648,6 +658,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         token: token,
         documentId: documentId,
         quantities: _quantities,
+        rentalProductIds: _driverRentalProductIds,
         packageQuantities: _packageQuantities,
         packageComponentQuantities: _packageComponentQuantities,
         paymentMethod: _paymentMethod,
@@ -657,9 +668,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
-        chargeLargeBottleDepositQuantity:
-            _largeBottleDepositChargeQuantity,
-        refundLargeBottleDeposit: _refundLargeBottleDeposit &&
+        chargeLargeBottleDepositQuantity: _largeBottleDepositChargeQuantity,
+        refundLargeBottleDeposit:
+            _refundLargeBottleDeposit &&
             _largeBottleDepositRefundQuantity() > 0,
         correction: correction,
         rentalInitialFeeCollected: _rentalInitialFeeCollected,
@@ -855,6 +866,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         userId: session.user.id,
         documentId: documentId,
         quantities: _quantities,
+        rentalProductIds: _driverRentalProductIds,
         packageQuantities: _packageQuantities,
         packageComponentQuantities: _packageComponentQuantities,
         paymentMethod: _paymentMethod,
@@ -864,9 +876,9 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         cashCollected: double.tryParse(_cash.text.replaceAll(',', '.')),
         customerRequestsInvoice: _customerRequestsInvoice,
         chargeLargeBottleDeposit: _chargeLargeBottleDeposit,
-        chargeLargeBottleDepositQuantity:
-            _largeBottleDepositChargeQuantity,
-        refundLargeBottleDeposit: _refundLargeBottleDeposit &&
+        chargeLargeBottleDepositQuantity: _largeBottleDepositChargeQuantity,
+        refundLargeBottleDeposit:
+            _refundLargeBottleDeposit &&
             _largeBottleDepositRefundQuantity() > 0,
         sendEmailAfterCompletion: reviewAction == 'send',
         correction: correction,
@@ -888,10 +900,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       if (response['queued_offline'] == true ||
           response['queued_for_sync'] == true) {
         widget.document['offline_sync_status'] = 'pending';
-        _message(reviewAction == 'send'
-            ? 'Obsługa i wysyłka e-mail zostały zapisane. Dokument zostanie wysłany po synchronizacji.'
-            : response['message']?.toString() ??
-                'Obsługa zapisana offline. Zostanie wysłana po odzyskaniu internetu.');
+        _message(
+          reviewAction == 'send'
+              ? 'Obsługa i wysyłka e-mail zostały zapisane. Dokument zostanie wysłany po synchronizacji.'
+              : response['message']?.toString() ??
+                    'Obsługa zapisana offline. Zostanie wysłana po odzyskaniu internetu.',
+        );
         Navigator.of(context).pop(true);
         return;
       }
@@ -1086,6 +1100,11 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         _customerRequestsInvoice;
     final location = _map(widget.document['location']);
     final rentalRequest = _map(widget.document['rental_request']);
+    final preplannedRentalProductIds = _list(rentalRequest?['items'])
+        .where((item) => !_flag(item['review_required']))
+        .map((item) => _int(item['product_id']))
+        .where((id) => id > 0)
+        .toSet();
     final trialRequest = _map(widget.document['trial_request']);
     final isTrialDocument = trialRequest != null;
     final trialIssueProductIds = trialRequest?['action'] == 'issue'
@@ -1213,8 +1232,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
         ) +
         sanitizationNet +
-        _largeBottleDepositNetQuantity() *
-            _largeBottleDepositUnitPrice(false);
+        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(false);
     final total =
         widget.products.where(_isBillableProduct).fold<double>(0, (
           sum,
@@ -1233,8 +1251,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   (1 + vat / 100);
         }) +
         sanitizationGross +
-        _largeBottleDepositNetQuantity() *
-            _largeBottleDepositUnitPrice(true);
+        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(true);
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final debtSources = _list(widget.document['debt_sources']);
     final credit =
@@ -1354,9 +1371,19 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                     netUnitPrice: _effectiveProductPrice(visible[index]),
                     useGross: useGross,
                     showPrices: !hideTransferPrices,
-                    requiresReturnConfirmation:
-                        _requiresWzReturnConfirmation(visible[index]),
+                    requiresReturnConfirmation: _requiresWzReturnConfirmation(
+                      visible[index],
+                    ),
                     returnQuantityLocked: _plannedReturnOnlyProductIds.contains(
+                      _int(visible[index]['id']),
+                    ),
+                    rentalEligible:
+                        _flag(visible[index]['available_for_rental']) &&
+                        '${visible[index]['kind'] ?? 'product'}' != 'service',
+                    preplannedRental: preplannedRentalProductIds.contains(
+                      _int(visible[index]['id']),
+                    ),
+                    rentalSelected: _driverRentalProductIds.contains(
                       _int(visible[index]['id']),
                     ),
                     locked:
@@ -1371,6 +1398,14 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                           visible[index],
                           value,
                         ),
+                    onRentalChanged: (selected) => setState(() {
+                      final productId = _int(visible[index]['id']);
+                      if (selected) {
+                        _driverRentalProductIds.add(productId);
+                      } else {
+                        _driverRentalProductIds.remove(productId);
+                      }
+                    }),
                   ),
                   if (index < visible.length - 1) const Divider(),
                 ],
@@ -1901,7 +1936,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                                         ),
                                       ),
                                       children: debtSources.map((source) {
-                                        final amount = double.tryParse(
+                                        final amount =
+                                            double.tryParse(
                                               '${source['amount'] ?? 0}',
                                             ) ??
                                             0;
@@ -2530,6 +2566,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   double _effectiveProductPrice(Map<String, dynamic> product) {
+    if (_driverRentalProductIds.contains(_int(product['id']))) return 0;
     final requestItem = _rentalRequestItemForProduct(_int(product['id']));
     if (requestItem != null) {
       return _rentalInitialFeeCollected
@@ -3136,8 +3173,12 @@ class _ProductRow extends StatelessWidget {
     required this.showPrices,
     required this.requiresReturnConfirmation,
     required this.returnQuantityLocked,
+    required this.rentalEligible,
+    required this.preplannedRental,
+    required this.rentalSelected,
     required this.locked,
     required this.onChanged,
+    required this.onRentalChanged,
   });
   final Map<String, dynamic> product;
   final int value;
@@ -3148,8 +3189,12 @@ class _ProductRow extends StatelessWidget {
   final bool showPrices;
   final bool requiresReturnConfirmation;
   final bool returnQuantityLocked;
+  final bool rentalEligible;
+  final bool preplannedRental;
+  final bool rentalSelected;
   final bool locked;
   final ValueChanged<int> onChanged;
+  final ValueChanged<bool> onRentalChanged;
   @override
   Widget build(BuildContext context) {
     final vat = double.tryParse('${product['vat_rate'] ?? 23}') ?? 23;
@@ -3203,6 +3248,34 @@ class _ProductRow extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                ],
+                if (preplannedRental) ...[
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Dzierżawa ustalona przez administratora',
+                    style: TextStyle(
+                      color: WntColors.brand,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ] else if (rentalEligible) ...[
+                  const SizedBox(height: 5),
+                  FilterChip(
+                    selected: rentalSelected,
+                    label: Text(
+                      rentalSelected ? 'Dzierżawa zaznaczona' : 'Dzierżawa',
+                    ),
+                    avatar: const Icon(Icons.handshake_outlined, size: 18),
+                    onSelected: value > 0 && !locked ? onRentalChanged : null,
+                  ),
+                  if (rentalSelected)
+                    Text(
+                      'WZ: 0 zł. Administrator ustali miesięczną cenę.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: WntColors.brand,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                 ],
               ],
             ),

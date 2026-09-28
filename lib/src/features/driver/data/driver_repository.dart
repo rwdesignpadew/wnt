@@ -162,6 +162,7 @@ class DriverRepository {
     required int userId,
     required int documentId,
     required Map<int, int> quantities,
+    Set<int> rentalProductIds = const {},
     Map<int, int> packageQuantities = const {},
     Map<int, Map<int, int>> packageComponentQuantities = const {},
     required String paymentMethod,
@@ -189,6 +190,7 @@ class DriverRepository {
     final body = <String, dynamic>{
       'client_operation_id': operationId,
       'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
+      'rental_product_ids': rentalProductIds.toList()..sort(),
       'package_quantities': packageQuantities.map(
         (id, quantity) => MapEntry('$id', quantity),
       ),
@@ -207,8 +209,7 @@ class DriverRepository {
       'cash_collected': cashCollected,
       'customer_requests_invoice': customerRequestsInvoice,
       'charge_large_bottle_deposit': chargeLargeBottleDeposit,
-      'charge_large_bottle_deposit_quantity':
-          ?chargeLargeBottleDepositQuantity,
+      'charge_large_bottle_deposit_quantity': ?chargeLargeBottleDepositQuantity,
       'refund_large_bottle_deposit': refundLargeBottleDeposit,
       'send_email_after_completion': sendEmailAfterCompletion,
       'correction': correction,
@@ -221,7 +222,8 @@ class DriverRepository {
       'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
-      'confirmed_return_product_ids': confirmedReturnProductIds.toList()..sort(),
+      'confirmed_return_product_ids': confirmedReturnProductIds.toList()
+        ..sort(),
     };
     try {
       final response = await _api.post(
@@ -275,6 +277,7 @@ class DriverRepository {
     required String token,
     required int documentId,
     required Map<int, int> quantities,
+    Set<int> rentalProductIds = const {},
     Map<int, int> packageQuantities = const {},
     Map<int, Map<int, int>> packageComponentQuantities = const {},
     required String paymentMethod,
@@ -301,6 +304,7 @@ class DriverRepository {
     token: token,
     body: {
       'quantities': quantities.map((id, quantity) => MapEntry('$id', quantity)),
+      'rental_product_ids': rentalProductIds.toList()..sort(),
       'package_quantities': packageQuantities.map(
         (id, quantity) => MapEntry('$id', quantity),
       ),
@@ -319,8 +323,7 @@ class DriverRepository {
       'cash_collected': cashCollected,
       'customer_requests_invoice': customerRequestsInvoice,
       'charge_large_bottle_deposit': chargeLargeBottleDeposit,
-      'charge_large_bottle_deposit_quantity':
-          ?chargeLargeBottleDepositQuantity,
+      'charge_large_bottle_deposit_quantity': ?chargeLargeBottleDepositQuantity,
       'refund_large_bottle_deposit': refundLargeBottleDeposit,
       'correction': correction,
       'rental_initial_fee_collected': rentalInitialFeeCollected,

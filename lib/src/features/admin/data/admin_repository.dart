@@ -424,6 +424,17 @@ class AdminRepository {
     String token,
     int documentId,
   ) => _api.delete('/mobile/admin/rentals/pending/$documentId', token: token);
+  Future<Map<String, dynamic>> approveDriverRental(
+    String token,
+    int documentId,
+    Map<int, double> prices,
+  ) => _api.post(
+    '/mobile/admin/rentals/review/$documentId',
+    token: token,
+    body: {
+      'prices': prices.map((productId, price) => MapEntry('$productId', price)),
+    },
+  );
   Future<Map<String, dynamic>> routeNotes(
     String token, {
     int? routeId,
