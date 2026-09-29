@@ -178,7 +178,12 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
                                         if (_documentType(documents[index]) ==
                                             'wz')
                                           IconButton(
-                                            tooltip: 'Korekta WZ',
+                                            tooltip:
+                                                '${documents[index]['number'] ?? ''}'
+                                                    .toUpperCase()
+                                                    .startsWith('WZP')
+                                                ? 'Edytuj WZP'
+                                                : 'Korekta WZ',
                                             onPressed: () => _correct(
                                               documents[index],
                                               products,

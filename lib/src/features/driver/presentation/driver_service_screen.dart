@@ -642,7 +642,12 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       final token = session.token;
       final repository = ref.read(driverRepositoryProvider);
       final documentId = _int(widget.document['id']);
-      final correction = widget.document['status']?.toString() == 'completed';
+      final isPrivateWzp = '${widget.document['number'] ?? ''}'
+          .toUpperCase()
+          .startsWith('WZP');
+      final correction =
+          widget.document['status']?.toString() == 'completed' &&
+          !isPrivateWzp;
       final rentalReturns = [
         for (final entry in _rentalReturns.entries)
           if (entry.value > 0)

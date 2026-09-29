@@ -995,7 +995,13 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                         _int(document['id']) > 0)
                                       const PopupMenuItem(
                                         value: 'correct',
-                                        child: Text('Koryguj WZ'),
+                                        child: Text(
+                                          '${document['title'] ?? ''}'
+                                                  .toUpperCase()
+                                                  .startsWith('WZP')
+                                              ? 'Edytuj WZP'
+                                              : 'Koryguj WZ',
+                                        ),
                                       ),
                                     if (document['can_invoice'] == true)
                                       const PopupMenuItem(
