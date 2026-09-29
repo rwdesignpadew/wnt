@@ -211,6 +211,7 @@ class _AdminClientFullEditScreenState
           'invoice_recipient_nip',
           'invoice_recipient_address',
           'invoice_recipient_email',
+          'app_email',
         ])
           key: _controller(key).text.trim(),
         'delivery_address': _defaultLocation['address']?.toString() ?? '',
@@ -692,6 +693,19 @@ class _AdminClientFullEditScreenState
         _field('contact_person', 'Osoba kontaktowa'),
         _field('phone', 'Telefon', keyboard: TextInputType.phone),
         _field('email', 'Email', keyboard: TextInputType.emailAddress),
+      ]),
+      const SizedBox(height: 12),
+      _section('Dostęp do aplikacji', [
+        _field(
+          'app_email',
+          'Login klienta',
+          keyboard: TextInputType.emailAddress,
+        ),
+        Text(
+          _bool(_client['app_user_exists'])
+              ? 'Konto klienta istnieje. Zmiana loginu nie zmienia hasła.'
+              : 'Po zapisaniu system wyśle klientowi hasło tymczasowe. Przy pierwszym logowaniu klient ustawi własne hasło.',
+        ),
       ]),
       const SizedBox(height: 12),
       _section('Dane do faktury', [
@@ -1277,6 +1291,7 @@ class _AdminClientFullEditScreenState
           : null,
     ),
   );
+
 
   Widget _mapField(
     Map<String, dynamic> data,

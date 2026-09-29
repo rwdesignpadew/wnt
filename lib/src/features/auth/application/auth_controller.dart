@@ -117,6 +117,23 @@ class AuthController extends StateNotifier<AuthState> {
   Future<String> recoverPassword(String email) =>
       _repository.recoverPassword(email);
 
+  Future<bool> changeTemporaryPassword(String current, String password) async {
+    final session = state.session;
+    if (session == null) return false;
+    try {
+      final updated = await _repository.changeTemporaryPassword(
+        session: session,
+        currentPassword: current,
+        password: password,
+      );
+      state = AuthState.signedIn(updated);
+      return true;
+    } catch (error) {
+      state = AuthState.signedIn(session).copyWith(error: error.toString());
+      return false;
+    }
+  }
+
   Future<bool> switchToDriver(int driverId) async {
     final session = state.session;
     if (session == null || session.user.role != UserRole.admin) return false;

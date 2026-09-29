@@ -6,6 +6,7 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/legal_document_screen.dart';
 import '../../features/auth/presentation/recover_password_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/temporary_password_screen.dart';
 import '../../features/home/presentation/role_home_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 
@@ -43,6 +44,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RecoverPasswordScreen(),
       ),
       GoRoute(
+        path: '/temporary-password',
+        builder: (context, state) => const TemporaryPasswordScreen(),
+      ),
+      GoRoute(
         path: '/app',
         builder: (context, state) => const RoleHomeScreen(),
       ),
@@ -55,6 +60,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
       if (auth.status == AuthStatus.signedOut) {
         return authPath.contains(path) ? null : '/login';
+      }
+      if (auth.session?.user.mustChangePassword == true) {
+        return path == '/temporary-password' ? null : '/temporary-password';
       }
       return path == '/app' ? null : '/app';
     },

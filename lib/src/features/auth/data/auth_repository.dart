@@ -83,6 +83,36 @@ class AuthRepository {
         'Jeśli konto istnieje, wysłaliśmy instrukcję na podany adres e-mail.';
   }
 
+  Future<AppSession> changeTemporaryPassword({
+    required AppSession session,
+    required String currentPassword,
+    required String password,
+  }) async {
+    await _api.post(
+      '/mobile/password/change',
+      token: session.token,
+      body: {
+        'current_password': currentPassword,
+        'password': password,
+        'password_confirmation': password,
+      },
+    );
+    final updated = AppSession(
+      token: session.token,
+      user: AppUser(
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        role: session.user.role,
+        adminPermissions: session.user.adminPermissions,
+      ),
+      adminToken: session.adminToken,
+      adminUser: session.adminUser,
+    );
+    await _store.write(updated);
+    return updated;
+  }
+
   Future<void> logout(AppSession session) async {
     try {
       await _api.post('/mobile/logout', token: session.token);

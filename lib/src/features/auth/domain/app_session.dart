@@ -18,6 +18,7 @@ class AppUser {
     required this.email,
     required this.role,
     this.adminPermissions,
+    this.mustChangePassword = false,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
@@ -28,6 +29,7 @@ class AppUser {
     adminPermissions: json['admin_permissions'] is List
         ? (json['admin_permissions'] as List).map((item) => '$item').toSet()
         : null,
+    mustChangePassword: json['must_change_password'] == true || json['must_change_password'] == 1,
   );
 
   final int id;
@@ -35,6 +37,7 @@ class AppUser {
   final String email;
   final UserRole role;
   final Set<String>? adminPermissions;
+  final bool mustChangePassword;
 
   bool hasAdminPermission(String permission) =>
       role == UserRole.admin &&
@@ -46,6 +49,7 @@ class AppUser {
     'email': email,
     'role': role.name,
     'admin_permissions': adminPermissions?.toList(),
+    'must_change_password': mustChangePassword,
   };
 }
 
