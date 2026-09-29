@@ -1,0 +1,66 @@
+name: Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Android versionCode
+        required: true
+        default: '96'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze shared code
+        run: flutter analyze
+
+      - name: Configure Android signing and Maps
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          MAPS_API_KEY: ${{ secrets.ANDROID_GOOGLE_MAPS_API_KEY }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/wnt-upload.jks"
+          echo "WNT_ANDROID_KEYSTORE=$RUNNER_TEMP/wnt-upload.jks" >> "$GITHUB_ENV"
+          echo "WNT_ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "WNT_ANDROID_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "WNT_ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "WNT_ANDROID_MAPS_API_KEY=$MAPS_API_KEY" >> "$GITHUB_ENV"
+
+      - name: Build signed APK and App Bundle
+        run: |
+          flutter build apk --release --build-name=1.0.5 --build-number=${{ inputs.build_number }}
+          flutter build appbundle --release --build-name=1.0.5 --build-number=${{ inputs.build_number }}
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Woda-na-telefon-Android-${{ inputs.build_number }}
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

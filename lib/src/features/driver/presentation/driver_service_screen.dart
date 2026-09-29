@@ -1261,6 +1261,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final remainingDue = (priceToPay - balance).clamp(0, double.infinity);
     final received = double.tryParse(_cash.text.replaceAll(',', '.')) ?? 0;
     final difference = received - remainingDue;
+    final remainingAfterPayment = (remainingDue - received).clamp(
+      0,
+      double.infinity,
+    );
     final balanceAfterSettlement = balance + received - priceToPay;
 
     return Scaffold(
@@ -2062,7 +2066,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${remainingDue.toStringAsFixed(2)} zł',
+                          '${remainingAfterPayment.toStringAsFixed(2)} zł',
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
                                 fontWeight: FontWeight.w900,
