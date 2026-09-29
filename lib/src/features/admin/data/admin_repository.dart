@@ -273,6 +273,15 @@ class AdminRepository {
     int id,
     Map<String, dynamic> body,
   ) => _api.post('/mobile/admin/clients/$id', token: token, body: body);
+  Future<Map<String, dynamic>> sendClientTemporaryPassword(
+    String token,
+    int id,
+    String email,
+  ) => _api.post(
+    '/mobile/admin/clients/$id/temporary-password',
+    token: token,
+    body: {'app_email': email.trim()},
+  );
   Future<Map<String, dynamic>> addClientToRoute(
     String token,
     int clientId,

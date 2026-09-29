@@ -35,6 +35,7 @@ class _AdminClientFullEditScreenState
   Set<int> _visibleProducts = {};
   bool _loading = true;
   bool _saving = false;
+  bool _sendingTemporaryPassword = false;
   bool _active = true;
   bool _recipient = false;
   bool _jst = false;
@@ -706,6 +707,20 @@ class _AdminClientFullEditScreenState
               ? 'Konto klienta istnieje. Zmiana loginu nie zmienia hasła.'
               : 'Po zapisaniu system wyśle klientowi hasło tymczasowe. Przy pierwszym logowaniu klient ustawi własne hasło.',
         ),
+        if (widget.id != null) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _sendingTemporaryPassword
+                ? null
+                : _sendTemporaryPassword,
+            icon: const Icon(Icons.mark_email_read_outlined),
+            label: Text(
+              _sendingTemporaryPassword
+                  ? 'Wysyłanie…'
+                  : 'Wyślij hasło tymczasowe',
+            ),
+          ),
+        ],
       ]),
       const SizedBox(height: 12),
       _section('Dane do faktury', [
@@ -1291,6 +1306,31 @@ class _AdminClientFullEditScreenState
           : null,
     ),
   );
+
+  Future<void> _sendTemporaryPassword() async {
+    final email = _controller('app_email').text.trim();
+    if (email.isEmpty) {
+      _error('Najpierw wpisz email do logowania.');
+      return;
+    }
+    setState(() => _sendingTemporaryPassword = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .sendClientTemporaryPassword(token, widget.id!, email);
+      if (mounted) {
+        setState(() => _client['app_user_exists'] = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${response['message']}')),
+        );
+      }
+    } catch (error) {
+      if (mounted) _error(error);
+    } finally {
+      if (mounted) setState(() => _sendingTemporaryPassword = false);
+    }
+  }
 
 
   Widget _mapField(
