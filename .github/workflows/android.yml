@@ -6,7 +6,7 @@ on:
       build_number:
         description: Android versionCode
         required: true
-        default: '138'
+        default: '139'
         type: string
 
 permissions:
