@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/client_providers.dart';
 
@@ -443,51 +444,10 @@ class _ProductRow extends StatelessWidget {
               ],
             ),
           ),
-          _Stepper(value: quantity, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stepper extends StatelessWidget {
-  const _Stepper({required this.value, required this.onChanged});
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: WntColors.inputLine),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: 'Zmniejsz ilość',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 40),
-            onPressed: value == 0 ? null : () => onChanged(value - 1),
-            icon: const Icon(Icons.remove, size: 18),
-          ),
-          SizedBox(
-            width: 24,
-            child: Text(
-              '$value',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Zwiększ ilość',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 40),
-            onPressed: () => onChanged(value + 1),
-            icon: const Icon(Icons.add, size: 18, color: WntColors.brand),
+          QuantityStepper(
+            value: quantity,
+            onChanged: onChanged,
+            compact: true,
           ),
         ],
       ),

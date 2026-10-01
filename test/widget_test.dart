@@ -13,6 +13,7 @@ import 'package:woda_na_telefon/src/features/client/application/client_providers
 import 'package:woda_na_telefon/src/features/client/presentation/client_order_screen.dart';
 import 'package:woda_na_telefon/src/features/driver/presentation/driver_service_screen.dart';
 import 'package:woda_na_telefon/src/shared/widgets/auth_frame.dart';
+import 'package:woda_na_telefon/src/shared/widgets/quantity_stepper.dart';
 
 void main() {
   test('wszystkie zaznaczone kontrolki używają niebieskiego motywu', () {
@@ -882,6 +883,17 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Wyślij zamówienie'), findsOneWidget);
+      final quantityField = find.descendant(
+        of: find.byType(QuantityStepper),
+        matching: find.byType(TextField),
+      );
+      expect(quantityField, findsOneWidget);
+      await tester.enterText(quantityField, '30');
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(quantityField).controller?.text,
+        '30',
+      );
       expect(tester.takeException(), isNull);
     },
   );
