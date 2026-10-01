@@ -3,6 +3,15 @@ import 'package:woda_na_telefon/src/features/driver/domain/driver_product_classi
 
 void main() {
   group('isDriverReturnItem', () {
+    test('does not classify an issued CO2 bottle as a small-bottle return', () {
+      expect(isIssuedCo2Product({'name': 'Butla CO2'}), isTrue);
+      expect(isIssuedCo2Product({'name': 'Wymiana butli CO2'}), isTrue);
+      expect(isIssuedCo2Product({'name': 'Zwrot butli CO2'}), isFalse);
+      expect(isDriverReturnItem({'name': 'Butla CO2'}), isFalse);
+      expect(isDriverReturnItem({'name': 'Wymiana butli CO2'}), isFalse);
+      expect(isDriverReturnItem({'name': 'Zwrot butli CO2'}), isTrue);
+    });
+
     test('recognizes explicit API return flag', () {
       expect(isDriverReturnItem({'is_return_container': true}), isTrue);
     });

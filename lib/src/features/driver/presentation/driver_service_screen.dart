@@ -646,8 +646,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
           .toUpperCase()
           .startsWith('WZP');
       final correction =
-          widget.document['status']?.toString() == 'completed' &&
-          !isPrivateWzp;
+          widget.document['status']?.toString() == 'completed' && !isPrivateWzp;
       final rentalReturns = [
         for (final entry in _rentalReturns.entries)
           if (entry.value > 0)
@@ -2664,10 +2663,10 @@ enum _ReturnKind {
 
 _ReturnKind _returnKind(Map<String, dynamic> product) {
   final name = _normalizedProductName(product);
-  // CO2 exchange is a sale/service selected for the driver, not a returned
-  // container. It must remain in the product catalog even though its name
-  // starts with "Butla".
-  if (name.contains('co2') && name.contains('wymian')) {
+  // CO2 bottles issued with a carbonating dispenser are outgoing equipment,
+  // not 0.3 l returnable bottles. Only an explicitly named CO2 return belongs
+  // in the returns section.
+  if (isIssuedCo2Product(product)) {
     return _ReturnKind.other;
   }
   // "Dystrybutor" contains the letters "but". Checking only that fragment
@@ -2881,7 +2880,13 @@ class _ReturnSection extends StatelessWidget {
               maximum: _returnKind(ordered[index]) == _ReturnKind.damagedGallon
                   ? gallonReturn
                   : _returnMaximum(ordered[index], availability),
-              locked: lockedProductIds.contains(_int(ordered[index]['id'])),
+              // Common packaging returns are counted physically at the
+              // customer and must always remain editable by the driver. A
+              // quantity prefilled by the administrator is only an initial
+              // value, never a lock for bottles or transporters.
+              locked:
+                  lockedProductIds.contains(_int(ordered[index]['id'])) &&
+                  !_isAlwaysVisibleReturn(ordered[index]),
               onChanged: (value) => onChanged(ordered[index], value),
             ),
             if (index < ordered.length - 1) const Divider(),

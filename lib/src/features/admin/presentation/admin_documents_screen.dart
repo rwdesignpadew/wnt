@@ -993,7 +993,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
                                     if (document['source'] == 'local' &&
                                         document['type'] == 'wz' &&
                                         _int(document['id']) > 0)
-                                      const PopupMenuItem(
+                                      PopupMenuItem(
                                         value: 'correct',
                                         child: Text(
                                           '${document['title'] ?? ''}'
@@ -1027,10 +1027,7 @@ class _AdminDocumentsScreenState extends ConsumerState<AdminDocumentsScreen> {
 }
 
 class _DocumentTypeTabs extends StatelessWidget {
-  const _DocumentTypeTabs({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _DocumentTypeTabs({required this.selected, required this.onSelected});
 
   final String selected;
   final ValueChanged<String> onSelected;
@@ -1076,9 +1073,7 @@ class _DocumentTypeTabs extends StatelessWidget {
                   child: Text(
                     tab.$2,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: selected == tab.$1
-                          ? Colors.white
-                          : WntColors.text,
+                      color: selected == tab.$1 ? Colors.white : WntColors.text,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

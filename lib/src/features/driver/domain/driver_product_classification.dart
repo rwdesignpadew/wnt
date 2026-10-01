@@ -1,6 +1,13 @@
 String normalizedDriverProductName(Object? value) =>
     value?.toString().trim().toLowerCase() ?? '';
 
+bool isIssuedCo2Product(Map<String, dynamic> item) {
+  final name = normalizedDriverProductName(
+    item['product_name'] ?? item['name'],
+  );
+  return name.contains('co2') && !name.contains('zwrot');
+}
+
 bool isDriverRentalEquipment(Map<String, dynamic> item) {
   final name = normalizedDriverProductName(
     item['product_name'] ?? item['name'],
