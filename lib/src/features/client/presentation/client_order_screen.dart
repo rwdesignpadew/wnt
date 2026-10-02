@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/wnt_colors.dart';
@@ -450,8 +449,6 @@ class _ProductRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final price =
-        double.tryParse(product['default_price']?.toString() ?? '') ?? 0;
     final unit = product['unit']?.toString() ?? 'szt.';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -467,7 +464,7 @@ class _ProductRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${NumberFormat.currency(locale: 'pl_PL', symbol: 'zł').format(price)} / $unit',
+                  'Jednostka: $unit',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: WntColors.muted),
