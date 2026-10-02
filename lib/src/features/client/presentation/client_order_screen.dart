@@ -56,7 +56,7 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
     _adPage = 0;
     _adTimer?.cancel();
     if (count <= 1) return;
-    _adTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _adTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || !_adPageController.hasClients) return;
       final next = (_adPage + 1) % count;
       _adPageController.animateToPage(
