@@ -362,19 +362,14 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
             !availableLocationIds.contains(_locationId)) {
           _locationId = _defaultLocation(locations);
         }
-        return Stack(
+        return Column(
           children: [
-            Positioned.fill(
+            Expanded(
               child: RefreshIndicator(
                 onRefresh: () async => ref.invalidate(clientHomeProvider),
                 child: ListView(
                   controller: _scrollController,
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    orderAds.isEmpty ? 16 : (orderAds.length > 1 ? 135 : 115),
-                  ),
+                  padding: const EdgeInsets.all(16),
                   children: [
                     Row(
                       children: [
@@ -509,10 +504,8 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
               ),
             ),
             if (orderAds.isNotEmpty)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 12,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: _adsBanner(orderAds),
               ),
           ],
