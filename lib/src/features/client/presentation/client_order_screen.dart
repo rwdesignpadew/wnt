@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
@@ -225,6 +226,7 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
         final products = _mapList(data['products']);
         final locations = _mapList(data['locations']);
         final orders = _mapList(data['orders']);
+        final orderAds = _mapList(data['order_ads']);
         final trackingResponse = ref
             .watch(clientTrackingProvider)
             .asData
@@ -363,6 +365,35 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                       onTap: () => _showOrder(order, tracking),
                     ),
                   ),
+              if (orderAds.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                for (final ad in orderAds) ...[
+                  Semantics(
+                    label: ad['title']?.toString() ?? 'Oferta',
+                    button: '${ad['target_url'] ?? ''}'.trim().isNotEmpty,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: '${ad['target_url'] ?? ''}'.trim().isEmpty
+                          ? null
+                          : () => launchUrl(
+                              Uri.parse('${ad['target_url']}'),
+                              mode: LaunchMode.externalApplication,
+                            ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          '${ad['mobile_image_url'] ?? ''}',
+                          width: double.infinity,
+                          height: 88,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
             ],
           ),
         );
@@ -444,11 +475,7 @@ class _ProductRow extends StatelessWidget {
               ],
             ),
           ),
-          QuantityStepper(
-            value: quantity,
-            onChanged: onChanged,
-            compact: true,
-          ),
+          QuantityStepper(value: quantity, onChanged: onChanged, compact: true),
         ],
       ),
     );
