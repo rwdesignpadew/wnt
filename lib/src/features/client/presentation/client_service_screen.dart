@@ -5,6 +5,7 @@ import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/client_providers.dart';
+import '../../home/application/home_navigation_provider.dart';
 
 class ClientServiceScreen extends ConsumerStatefulWidget {
   const ClientServiceScreen({super.key});
@@ -17,7 +18,6 @@ class ClientServiceScreen extends ConsumerStatefulWidget {
 class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
   final description = TextEditingController();
   final rentalNotes = TextEditingController();
-  String section = 'service';
   int rentalId = 0;
 
   @override
@@ -524,6 +524,7 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('$error')),
         data: (data) {
+          final section = ref.watch(clientServiceSectionProvider);
           final locations = _mapList(data['locations']);
           final rentals = _mapList(data['service_rentals']);
           final serviceRequests = _mapList(data['service_requests']);
@@ -561,7 +562,9 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                     ),
                     WntFilterTab(value: 'rentals', label: 'Dzierżawa'),
                   ],
-                  onChanged: (value) => setState(() => section = value),
+                  onChanged: (value) =>
+                      ref.read(clientServiceSectionProvider.notifier).state =
+                          value,
                 ),
                 const SizedBox(height: 18),
                 if (section == 'service') ...[

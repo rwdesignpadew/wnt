@@ -9,6 +9,7 @@ import '../../../shared/widgets/async_state_view.dart';
 import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/client_providers.dart';
+import '../../home/application/home_navigation_provider.dart';
 
 class ClientOrderScreen extends ConsumerStatefulWidget {
   const ClientOrderScreen({super.key});
@@ -24,6 +25,11 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
   bool _saving = false;
   bool _showOrderForm = false;
   Timer? _refreshTimer;
+  Timer? _adTimer;
+  final _scrollController = ScrollController();
+  final _adPageController = PageController();
+  int _adPage = 0;
+  int _adCount = 0;
 
   @override
   void initState() {
@@ -37,9 +43,119 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _adTimer?.cancel();
+    _scrollController.dispose();
+    _adPageController.dispose();
     _notes.dispose();
     super.dispose();
   }
+
+  void _configureAdRotation(int count) {
+    if (_adCount == count) return;
+    _adCount = count;
+    _adPage = 0;
+    _adTimer?.cancel();
+    if (count <= 1) return;
+    _adTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || !_adPageController.hasClients) return;
+      final next = (_adPage + 1) % count;
+      _adPageController.animateToPage(
+        next,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  void _openOrderForm() {
+    setState(() => _showOrderForm = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Widget _adsBanner(List<Map<String, dynamic>> orderAds) => Material(
+    color: Colors.white,
+    elevation: 8,
+    borderRadius: BorderRadius.circular(12),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 88,
+          child: PageView.builder(
+            controller: _adPageController,
+            itemCount: orderAds.length,
+            onPageChanged: (page) => setState(() => _adPage = page),
+            itemBuilder: (context, index) {
+              final ad = orderAds[index];
+              final action = '${ad['app_action'] ?? ''}';
+              final targetUrl = '${ad['target_url'] ?? ''}'.trim();
+              return Semantics(
+                label: ad['title']?.toString() ?? 'Oferta',
+                button: action.isNotEmpty || targetUrl.isNotEmpty,
+                child: InkWell(
+                  onTap: action == 'client_order'
+                      ? _openOrderForm
+                      : action == 'client_rentals'
+                      ? () {
+                          ref
+                                  .read(clientServiceSectionProvider.notifier)
+                                  .state =
+                              'rentals';
+                          ref.read(homeNavigationIndexProvider.notifier).state =
+                              3;
+                        }
+                      : targetUrl.isEmpty
+                      ? null
+                      : () => launchUrl(
+                          Uri.parse(targetUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                  child: Image.network(
+                    '${ad['mobile_image_url'] ?? ''}',
+                    width: double.infinity,
+                    height: 88,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (orderAds.length > 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                orderAds.length,
+                (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: index == _adPage ? 18 : 7,
+                  height: 7,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: index == _adPage
+                        ? WntColors.brand
+                        : WntColors.muted.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 
   Future<void> _submit() async {
     final selected = Map<int, int>.from(_quantities)
@@ -226,6 +342,11 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
         final locations = _mapList(data['locations']);
         final orders = _mapList(data['orders']);
         final orderAds = _mapList(data['order_ads']);
+        if (_adCount != orderAds.length) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _configureAdRotation(orderAds.length);
+          });
+        }
         final trackingResponse = ref
             .watch(clientTrackingProvider)
             .asData
@@ -241,160 +362,160 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
             !availableLocationIds.contains(_locationId)) {
           _locationId = _defaultLocation(locations);
         }
-        return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(clientHomeProvider),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Zamówienia',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: RefreshIndicator(
+                onRefresh: () async => ref.invalidate(clientHomeProvider),
+                child: ListView(
+                  controller: _scrollController,
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    orderAds.isEmpty ? 16 : (orderAds.length > 1 ? 135 : 115),
                   ),
-                  FilledButton.icon(
-                    onPressed: () =>
-                        setState(() => _showOrderForm = !_showOrderForm),
-                    icon: Icon(_showOrderForm ? Icons.close : Icons.add),
-                    label: Text(_showOrderForm ? 'Zamknij' : 'Nowe zamówienie'),
-                  ),
-                ],
-              ),
-              if (_showOrderForm) ...[
-                const SizedBox(height: 16),
-                if (locations.isNotEmpty) ...[
-                  DropdownButtonFormField<int>(
-                    initialValue: _locationId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Lokalizacja zamawiająca',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                    ),
-                    items: locations
-                        .map(
-                          (location) => DropdownMenuItem<int>(
-                            value: _int(location['id']),
-                            child: Text(
-                              _locationLabel(location),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _saving
-                        ? null
-                        : (value) => setState(() => _locationId = value),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                Text(
-                  'Wybierz produkty i ich ilości.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: WntColors.muted),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Column(
-                    children: [
-                      for (var index = 0; index < products.length; index++) ...[
-                        _ProductRow(
-                          product: products[index],
-                          quantity:
-                              _quantities[_int(products[index]['id'])] ?? 0,
-                          onChanged: (quantity) => setState(
-                            () => _quantities[_int(products[index]['id'])] =
-                                quantity,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Zamówienia',
+                            style: Theme.of(context).textTheme.headlineSmall,
                           ),
                         ),
-                        if (index < products.length - 1) const Divider(),
+                        FilledButton.icon(
+                          onPressed: () =>
+                              setState(() => _showOrderForm = !_showOrderForm),
+                          icon: Icon(_showOrderForm ? Icons.close : Icons.add),
+                          label: Text(
+                            _showOrderForm ? 'Zamknij' : 'Nowe zamówienie',
+                          ),
+                        ),
                       ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _notes,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Uwagi do zamówienia',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _saving ? null : _submit,
-                  icon: const Icon(Icons.send_outlined),
-                  label: Text(_saving ? 'Wysyłanie...' : 'Wyślij zamówienie'),
-                ),
-              ],
-              const SizedBox(height: 24),
-              Text(
-                'Twoje zamówienia',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              if (orders.isEmpty)
-                const Card(
-                  child: ListTile(
-                    leading: Icon(Icons.shopping_cart_outlined),
-                    title: Text('Brak zamówień'),
-                  ),
-                )
-              else
-                for (final order in orders)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.shopping_cart_outlined),
-                      title: Text(
-                        order['number']?.toString() ??
-                            'Zamówienie #${order['id']}',
-                      ),
-                      subtitle: Text(
-                        '${_orderStatus(order['status'])} · '
-                        '${order['total_gross'] ?? order['total'] ?? ''} zł',
-                      ),
-                      trailing: Text(
-                        order['created_at']?.toString() ?? '',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      onTap: () => _showOrder(order, tracking),
                     ),
-                  ),
-              if (orderAds.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                for (final ad in orderAds) ...[
-                  Semantics(
-                    label: ad['title']?.toString() ?? 'Oferta',
-                    button: '${ad['target_url'] ?? ''}'.trim().isNotEmpty,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: '${ad['target_url'] ?? ''}'.trim().isEmpty
-                          ? null
-                          : () => launchUrl(
-                              Uri.parse('${ad['target_url']}'),
-                              mode: LaunchMode.externalApplication,
-                            ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          '${ad['mobile_image_url'] ?? ''}',
-                          width: double.infinity,
-                          height: 88,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    if (_showOrderForm) ...[
+                      const SizedBox(height: 16),
+                      if (locations.isNotEmpty) ...[
+                        DropdownButtonFormField<int>(
+                          initialValue: _locationId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Lokalizacja zamawiająca',
+                            prefixIcon: Icon(Icons.location_on_outlined),
+                          ),
+                          items: locations
+                              .map(
+                                (location) => DropdownMenuItem<int>(
+                                  value: _int(location['id']),
+                                  child: Text(
+                                    _locationLabel(location),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _saving
+                              ? null
+                              : (value) => setState(() => _locationId = value),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      Text(
+                        'Wybierz produkty i ich ilości.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: WntColors.muted,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < products.length;
+                              index++
+                            ) ...[
+                              _ProductRow(
+                                product: products[index],
+                                quantity:
+                                    _quantities[_int(products[index]['id'])] ??
+                                    0,
+                                onChanged: (quantity) => setState(
+                                  () =>
+                                      _quantities[_int(products[index]['id'])] =
+                                          quantity,
+                                ),
+                              ),
+                              if (index < products.length - 1) const Divider(),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _notes,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Uwagi do zamówienia',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : _submit,
+                        icon: const Icon(Icons.send_outlined),
+                        label: Text(
+                          _saving ? 'Wysyłanie...' : 'Wyślij zamówienie',
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    Text(
+                      'Twoje zamówienia',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ],
-            ],
-          ),
+                    const SizedBox(height: 8),
+                    if (orders.isEmpty)
+                      const Card(
+                        child: ListTile(
+                          leading: Icon(Icons.shopping_cart_outlined),
+                          title: Text('Brak zamówień'),
+                        ),
+                      )
+                    else
+                      for (final order in orders)
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.shopping_cart_outlined),
+                            title: Text(
+                              order['number']?.toString() ??
+                                  'Zamówienie #${order['id']}',
+                            ),
+                            subtitle: Text(
+                              '${_orderStatus(order['status'])} · '
+                              '${order['total_gross'] ?? order['total'] ?? ''} zł',
+                            ),
+                            trailing: Text(
+                              order['created_at']?.toString() ?? '',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onTap: () => _showOrder(order, tracking),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
+            if (orderAds.isNotEmpty)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 12,
+                child: _adsBanner(orderAds),
+              ),
+          ],
         );
       },
     );
