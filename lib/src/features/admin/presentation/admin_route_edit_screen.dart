@@ -1934,8 +1934,11 @@ class _ProductPickerState extends State<_ProductPicker> {
     final remaining = matching
         .where((product) => !isAssigned(product))
         .toList();
+    // Keep the source order while the expanded list is visible. Previously a
+    // product moved from `remaining` to the top `assigned` group immediately
+    // after increasing its quantity, which made the list jump to the top.
     final products = query.isNotEmpty || showAll
-        ? [...assigned, ...remaining]
+        ? matching
         : widget.visibleIds.isEmpty
         ? matching
         : assigned;
