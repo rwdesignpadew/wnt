@@ -167,7 +167,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'products': <String, int>{},
       'packages': <String, int>{},
       'package_components': <String, Map<String, int>>{},
-      'sanitization_equipment': _defaultSanitizationEquipment(location),
+      'sanitization_equipment': <String>[],
     });
     _initialProductsStopIndex = _stops.length - 1;
     _step = 1;
@@ -268,9 +268,6 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       for (final choice in selected) {
         final stop = choice.toStop();
         if (_stops.any((item) => _stopKey(item) == _stopKey(stop))) continue;
-        stop['sanitization_equipment'] = _defaultSanitizationEquipment(
-          choice.location,
-        );
         _stops.add(stop);
         onlyAddedKey = _stopKey(stop);
       }
@@ -381,43 +378,12 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       builder: (_) => _SanitizationEquipmentPicker(
         equipment: equipment,
         selected: _strings(_stops[index]['sanitization_equipment']),
-        // Zaległy sprzęt jest wybierany przy dodawaniu punktu do trasy.
-        // Nie wybieraj go ponownie tutaj, bo administrator mógł świadomie
-        // odznaczyć całą sanityzację.
-        selectAllInitially: false,
+        selectAllInitially: dueForRoute,
       ),
     );
     if (selected != null && mounted) {
       _change(() => _stops[index]['sanitization_equipment'] = selected);
     }
-  }
-
-  List<String> _defaultSanitizationEquipment(
-    Map<String, dynamic>? location,
-  ) {
-    final sanitization = _map(location?['sanitization']);
-    final dueDate = DateTime.tryParse(
-      '${sanitization['sanitization_due_date'] ?? ''}',
-    );
-    final status = '${sanitization['sanitization_status'] ?? ''}';
-    final dueForRoute =
-        status == 'in_progress' ||
-        status == 'overdue' ||
-        sanitization['sanitization_is_overdue'] == true ||
-        (dueDate != null && !dueDate.isAfter(_date));
-    if (!dueForRoute) return <String>[];
-
-    final taskEquipment = _maps(
-      sanitization['sanitization_task_equipment'],
-    );
-    final allEquipment = _maps(sanitization['sanitization_equipment']);
-    final equipment = taskEquipment.isNotEmpty ? taskEquipment : allEquipment;
-
-    return equipment
-        .where((item) => item['selectable'] != false)
-        .map((item) => '${item['key']}')
-        .where((key) => key.isNotEmpty)
-        .toList(growable: false);
   }
 
   Map<String, dynamic>? _client(Map<String, dynamic> stop) {
@@ -1474,9 +1440,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       stop['products'] = <String, int>{};
       stop['packages'] = <String, int>{};
       stop['package_components'] = <String, Map<String, int>>{};
-      stop['sanitization_equipment'] = _defaultSanitizationEquipment(
-        _location(stop),
-      );
+      stop['sanitization_equipment'] = <String>[];
       _expandedStops.remove(oldKey);
       _expandedStops.add(nextKey);
     });
