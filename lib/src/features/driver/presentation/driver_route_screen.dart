@@ -402,8 +402,12 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final freeServiceOnly = widget.document['free_service_only'] == true;
     final freeServiceOnlyCompleted =
         widget.document['free_service_only_completed'] == true;
+    final hasPendingFreeService =
+        widget.document['has_pending_free_service'] == true;
     final status = widget.document['status']?.toString() ?? 'planned';
-    final completed = status == 'completed' || freeServiceOnlyCompleted;
+    final completed =
+        (status == 'completed' && !hasPendingFreeService) ||
+        freeServiceOnlyCompleted;
     final missed =
         status == 'missed_closed' ||
         (widget.document['notes']?.toString().contains('Nie zastano') ?? false);
@@ -825,7 +829,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                   label: const Text('Edytuj WZ'),
                 ),
               ),
-            ] else if (!freeServiceOnly) ...[
+            ] else if (!freeServiceOnly && status != 'completed') ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -968,7 +972,8 @@ bool _validCoordinates(double? latitude, double? longitude) =>
     !(latitude == 0 && longitude == 0);
 
 bool _isServed(Map<String, dynamic> document) =>
-    document['status'] == 'completed' ||
+    (document['status'] == 'completed' &&
+        document['has_pending_free_service'] != true) ||
     document['free_service_only_completed'] == true ||
     (document['completed_at']?.toString().trim().isNotEmpty ?? false);
 
