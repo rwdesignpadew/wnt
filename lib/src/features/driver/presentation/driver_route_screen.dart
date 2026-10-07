@@ -315,6 +315,51 @@ class _StopCard extends ConsumerStatefulWidget {
 class _StopCardState extends ConsumerState<_StopCard> {
   bool _busy = false;
 
+  Future<void> _completeFreeService(Map<String, dynamic> service) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potwierdź wykonanie serwisu'),
+        content: Text(service['description']?.toString() ?? 'Bezpłatny serwis'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Wykonano'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final session = ref.read(authControllerProvider).session!;
+      final message = await ref
+          .read(driverRepositoryProvider)
+          .completeFreeService(
+            token: session.token,
+            serviceRequestId: _int(service['id']),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      widget.onRefresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _missed() async {
     setState(() => _busy = true);
     try {
@@ -353,8 +398,12 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final sanitizationOnRequest = sanitization?['is_on_request'] == true;
     final sanitizationCount = _int(sanitization?['dispenser_count']);
     final sanitizationDate = '${sanitization?['scheduled_date'] ?? ''}'.trim();
+    final freeServices = _list(widget.document['free_service_requests']);
+    final freeServiceOnly = widget.document['free_service_only'] == true;
+    final freeServiceOnlyCompleted =
+        widget.document['free_service_only_completed'] == true;
     final status = widget.document['status']?.toString() ?? 'planned';
-    final completed = status == 'completed';
+    final completed = status == 'completed' || freeServiceOnlyCompleted;
     final missed =
         status == 'missed_closed' ||
         (widget.document['notes']?.toString().contains('Nie zastano') ?? false);
@@ -448,6 +497,8 @@ class _StopCardState extends ConsumerState<_StopCard> {
                       Text(
                         widget.isSkipped && !missed
                             ? 'Pominięty — wymaga obsługi'
+                            : completed
+                            ? 'Obsłużony'
                             : _statusLabel(status, missed),
                         style: TextStyle(
                           color: border,
@@ -516,6 +567,88 @@ class _StopCardState extends ConsumerState<_StopCard> {
                     ),
                   ],
                 ),
+              ),
+            ],
+            for (final service in freeServices) ...[
+              const SizedBox(height: 10),
+              Builder(
+                builder: (context) {
+                  final serviceCompleted =
+                      service['status']?.toString() == 'completed';
+                  final notes = service['admin_notes']?.toString().trim() ?? '';
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 11,
+                    ),
+                    decoration: BoxDecoration(
+                      color: serviceCompleted
+                          ? WntColors.successSoft
+                          : WntColors.brandSoft,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: serviceCompleted
+                            ? WntColors.success
+                            : WntColors.brand,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          serviceCompleted
+                              ? Icons.check_circle_outline
+                              : Icons.build_outlined,
+                          color: serviceCompleted
+                              ? WntColors.success
+                              : WntColors.brand,
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                serviceCompleted
+                                    ? 'Bezpłatny serwis wykonany'
+                                    : 'Bezpłatny serwis do wykonania',
+                                style: TextStyle(
+                                  color: serviceCompleted
+                                      ? WntColors.success
+                                      : WntColors.brand,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                service['description']?.toString() ??
+                                    'Serwis urządzenia',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (notes.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(notes),
+                              ],
+                              if (!serviceCompleted) ...[
+                                const SizedBox(height: 8),
+                                FilledButton.icon(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _completeFreeService(service),
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Oznacz jako wykonany'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
             if (packagesToIssue.isNotEmpty || itemsToIssue.isNotEmpty) ...[
@@ -672,7 +805,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
               ),
             ],
-            if (completed) ...[
+            if (completed && !freeServiceOnly) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -692,7 +825,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
                   label: const Text('Edytuj WZ'),
                 ),
               ),
-            ] else ...[
+            ] else if (!freeServiceOnly) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -836,6 +969,7 @@ bool _validCoordinates(double? latitude, double? longitude) =>
 
 bool _isServed(Map<String, dynamic> document) =>
     document['status'] == 'completed' ||
+    document['free_service_only_completed'] == true ||
     (document['completed_at']?.toString().trim().isNotEmpty ?? false);
 
 String _statusLabel(String status, bool missed) {

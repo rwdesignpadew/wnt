@@ -535,6 +535,21 @@ class DriverRepository {
     }
   }
 
+  Future<String> completeFreeService({
+    required String token,
+    required int serviceRequestId,
+    String? completionNotes,
+  }) async {
+    final response = await _api.post(
+      '/mobile/driver/service-requests/$serviceRequestId/complete',
+      token: token,
+      body: {'completion_notes': completionNotes},
+    );
+
+    return response['message']?.toString() ??
+        'Bezpłatny serwis został oznaczony jako wykonany.';
+  }
+
   Future<void> _enqueue({
     required int userId,
     required String operationId,
