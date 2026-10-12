@@ -87,6 +87,14 @@ class _ClientTrackingScreenState extends ConsumerState<ClientTrackingScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(item['address']?.toString() ?? ''),
+                      if ('${item['scheduled_date'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Termin dostawy: ${item['scheduled_date']}',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -240,7 +240,15 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   _OrderDetail('Status', _orderStatus(order['status'])),
-                  _OrderDetail('Data', order['created_at']?.toString() ?? ''),
+                  _OrderDetail(
+                    'Data złożenia',
+                    order['created_at']?.toString() ?? '',
+                  ),
+                  if ('${order['scheduled_date'] ?? ''}'.isNotEmpty)
+                    _OrderDetail(
+                      'Termin dostawy',
+                      order['scheduled_date']?.toString() ?? '',
+                    ),
                   if (isTracked) ...[
                     _OrderDetail(
                       'Adres dostawy',
@@ -493,7 +501,10 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                               '${order['total_gross'] ?? order['total'] ?? ''} zł',
                             ),
                             trailing: Text(
-                              order['created_at']?.toString() ?? '',
+                              '${order['scheduled_date'] ?? ''}'.isNotEmpty
+                                  ? 'Dostawa\n${order['scheduled_date']}'
+                                  : 'Złożono\n${order['created_at'] ?? ''}',
+                              textAlign: TextAlign.right,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             onTap: () => _showOrder(order, tracking),
