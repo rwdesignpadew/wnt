@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/wnt_colors.dart';
+import '../../../shared/widgets/quantity_stepper.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/admin_providers.dart';
 import 'admin_bottom_navigation.dart';
@@ -2111,10 +2112,11 @@ class _ProductPickerState extends State<_ProductPicker> {
                                                 semanticLabel: 'Wydaj sprzęt',
                                               )
                                             else
-                                              _Counter(
+                                              QuantityStepper(
                                                 value:
                                                     selected[productId] ??
                                                     included,
+                                                compact: true,
                                                 onChanged: (value) => setState(
                                                   () {
                                                     selected[productId] = value
@@ -2153,8 +2155,9 @@ class _ProductPickerState extends State<_ProductPicker> {
                 return ListTile(
                   title: Text('${product['name']}'),
                   subtitle: Text('$price zł / ${product['unit'] ?? 'szt'}'),
-                  trailing: _Counter(
+                  trailing: QuantityStepper(
                     value: quantity,
+                    compact: true,
                     onChanged: (value) => setState(() {
                       if (value == 0) {
                         quantities.remove(id);
@@ -2188,39 +2191,6 @@ class _ProductPickerState extends State<_ProductPicker> {
       ),
     );
   }
-}
-
-class _Counter extends StatelessWidget {
-  const _Counter({required this.value, required this.onChanged});
-  final int value;
-  final ValueChanged<int> onChanged;
-  @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      border: Border.all(color: WntColors.line),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 32, height: 40),
-          onPressed: value > 0 ? () => onChanged(value - 1) : null,
-          icon: const Icon(Icons.remove),
-        ),
-        SizedBox(width: 24, child: Text('$value', textAlign: TextAlign.center)),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 32, height: 40),
-          onPressed: () => onChanged(value + 1),
-          icon: const Icon(Icons.add),
-        ),
-      ],
-    ),
-  );
 }
 
 List<Map<String, dynamic>> _maps(dynamic value) {
