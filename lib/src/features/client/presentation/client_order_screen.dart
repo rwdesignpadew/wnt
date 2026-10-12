@@ -242,7 +242,8 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                   _OrderDetail('Status', _orderStatus(order['status'])),
                   _OrderDetail(
                     'Data złożenia',
-                    order['created_at']?.toString() ?? '',
+                    (order['ordered_at'] ?? order['created_at'])?.toString() ??
+                        '',
                   ),
                   if ('${order['scheduled_date'] ?? ''}'.isNotEmpty)
                     _OrderDetail(
@@ -503,7 +504,7 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                             trailing: Text(
                               '${order['scheduled_date'] ?? ''}'.isNotEmpty
                                   ? 'Dostawa\n${order['scheduled_date']}'
-                                  : 'Złożono\n${order['created_at'] ?? ''}',
+                                  : 'Złożono\n${order['ordered_at'] ?? order['created_at'] ?? ''}',
                               textAlign: TextAlign.right,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
