@@ -504,7 +504,8 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                             trailing: Text(
                               '${order['scheduled_date'] ?? ''}'.isNotEmpty
                                   ? 'Dostawa\n${order['scheduled_date']}'
-                                  : 'Złożono\n${order['ordered_at'] ?? order['created_at'] ?? ''}',
+                                  : 'Złożono\n'
+                                      '${order['ordered_at'] ?? order['created_at'] ?? ''}',
                               textAlign: TextAlign.right,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
