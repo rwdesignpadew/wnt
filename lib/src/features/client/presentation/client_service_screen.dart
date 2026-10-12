@@ -651,6 +651,18 @@ class _ClientServiceScreenState extends ConsumerState<ClientServiceScreen> {
                       text:
                           'Brak dystrybutorów dostępnych do zamówienia albo aktywnej lokalizacji.',
                     ),
+                  if (rentals.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      'Twój sprzęt w dzierżawie',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    for (final rental in rentals) ...[
+                      _RentalEquipmentCard(rental: rental),
+                      const SizedBox(height: 10),
+                    ],
+                  ],
                   const SizedBox(height: 18),
                   Text(
                     'Twoje zamówienia dzierżawy',
@@ -715,6 +727,55 @@ class _EmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     child: Padding(padding: const EdgeInsets.all(20), child: Text(text)),
   );
+}
+
+class _RentalEquipmentCard extends StatelessWidget {
+  const _RentalEquipmentCard({required this.rental});
+
+  final Map<String, dynamic> rental;
+
+  @override
+  Widget build(BuildContext context) {
+    final requiresSanitization = rental['requires_sanitization'] == true;
+    final nextSanitization = '${rental['next_sanitization_on'] ?? ''}';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.water_drop_outlined, color: WntColors.brand),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${rental['name'] ?? 'Sprzęt'} · ${rental['quantity'] ?? 0} szt.',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text('${rental['location'] ?? 'Główna lokalizacja'}'),
+                  if (requiresSanitization) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Kolejna sanityzacja: '
+                      '${nextSanitization.isEmpty ? 'termin nieustalony' : nextSanitization}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: WntColors.brand,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ServiceRequestCard extends StatelessWidget {
