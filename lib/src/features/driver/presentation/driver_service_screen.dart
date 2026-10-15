@@ -654,14 +654,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   }
 
   Future<bool> _confirmSelectedReturnProducts() async {
-    final pending = widget.products
-        .where(
-          (product) =>
-              _requiresWzReturnConfirmation(product) &&
-              _deliveredProductQuantity(_int(product['id'])) > 0 &&
-              !_confirmedReturnProductIds.contains(_int(product['id'])),
-        )
-        .toList();
+    final pending = widget.products.where((product) {
+      final productId = _int(product['id']);
+      final quantityEnteredAsReturn = _returnQuantities[productId] ?? 0;
+      final quantityIssuedOnWz =
+          _deliveredProductQuantity(productId) - quantityEnteredAsReturn;
+      return _requiresWzReturnConfirmation(product) &&
+          quantityIssuedOnWz > 0 &&
+          !_confirmedReturnProductIds.contains(productId);
+    }).toList();
     if (pending.isEmpty) return true;
 
     final confirmed = await _showReturnProductConfirmation(pending);
