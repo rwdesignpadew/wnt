@@ -593,6 +593,38 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     return confirmed == true;
   }
 
+  Future<bool> _confirmSkippingSanitization() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.cleaning_services_outlined,
+          color: WntColors.warning,
+          size: 34,
+        ),
+        title: const Text('Pominąć sanityzację?'),
+        content: const Text(
+          'Sanityzacja jest zaplanowana na tej trasie, ale nie zaznaczono '
+          'żadnego wykonanego urządzenia.\n\n'
+          'Czy na pewno chcesz wystawić WZ bez wykonania sanityzacji? '
+          'Zadanie nie zostanie zamknięte i nadal będzie widoczne jako zaległe.',
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Wróć do sanityzacji'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Pomiń i wystaw WZ'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _setProductQuantityWithReturnConfirmation(
     Map<String, dynamic> product,
     int value,
@@ -646,25 +678,27 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     if (!await _confirmSelectedReturnProducts()) return;
 
     final sanitization = _sanitization;
-    final sanitizationSelected = _showSanitization && sanitization != null;
-    final sanitizationEquipment = sanitizationSelected
+    var sanitizationSelected = _showSanitization && sanitization != null;
+    var sanitizationEquipment = sanitizationSelected
         ? _selectedSanitizationEquipment()
         : <Map<String, dynamic>>[];
-    final selectedSanitizationCount = sanitizationSelected
+    var selectedSanitizationCount = sanitizationSelected
         ? _selectedSanitizationCount()
         : 0;
     if (sanitizationSelected && selectedSanitizationCount < 1) {
-      _message('Wybierz wykonane urządzenia do sanityzacji.', error: true);
-      return;
+      if (!await _confirmSkippingSanitization() || !mounted) return;
+      sanitizationSelected = false;
+      sanitizationEquipment = <Map<String, dynamic>>[];
+      selectedSanitizationCount = 0;
     }
     final sanitizationId = sanitizationSelected
-        ? _int(sanitization['id'])
+        ? _int(sanitization!['id'])
         : null;
     final sanitizationCount = sanitizationSelected
         ? selectedSanitizationCount
         : null;
     final configuredInterval = sanitizationSelected
-        ? _int(sanitization['next_interval_days'])
+        ? _int(sanitization!['next_interval_days'])
         : 0;
     final sanitizationInterval = sanitizationSelected
         ? (configuredInterval == 0 ? 180 : configuredInterval)
