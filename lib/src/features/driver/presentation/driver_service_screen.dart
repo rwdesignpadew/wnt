@@ -21,11 +21,13 @@ class DriverServiceScreen extends ConsumerStatefulWidget {
   const DriverServiceScreen({
     required this.document,
     required this.products,
+    this.initialNotes,
     super.key,
   });
 
   final Map<String, dynamic> document;
   final List<Map<String, dynamic>> products;
+  final String? initialNotes;
 
   @override
   ConsumerState<DriverServiceScreen> createState() =>
@@ -202,9 +204,13 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     // podczas edycji już wystawionego WZ.
     _notes.text = widget.document['status']?.toString() == 'completed'
         ? widget.document['notes']?.toString().trim() ?? ''
-        : '';
+        : widget.initialNotes?.trim() ?? '';
     _signedBy.text = widget.document['signed_by']?.toString().trim() ?? '';
     _sanitization = _map(widget.document['sanitization']);
+    // Sanityzacja jest zadaniem zleconym przez administratora, a nie
+    // opcjonalną usługą wybieraną przez kierowcę. Jeżeli dokument zawiera
+    // zadanie, sekcja musi być od razu aktywna i widoczna podczas obsługi.
+    _showSanitization = _sanitization != null;
   }
 
   @override
@@ -454,6 +460,57 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     return charged - _largeBottleDepositRefundQuantity();
   }
 
+  int _refundableSmallBottleDepositQuantity() => _int(
+    widget.document['refundable_small_bottle_deposits'],
+  ).clamp(0, 999999);
+
+  int _smallBottleDepositNetQuantity() {
+    final transporter = _productForReturnKind(_ReturnKind.transporter);
+    final bottles = _productForReturnKind(_ReturnKind.smallBottle);
+    if (transporter == null || bottles == null) return 0;
+    final returnedTransporters =
+        _returnQuantities[_int(transporter['id'])] ?? 0;
+    final returnedBottles = _returnQuantities[_int(bottles['id'])] ?? 0;
+    final difference = returnedTransporters * 24 - returnedBottles;
+    if (difference >= 0) return difference;
+    return -difference.abs().clamp(0, _refundableSmallBottleDepositQuantity());
+  }
+
+  double _smallBottleDepositUnitPrice(bool gross) {
+    final deposit = _productForReturnKind(_ReturnKind.smallBottleDeposit);
+    if (deposit == null) return 0;
+    return gross
+        ? _effectiveProductGrossPrice(deposit)
+        : _effectiveProductPrice(deposit);
+  }
+
+  int _refundableTransporterDepositQuantity() =>
+      _int(widget.document['refundable_transporter_deposits']).clamp(0, 999999);
+
+  int _issuedTransporterQuantity() => widget.products
+      .where(_isSmallBottlePackProduct)
+      .fold<int>(
+        0,
+        (sum, product) => sum + _deliveredProductQuantity(_int(product['id'])),
+      );
+
+  int _transporterDepositRefundQuantity() {
+    final transporter = _productForReturnKind(_ReturnKind.transporter);
+    if (transporter == null) return 0;
+    final returned = _returnQuantities[_int(transporter['id'])] ?? 0;
+    final matched = returned.clamp(0, _refundableTransporterDepositQuantity());
+    final transferred = matched.clamp(0, _issuedTransporterQuantity());
+    return matched - transferred;
+  }
+
+  double _transporterDepositUnitPrice(bool gross) {
+    final deposit = _productForReturnKind(_ReturnKind.transporterDeposit);
+    if (deposit == null) return 0;
+    return gross
+        ? _effectiveProductGrossPrice(deposit)
+        : _effectiveProductPrice(deposit);
+  }
+
   void _syncTransporterBottleReturn() {
     final transporter = _productForReturnKind(_ReturnKind.transporter);
     final bottles = _productForReturnKind(_ReturnKind.smallBottle);
@@ -471,15 +528,15 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     }
     final returned = (_returnQuantities[_int(bottles['id'])] ?? 0).clamp(
       0,
-      expected,
+      999999,
     );
     _returnQuantities[_int(bottles['id'])] = returned;
     _quantities[_int(transporter['id'])] = transporters;
     // Transporter jest przyjmowany magazynowo jako komplet 24 butelek.
     // Różnica jest osobną płatną kaucją, nie ubytkiem przyjęcia magazynowego.
-    _quantities[_int(bottles['id'])] = expected;
+    _quantities[_int(bottles['id'])] = returned;
     if (deposit != null) {
-      _quantities[_int(deposit['id'])] = expected - returned;
+      _quantities[_int(deposit['id'])] = 0;
     }
   }
 
@@ -1220,14 +1277,18 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     final sanitizationNet = _sanitizationCharge(gross: false);
     final sanitizationGross = _sanitizationCharge(gross: true);
     final totalNet =
-        widget.products.where(_isBillableProduct).fold<double>(0, (
-          sum,
-          product,
-        ) {
-          return sum +
-              (_quantities[_int(product['id'])] ?? 0) *
-                  _effectiveProductPrice(product);
-        }) +
+        widget.products
+            .where((product) {
+              final kind = _returnKind(product);
+              return _isBillableProduct(product) &&
+                  kind != _ReturnKind.smallBottleDeposit &&
+                  kind != _ReturnKind.largeBottleDeposit;
+            })
+            .fold<double>(0, (sum, product) {
+              return sum +
+                  (_quantities[_int(product['id'])] ?? 0) *
+                      _effectiveProductPrice(product);
+            }) +
         packages.fold<double>(
           0,
           (sum, packageItem) =>
@@ -1236,16 +1297,23 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   (double.tryParse('${packageItem['price'] ?? 0}') ?? 0),
         ) +
         sanitizationNet +
-        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(false);
+        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(false) +
+        _smallBottleDepositNetQuantity() * _smallBottleDepositUnitPrice(false) -
+        _transporterDepositRefundQuantity() *
+            _transporterDepositUnitPrice(false);
     final total =
-        widget.products.where(_isBillableProduct).fold<double>(0, (
-          sum,
-          product,
-        ) {
-          return sum +
-              (_quantities[_int(product['id'])] ?? 0) *
-                  _effectiveProductGrossPrice(product);
-        }) +
+        widget.products
+            .where((product) {
+              final kind = _returnKind(product);
+              return _isBillableProduct(product) &&
+                  kind != _ReturnKind.smallBottleDeposit &&
+                  kind != _ReturnKind.largeBottleDeposit;
+            })
+            .fold<double>(0, (sum, product) {
+              return sum +
+                  (_quantities[_int(product['id'])] ?? 0) *
+                      _effectiveProductGrossPrice(product);
+            }) +
         packages.fold<double>(0, (sum, packageItem) {
           final net = double.tryParse('${packageItem['price'] ?? 0}') ?? 0;
           final vat = double.tryParse('${packageItem['vat_rate'] ?? 23}') ?? 23;
@@ -1255,7 +1323,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                   (1 + vat / 100);
         }) +
         sanitizationGross +
-        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(true);
+        _largeBottleDepositNetQuantity() * _largeBottleDepositUnitPrice(true) +
+        _smallBottleDepositNetQuantity() * _smallBottleDepositUnitPrice(true) -
+        _transporterDepositRefundQuantity() *
+            _transporterDepositUnitPrice(true);
     final debt = double.tryParse('${widget.document['debt_amount'] ?? 0}') ?? 0;
     final debtSources = _list(widget.document['debt_sources']);
     final credit =
@@ -1674,28 +1745,20 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               },
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() {
-                  _showSanitization = !_showSanitization;
-                  if (!_showSanitization) {
-                    _completedSanitizationEquipment.clear();
-                    _completedSanitizationUnitKeys.clear();
-                    _sanitizationNotes.clear();
-                  }
-                }),
-                icon: Icon(
-                  _showSanitization
-                      ? Icons.keyboard_arrow_up
-                      : Icons.cleaning_services_outlined,
+            const Row(
+              children: [
+                Icon(
+                  Icons.assignment_turned_in_outlined,
+                  color: WntColors.brand,
                 ),
-                label: Text(
-                  _showSanitization
-                      ? 'Zwiń sanityzację'
-                      : 'Wykonaj sanityzację',
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Zadanie zlecone przez administratora — wymaga obsłużenia.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
+              ],
             ),
             if (_showSanitization) ...[
               const SizedBox(height: 10),
@@ -2210,6 +2273,22 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         'Zwrot kaucji Butla 18,9L — ${depositNetQuantity.abs()} szt.',
       );
     }
+    final smallBottleDepositNetQuantity = _smallBottleDepositNetQuantity();
+    if (smallBottleDepositNetQuantity > 0) {
+      wzLines.add(
+        'Kaucja za brakujące butelki 0,3 l — $smallBottleDepositNetQuantity szt.',
+      );
+    } else if (smallBottleDepositNetQuantity < 0) {
+      wzLines.add(
+        'Zwrot kaucji za butelki 0,3 l — ${smallBottleDepositNetQuantity.abs()} szt.',
+      );
+    }
+    final transporterDepositRefund = _transporterDepositRefundQuantity();
+    if (transporterDepositRefund > 0) {
+      wzLines.add(
+        'Zwrot kaucji za transportery — $transporterDepositRefund szt.',
+      );
+    }
     for (final packageItem in _list(widget.document['packages'])) {
       final quantity = _packageQuantities[_int(packageItem['id'])] ?? 0;
       if (quantity > 0) {
@@ -2651,6 +2730,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
 
 enum _ReturnKind {
   transporter,
+  transporterDeposit,
   smallBottle,
   smallBottleDeposit,
   largeBottleDeposit,
@@ -2682,6 +2762,10 @@ _ReturnKind _returnKind(Map<String, dynamic> product) {
       (name.contains('0,3') || name.contains('0.3')) &&
       name.contains('but')) {
     return _ReturnKind.smallBottleDeposit;
+  }
+  if (name.contains('kauc') &&
+      (name.contains('transporter') || name.contains('skrzyn'))) {
+    return _ReturnKind.transporterDeposit;
   }
   if (name.contains('uszk') && name.contains('butl')) {
     return _ReturnKind.damagedGallon;
@@ -2725,6 +2809,13 @@ bool _isBillableProduct(Map<String, dynamic> product) {
   return !_isReturnProduct(product);
 }
 
+bool _isSmallBottlePackProduct(Map<String, dynamic> product) {
+  final name = _normalizedProductName(product);
+  return name.contains('wysowianka') &&
+      (name.contains('0,3') || name.contains('0.3')) &&
+      RegExp(r'(?:^|\D)24\s*(?:szt)?(?:\D|$)', unicode: true).hasMatch(name);
+}
+
 bool _isServiceWorkProduct(Map<String, dynamic> product) {
   final name = _normalizedProductName(product);
   return '${product['kind'] ?? ''}' == 'service' &&
@@ -2749,6 +2840,7 @@ int _returnAvailableQuantity(
 ) {
   final key = switch (_returnKind(product)) {
     _ReturnKind.transporter => 'transporter',
+    _ReturnKind.transporterDeposit => '',
     _ReturnKind.smallBottle => 'smallBottle',
     _ReturnKind.euroPallet => 'euroPallet',
     _ReturnKind.gallon || _ReturnKind.damagedGallon => 'bottle189',
@@ -2786,7 +2878,10 @@ List<Map<String, dynamic>> _returnProductsForDisplay(
   final other = <Map<String, dynamic>>[];
   for (final product in products.where(_isReturnProduct)) {
     final kind = _returnKind(product);
-    if (kind == _ReturnKind.smallBottleDeposit) continue;
+    if (kind == _ReturnKind.smallBottleDeposit ||
+        kind == _ReturnKind.transporterDeposit) {
+      continue;
+    }
     if (kind == _ReturnKind.other) {
       other.add(product);
       continue;
@@ -2923,6 +3018,7 @@ class _ReturnRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = switch (_returnKind(product)) {
       _ReturnKind.transporter => 'Transportery',
+      _ReturnKind.transporterDeposit => 'Kaucja za transportery',
       _ReturnKind.smallBottle => 'Butelki 0,3 l',
       _ReturnKind.smallBottleDeposit => 'Kaucja za brakujące butelki',
       _ReturnKind.largeBottleDeposit => 'Kaucja za butle 18,9 l',

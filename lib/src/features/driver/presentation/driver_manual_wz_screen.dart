@@ -16,6 +16,7 @@ class DriverManualWzScreen extends ConsumerStatefulWidget {
 
 class _DriverManualWzScreenState extends ConsumerState<DriverManualWzScreen> {
   late final Future<Map<String, dynamic>> _future;
+  final _notes = TextEditingController();
   int? _clientId;
   int? _locationId;
   bool _saving = false;
@@ -110,6 +111,12 @@ class _DriverManualWzScreenState extends ConsumerState<DriverManualWzScreen> {
     _future = ref.read(driverRepositoryProvider).manualOptions(token);
   }
 
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
   Future<void> _continue(Map<String, dynamic> data) async {
     if (_clientId == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -124,8 +131,11 @@ class _DriverManualWzScreenState extends ConsumerState<DriverManualWzScreen> {
       if (!mounted) return;
       final saved = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) =>
-              DriverServiceScreen(document: document, products: products),
+          builder: (_) => DriverServiceScreen(
+            document: document,
+            products: products,
+            initialNotes: _notes.text.trim(),
+          ),
         ),
       );
       if (saved == true && mounted) {
@@ -198,6 +208,21 @@ class _DriverManualWzScreenState extends ConsumerState<DriverManualWzScreen> {
                     .toList(),
                 onChanged: (value) => setState(() => _locationId = value),
               ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notes,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 2000,
+              textCapitalization: TextCapitalization.sentences,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              decoration: const InputDecoration(
+                labelText: 'Uwagi do WZ (opcjonalnie)',
+                hintText:
+                    'Np. informacja dla odbiorcy, numer magazynu lub ustalenia z klientem',
+                prefixIcon: Icon(Icons.notes_outlined),
+              ),
+            ),
             const SizedBox(height: 20),
             Text(
               '2. Produkty, rozliczenie i podpis',
