@@ -73,7 +73,19 @@ class _TestAdminRepository extends AdminRepository {
             'visible_product_ids': [11],
             'prices': <String, dynamic>{},
             'packages': <dynamic>[],
-            'sanitization': <String, dynamic>{},
+            'sanitization': <String, dynamic>{
+              'sanitization_is_on_request': true,
+              'sanitization_status': 'planned',
+              'sanitization_due_date': '2099-01-01',
+              'sanitization_equipment': [
+                {
+                  'key': '501:1',
+                  'label': 'Dystrybutor wody — 1 szt.',
+                  'selectable': true,
+                },
+              ],
+              'sanitization_task_equipment': <dynamic>[],
+            },
           },
         ],
       },
@@ -186,6 +198,65 @@ void main() {
             .toList(),
         [1001, 1002],
       );
+    },
+  );
+
+  testWidgets(
+    'sanityzacja na żądanie zapisuje aktualizację regularnego cyklu',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repository = _TestAdminRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith((ref) => _TestAuthController()),
+            adminRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            theme: WntTheme.light(),
+            home: const AdminRouteEditScreen(initialClientId: 101),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // initialClientId otwiera automatycznie wybór produktów; ten test
+      // dotyczy osobnego arkusza sanityzacji.
+      await tester.tap(find.byIcon(Icons.close).last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sanityzacja na żądanie'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dystrybutor wody — 1 szt.'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Aktualizuj termin kolejnej sanityzacji'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Aktualizuj termin kolejnej sanityzacji'));
+      await tester.tap(find.text('Zapisz (1)'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Ustawienia').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nazwa trasy'),
+        'Trasa z sanityzacją',
+      );
+      await tester.tap(find.text('Dalej: punkty (1)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Zapisz trasę · 1 pkt'));
+      await tester.pumpAndSettle();
+
+      final stops = repository.savedBody?['stops'] as List;
+      expect(stops.single['sanitization_equipment'], ['501:1']);
+      expect(stops.single['sanitization_updates_cycle'], isTrue);
+      expect(tester.takeException(), isNull);
     },
   );
 }

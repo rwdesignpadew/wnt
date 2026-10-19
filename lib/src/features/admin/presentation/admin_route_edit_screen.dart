@@ -113,6 +113,8 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
                 'sanitization_equipment': _strings(
                   stop['sanitization_equipment'],
                 ),
+                'sanitization_updates_cycle':
+                    stop['sanitization_updates_cycle'] == true,
               },
             )
             .toList();
@@ -169,6 +171,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       'packages': <String, int>{},
       'package_components': <String, Map<String, int>>{},
       'sanitization_equipment': <String>[],
+      'sanitization_updates_cycle': false,
     });
     _initialProductsStopIndex = _stops.length - 1;
     _step = 1;
@@ -372,7 +375,9 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       );
       return;
     }
-    final selected = await showModalBottomSheet<List<String>>(
+    final isOnRequest =
+        sanitization['sanitization_is_on_request'] == true || !dueForRoute;
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -380,10 +385,17 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
         equipment: equipment,
         selected: _strings(_stops[index]['sanitization_equipment']),
         selectAllInitially: dueForRoute,
+        isOnRequest: isOnRequest,
+        updatesRegularCycle:
+            _stops[index]['sanitization_updates_cycle'] == true,
       ),
     );
-    if (selected != null && mounted) {
-      _change(() => _stops[index]['sanitization_equipment'] = selected);
+    if (result != null && mounted) {
+      _change(() {
+        _stops[index]['sanitization_equipment'] = _strings(result['equipment']);
+        _stops[index]['sanitization_updates_cycle'] =
+            result['updates_regular_cycle'] == true;
+      });
     }
   }
 
@@ -1442,6 +1454,7 @@ class _AdminRouteEditScreenState extends ConsumerState<AdminRouteEditScreen> {
       stop['packages'] = <String, int>{};
       stop['package_components'] = <String, Map<String, int>>{};
       stop['sanitization_equipment'] = <String>[];
+      stop['sanitization_updates_cycle'] = false;
       _expandedStops.remove(oldKey);
       _expandedStops.add(nextKey);
     });
@@ -1462,11 +1475,15 @@ class _SanitizationEquipmentPicker extends StatefulWidget {
     required this.equipment,
     required this.selected,
     required this.selectAllInitially,
+    required this.isOnRequest,
+    required this.updatesRegularCycle,
   });
 
   final List<Map<String, dynamic>> equipment;
   final List<String> selected;
   final bool selectAllInitially;
+  final bool isOnRequest;
+  final bool updatesRegularCycle;
 
   @override
   State<_SanitizationEquipmentPicker> createState() =>
@@ -1476,6 +1493,7 @@ class _SanitizationEquipmentPicker extends StatefulWidget {
 class _SanitizationEquipmentPickerState
     extends State<_SanitizationEquipmentPicker> {
   late final Set<String> selected;
+  late bool updatesRegularCycle;
 
   @override
   void initState() {
@@ -1486,6 +1504,7 @@ class _SanitizationEquipmentPickerState
         .where((key) => key.isNotEmpty)
         .toSet();
     selected = widget.selected.where(allowed.contains).toSet();
+    updatesRegularCycle = widget.updatesRegularCycle;
     if (selected.isEmpty && widget.selectAllInitially) {
       selected.addAll(allowed);
     }
@@ -1576,28 +1595,51 @@ class _SanitizationEquipmentPickerState
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
-              color: Colors.white,
               border: Border(top: BorderSide(color: WntColors.line)),
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, <String>[]),
-                    child: const Text('Usuń z trasy'),
+                if (widget.isOnRequest && selected.isNotEmpty) ...[
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: updatesRegularCycle,
+                    onChanged: (value) =>
+                        setState(() => updatesRegularCycle = value == true),
+                    title: const Text('Aktualizuj termin kolejnej sanityzacji'),
+                    subtitle: const Text(
+                      'Po wykonaniu data regularnej sanityzacji zostanie wyliczona od nowa.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: selected.isEmpty
-                        ? null
-                        : () => Navigator.pop(
-                            context,
-                            selected.toList(growable: false),
-                          ),
-                    child: Text('Zapisz (${selected.length})'),
-                  ),
+                  const SizedBox(height: 8),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, {
+                          'equipment': <String>[],
+                          'updates_regular_cycle': false,
+                        }),
+                        child: const Text('Usuń z trasy'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: selected.isEmpty
+                            ? null
+                            : () => Navigator.pop(context, {
+                                'equipment': selected.toList(growable: false),
+                                'updates_regular_cycle':
+                                    widget.isOnRequest && updatesRegularCycle,
+                              }),
+                        child: Text('Zapisz (${selected.length})'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1623,6 +1665,7 @@ class _LocationChoice {
     'packages': <String, int>{},
     'package_components': <String, Map<String, int>>{},
     'sanitization_equipment': <String>[],
+    'sanitization_updates_cycle': false,
   };
 }
 
