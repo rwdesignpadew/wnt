@@ -398,6 +398,11 @@ class _StopCardState extends ConsumerState<_StopCard> {
     final sanitizationOnRequest = sanitization?['is_on_request'] == true;
     final sanitizationCount = _int(sanitization?['dispenser_count']);
     final sanitizationDate = '${sanitization?['scheduled_date'] ?? ''}'.trim();
+    final temporaryDispenserQuantity = _int(
+      _map(
+        widget.document['temporary_dispenser_return'],
+      )?['outstanding_quantity'],
+    );
     final freeServices = _list(widget.document['free_service_requests']);
     final freeServiceOnly = widget.document['free_service_only'] == true;
     final freeServiceOnlyCompleted =
@@ -436,7 +441,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
     ).where((item) => _int(item['quantity']) > 0).toList();
     final background = completed
         ? WntColors.successSoft
-        : missed
+        : missed || temporaryDispenserQuantity > 0
         ? WntColors.errorSoft
         : widget.isSkipped
         ? WntColors.errorSoft
@@ -445,7 +450,7 @@ class _StopCardState extends ConsumerState<_StopCard> {
         : Colors.white;
     final border = completed
         ? WntColors.success
-        : missed
+        : missed || temporaryDispenserQuantity > 0
         ? WntColors.error
         : widget.isSkipped
         ? WntColors.error
@@ -514,6 +519,39 @@ class _StopCardState extends ConsumerState<_StopCard> {
                 ),
               ],
             ),
+            if (temporaryDispenserQuantity > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: WntColors.errorSoft,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: WntColors.error),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.assignment_return_outlined,
+                      color: WntColors.error,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        'Dystrybutor do zwrotu: $temporaryDispenserQuantity szt.',
+                        style: const TextStyle(
+                          color: WntColors.error,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (sanitization != null) ...[
               const SizedBox(height: 10),
               Container(

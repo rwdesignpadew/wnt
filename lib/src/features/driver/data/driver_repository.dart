@@ -184,6 +184,8 @@ class DriverRepository {
     List<Map<String, dynamic>> sanitizationEquipment = const [],
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
+    int sanitizationTemporaryDispenserQuantity = 0,
+    int temporaryDispenserReturnQuantity = 0,
     Set<int> confirmedReturnProductIds = const {},
   }) async {
     final operationId = _newOperationId(userId, documentId, 'complete');
@@ -222,6 +224,9 @@ class DriverRepository {
       'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
+      'sanitization_temporary_dispenser_quantity':
+          sanitizationTemporaryDispenserQuantity,
+      'temporary_dispenser_return_quantity': temporaryDispenserReturnQuantity,
       'confirmed_return_product_ids': confirmedReturnProductIds.toList()
         ..sort(),
     };
@@ -298,6 +303,8 @@ class DriverRepository {
     List<Map<String, dynamic>> sanitizationEquipment = const [],
     int? sanitizationNextIntervalDays,
     String? sanitizationResultNotes,
+    int sanitizationTemporaryDispenserQuantity = 0,
+    int temporaryDispenserReturnQuantity = 0,
     String type = 'wz',
   }) => _api.download(
     '/mobile/driver/documents/$documentId/completion-preview?type=$type',
@@ -335,6 +342,9 @@ class DriverRepository {
       'sanitization_equipment': sanitizationEquipment,
       'sanitization_next_interval_days': ?sanitizationNextIntervalDays,
       'sanitization_result_notes': ?sanitizationResultNotes,
+      'sanitization_temporary_dispenser_quantity':
+          sanitizationTemporaryDispenserQuantity,
+      'temporary_dispenser_return_quantity': temporaryDispenserReturnQuantity,
     },
   );
 

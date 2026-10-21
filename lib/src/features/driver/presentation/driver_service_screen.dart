@@ -65,6 +65,8 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
   Map<String, dynamic>? _sanitization;
   final Map<int, int> _completedSanitizationEquipment = {};
   final Set<String> _completedSanitizationUnitKeys = {};
+  int _temporaryDispenserIssued = 0;
+  int _temporaryDispenserReturned = 0;
   late String _paymentMethod;
 
   DriverNavigationDestination? get _clientDestination {
@@ -211,6 +213,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     // opcjonalną usługą wybieraną przez kierowcę. Jeżeli dokument zawiera
     // zadanie, sekcja musi być od razu aktywna i widoczna podczas obsługi.
     _showSanitization = _sanitization != null;
+    _temporaryDispenserReturned = 0;
   }
 
   @override
@@ -779,6 +782,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         sanitizationResultNotes: sanitizationSelected
             ? _sanitizationNotes.text.trim()
             : null,
+        sanitizationTemporaryDispenserQuantity: sanitizationSelected
+            ? _temporaryDispenserIssued
+            : 0,
+        temporaryDispenserReturnQuantity: _temporaryDispenserReturned,
         type: type,
       );
 
@@ -988,6 +995,10 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
         sanitizationResultNotes: sanitizationSelected
             ? _sanitizationNotes.text.trim()
             : null,
+        sanitizationTemporaryDispenserQuantity: sanitizationSelected
+            ? _temporaryDispenserIssued
+            : 0,
+        temporaryDispenserReturnQuantity: _temporaryDispenserReturned,
         confirmedReturnProductIds: _confirmedReturnProductIds,
       );
       if (!mounted) return;
@@ -1730,6 +1741,66 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
               },
             ),
           ],
+          if (_int(
+                _map(
+                  widget.document['temporary_dispenser_return'],
+                )?['outstanding_quantity'],
+              ) >
+              0) ...[
+            const SizedBox(height: 14),
+            _Section(
+              title: 'Dystrybutor do zwrotu',
+              child: Builder(
+                builder: (context) {
+                  final outstanding = _int(
+                    _map(
+                      widget.document['temporary_dispenser_return'],
+                    )?['outstanding_quantity'],
+                  );
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: WntColors.error.withValues(alpha: .10),
+                      border: Border.all(
+                        color: WntColors.error.withValues(alpha: .45),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sprzęt tymczasowy u klienta',
+                                style: TextStyle(
+                                  color: WntColors.error,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text('Wpisz liczbę odbieranych sztuk.'),
+                            ],
+                          ),
+                        ),
+                        QuantityStepper(
+                          value: _temporaryDispenserReturned,
+                          onChanged: (value) => setState(
+                            () => _temporaryDispenserReturned = value
+                                .clamp(0, outstanding)
+                                .toInt(),
+                          ),
+                          compact: true,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           if (_sanitization != null) ...[
             const SizedBox(height: 14),
             Builder(
@@ -1848,6 +1919,44 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
                       maxLines: 2,
                       decoration: const InputDecoration(
                         labelText: 'Uwagi do sanityzacji',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: WntColors.canvas,
+                        border: Border.all(color: WntColors.line),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Zostawiam dystrybutor tymczasowy',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Zostanie oznaczony u klienta jako sprzęt do zwrotu.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          QuantityStepper(
+                            value: _temporaryDispenserIssued,
+                            onChanged: (value) => setState(
+                              () => _temporaryDispenserIssued = value
+                                  .clamp(0, 99)
+                                  .toInt(),
+                            ),
+                            compact: true,
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 10),
