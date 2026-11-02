@@ -5,7 +5,7 @@ on:
 
 jobs:
   capture-and-upload:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - name: Check out MiBox
