@@ -38,6 +38,11 @@ jobs:
           app = get("/v1/apps?filter%5BbundleId%5D=#{bundle_id}", token).fetch('data').first
           abort 'App not found' unless app
           puts "APP_ID=#{app['id']} NAME=#{app.dig('attributes', 'name')}"
+          uploads = get("/v1/apps/#{app['id']}/buildUploads?sort=-uploadedDate&limit=10", token)
+          uploads.fetch('data').each do |upload|
+            attributes = upload.fetch('attributes', {})
+            puts "UPLOAD id=#{upload['id']} version=#{attributes['cfBundleShortVersionString']} build=#{attributes['cfBundleVersion']} created=#{attributes['createdDate']} uploaded=#{attributes['uploadedDate']} state=#{JSON.generate(attributes['state'])}"
+          end
           builds = get("/v1/builds?filter%5Bapp%5D=#{app['id']}&sort=-uploadedDate&limit=5", token)
           builds.fetch('data').each { |b| puts "BUILD id=#{b['id']} number=#{b.dig('attributes','version')} state=#{b.dig('attributes','processingState')} uploaded=#{b.dig('attributes','uploadedDate')}" }
           versions = get("/v1/apps/#{app['id']}/appStoreVersions?limit=10", token)
