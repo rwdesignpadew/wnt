@@ -87,12 +87,15 @@ jobs:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          set -o pipefail
           IPA_PATH=$(find "$RUNNER_TEMP/MiBoxScreenExport" -name '*.ipa' -print -quit)
           test -n "$IPA_PATH"
           mkdir -p "$HOME/.appstoreconnect/private_keys"
           cp "$ASC_KEY_PATH" "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          xcrun altool --validate-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool-validation.log"
+          grep -q "No errors validating" "$RUNNER_TEMP/altool-validation.log"
+          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool-upload.log"
+          grep -q "No errors uploading" "$RUNNER_TEMP/altool-upload.log"
 
       - name: Upload signed IPA artifact
         uses: actions/upload-artifact@v4
