@@ -70,6 +70,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MiBoxScreen.xcarchive" \
             -derivedDataPath "$RUNNER_TEMP/MiBoxScreenDerivedData" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             archive
 
       - name: Export signed IPA
