@@ -10,7 +10,7 @@ on:
 
 jobs:
   inspect:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Inspect App Store Connect state
         env:
