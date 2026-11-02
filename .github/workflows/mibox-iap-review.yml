@@ -1,0 +1,72 @@
+name: MiBox IAP review screenshot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  capture-and-upload:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Check out MiBox
+        uses: actions/checkout@v4
+        with:
+          repository: rwdesignpadew/mibox
+          ref: main
+          path: mibox
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project and build for Simulator
+        working-directory: mibox/ios
+        run: |
+          xcodegen generate
+          xcodebuild \
+            -project MiBoxScreen.xcodeproj \
+            -scheme MiBoxScreen \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/MiBoxScreenSimulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Capture Pro purchase screen
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in d.values() for x in runtime if "iPhone" in x["name"] and x["isAvailable"]))')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          APP_PATH=$(find "$RUNNER_TEMP/MiBoxScreenSimulator/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP_PATH"
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" pl.miboxscreen.ios --show-pro
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot "$RUNNER_TEMP/mibox-screen-pro-review.png"
+
+      - name: Prepare App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+
+      - name: Upload screenshot and review notes
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          IAP_ID: '6829911081'
+        run: node mibox/ios/ci/upload_iap_review_screenshot.mjs "$RUNNER_TEMP/mibox-screen-pro-review.png"
+
+      - name: Save review screenshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiBox-Screen-Pro-review
+          path: ${{ runner.temp }}/mibox-screen-pro-review.png
+          if-no-files-found: error
