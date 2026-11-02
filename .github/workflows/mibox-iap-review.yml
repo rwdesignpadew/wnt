@@ -38,20 +38,37 @@ jobs:
 
       - name: Capture Pro purchase screen
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in d.values() for x in runtime if "iPhone" in x["name"] and x["isAvailable"]))')
-          xcrun simctl boot "$DEVICE_ID" || true
-          for attempt in {1..90}; do
-            STATE=$(xcrun simctl list devices -j | DEVICE_ID="$DEVICE_ID" python3 -c 'import json,os,sys; d=json.load(sys.stdin)["devices"]; print(next((x["state"] for runtime in d.values() for x in runtime if x["udid"] == os.environ["DEVICE_ID"]), "Missing"))')
-            [ "$STATE" = "Booted" ] && break
-            sleep 2
-          done
-          [ "$STATE" = "Booted" ] || { echo "Simulator did not boot: $STATE"; exit 1; }
           APP_PATH=$(find "$RUNNER_TEMP/MiBoxScreenSimulator/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP_PATH"
-          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
-          xcrun simctl launch "$DEVICE_ID" pl.miboxscreen.ios --show-pro
-          sleep 8
-          xcrun simctl io "$DEVICE_ID" screenshot "$RUNNER_TEMP/mibox-screen-pro-review.png"
+          APP_PATH="$APP_PATH" python3 <<'PY'
+          import json, os, subprocess, time
+
+          def run(*args, timeout=30, check=True):
+              print('+', ' '.join(args), flush=True)
+              return subprocess.run(args, timeout=timeout, check=check, text=True, capture_output=False)
+
+          devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], timeout=20))['devices']
+          device = next(item for runtime in devices.values() for item in runtime if 'iPhone' in item['name'] and item['isAvailable'])
+          device_id = device['udid']
+          try:
+              run('xcrun', 'simctl', 'boot', device_id, timeout=30)
+          except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+              pass
+
+          for _ in range(90):
+              devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', '-j'], timeout=20))['devices']
+              state = next((item['state'] for runtime in devices.values() for item in runtime if item['udid'] == device_id), 'Missing')
+              if state == 'Booted':
+                  break
+              time.sleep(2)
+          else:
+              raise RuntimeError(f'Simulator did not boot: {state}')
+
+          run('xcrun', 'simctl', 'install', device_id, os.environ['APP_PATH'], timeout=60)
+          run('xcrun', 'simctl', 'launch', device_id, 'pl.miboxscreen.ios', '--show-pro', timeout=30)
+          time.sleep(8)
+          run('xcrun', 'simctl', 'io', device_id, 'screenshot', os.path.join(os.environ['RUNNER_TEMP'], 'mibox-screen-pro-review.png'), timeout=30)
+          PY
 
       - name: Prepare App Store Connect API key
         env:
