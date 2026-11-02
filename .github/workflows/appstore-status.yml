@@ -2,6 +2,11 @@ name: App Store status
 
 on:
   workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: Bundle ID to inspect
+        required: true
+        default: pl.wnt.wntDriver
 
 jobs:
   inspect:
@@ -12,6 +17,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
         run: |
           gem install jwt --no-document
           cat > "$RUNNER_TEMP/status.rb" <<'RUBY'
@@ -28,7 +34,8 @@ jobs:
             abort "ASC HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
             JSON.parse(response.body)
           end
-          app = get('/v1/apps?filter%5BbundleId%5D=pl.wnt.wntDriver', token).fetch('data').first
+          bundle_id = URI.encode_www_form_component(ENV.fetch('BUNDLE_ID'))
+          app = get("/v1/apps?filter%5BbundleId%5D=#{bundle_id}", token).fetch('data').first
           abort 'App not found' unless app
           puts "APP_ID=#{app['id']} NAME=#{app.dig('attributes', 'name')}"
           builds = get("/v1/builds?filter%5Bapp%5D=#{app['id']}&sort=-uploadedDate&limit=5", token)
