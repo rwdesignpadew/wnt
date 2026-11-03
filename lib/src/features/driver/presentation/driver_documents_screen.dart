@@ -74,34 +74,52 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
     }
   }
 
-  Future<void> _correct(
-    Map<String, dynamic> document,
-    List<Map<String, dynamic>> products,
-  ) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            DriverServiceScreen(document: document, products: products),
-      ),
-    );
-    ref.invalidate(driverRouteProvider);
+  Future<void> _correct(Map<String, dynamic> document) async {
+    final id = _int(document['id']);
+    final busyKey = _documentKey(document);
+    setState(() => _busyKey = busyKey);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(driverRepositoryProvider)
+          .document(token, id);
+      final fullDocument = _map(response['document']) ?? document;
+      final products = _list(response['products']);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              DriverServiceScreen(document: fullDocument, products: products),
+        ),
+      );
+      ref.invalidate(driverDocumentsProvider);
+      ref.invalidate(driverRouteProvider);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted && _busyKey == busyKey) setState(() => _busyKey = null);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return ref
-        .watch(driverRouteProvider)
+        .watch(driverDocumentsProvider)
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => AsyncErrorView(
             error: error,
-            onRetry: () => ref.invalidate(driverRouteProvider),
+            onRetry: () => ref.invalidate(driverDocumentsProvider),
           ),
           data: (data) {
-            final products = _list(data['products']);
             final documents = driverDocumentRows(data['documents']);
             return RefreshIndicator(
-              onRefresh: () async => ref.refresh(driverRouteProvider.future),
+              onRefresh: () async =>
+                  ref.refresh(driverDocumentsProvider.future),
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
@@ -184,10 +202,8 @@ class _DriverDocumentsScreenState extends ConsumerState<DriverDocumentsScreen> {
                                                     .startsWith('WZP')
                                                 ? 'Edytuj WZP'
                                                 : 'Korekta WZ',
-                                            onPressed: () => _correct(
-                                              documents[index],
-                                              products,
-                                            ),
+                                            onPressed: () =>
+                                                _correct(documents[index]),
                                             icon: const Icon(
                                               Icons.edit_document,
                                               color: WntColors.brand,

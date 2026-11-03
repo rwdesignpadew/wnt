@@ -20,3 +20,8 @@ final driverRouteProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       .watch(driverRepositoryProvider)
       .route(session.token, userId: session.user.id, routeId: routeId);
 });
+
+final driverDocumentsProvider = FutureProvider<Map<String, dynamic>>((ref) {
+  final session = ref.watch(authControllerProvider).session!;
+  return ref.watch(driverRepositoryProvider).documents(session.token);
+});

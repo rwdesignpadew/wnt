@@ -678,6 +678,60 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
     return true;
   }
 
+  Future<bool> _confirmCashAmount() async {
+    if (_paymentMethod != 'cash') return true;
+
+    final amount = double.tryParse(_cash.text.trim().replaceAll(',', '.')) ?? 0;
+    final formatted = amount.toStringAsFixed(2).replaceAll('.', ',');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Potwierdź pobraną gotówkę'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Sprawdź kwotę przed zapisaniem dokumentu.'),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                '$formatted zł',
+                style: Theme.of(dialogContext).textTheme.headlineMedium
+                    ?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: amount > 0 ? WntColors.success : WntColors.error,
+                    ),
+              ),
+            ),
+            if (amount <= 0) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Potwierdzasz, że od klienta nie pobrano gotówki.',
+                style: TextStyle(
+                  color: WntColors.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Wróć i popraw'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Potwierdzam: $formatted zł'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed == true;
+  }
+
   Future<void> _save() async {
     if (!await _confirmSelectedReturnProducts()) return;
 
@@ -729,6 +783,7 @@ class _DriverServiceScreenState extends ConsumerState<DriverServiceScreen> {
       _message('Podpis klienta jest wymagany.', error: true);
       return;
     }
+    if (!await _confirmCashAmount() || !mounted) return;
 
     setState(() => _saving = true);
     final temporaryPaths = <String>[];

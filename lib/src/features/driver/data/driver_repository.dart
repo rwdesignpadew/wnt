@@ -118,6 +118,12 @@ class DriverRepository {
   Future<Map<String, dynamic>> manualOptions(String token) =>
       _api.get('/mobile/driver/manual-options', token: token);
 
+  Future<Map<String, dynamic>> documents(String token) =>
+      _api.get('/mobile/driver/documents', token: token);
+
+  Future<Map<String, dynamic>> document(String token, int documentId) =>
+      _api.get('/mobile/driver/documents/$documentId', token: token);
+
   Future<Map<String, dynamic>> createManualDocument(
     String token,
     int clientId,
