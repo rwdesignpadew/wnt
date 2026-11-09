@@ -308,29 +308,6 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                 ],
               ),
             ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: WntColors.line)),
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Razem brutto',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  Text(
-                    '${_money(order['total_gross'] ?? order['total'])} zł',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       );
@@ -497,15 +474,12 @@ class _ClientOrderScreenState extends ConsumerState<ClientOrderScreen> {
                               order['number']?.toString() ??
                                   'Zamówienie #${order['id']}',
                             ),
-                            subtitle: Text(
-                              '${_orderStatus(order['status'])} · '
-                              '${order['total_gross'] ?? order['total'] ?? ''} zł',
-                            ),
+                            subtitle: Text(_orderStatus(order['status'])),
                             trailing: Text(
                               '${order['scheduled_date'] ?? ''}'.isNotEmpty
                                   ? 'Dostawa\n${order['scheduled_date']}'
                                   : 'Złożono\n'
-                                      '${order['ordered_at'] ?? order['created_at'] ?? ''}',
+                                        '${order['ordered_at'] ?? order['created_at'] ?? ''}',
                               textAlign: TextAlign.right,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
@@ -559,9 +533,6 @@ String _orderStatus(dynamic value) => switch ('$value') {
   'cancelled' => 'Anulowane',
   _ => '$value',
 };
-
-String _money(dynamic value) =>
-    (double.tryParse('$value') ?? 0).toStringAsFixed(2).replaceFirst('.', ',');
 
 class _ProductRow extends StatelessWidget {
   const _ProductRow({
