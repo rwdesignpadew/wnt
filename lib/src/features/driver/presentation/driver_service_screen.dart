@@ -3095,6 +3095,20 @@ List<Map<String, dynamic>> _returnProductsForDisplay(
   return [...grouped.values, ...other];
 }
 
+int _returnDisplayOrder(Map<String, dynamic> product) =>
+    switch (_returnKind(product)) {
+      _ReturnKind.gallon => 0,
+      _ReturnKind.transporter => 1,
+      _ReturnKind.smallBottle => 2,
+      _ReturnKind.co2Bottle => 3,
+      _ReturnKind.euroPallet => 4,
+      _ReturnKind.damagedGallon => 5,
+      _ReturnKind.largeBottleDeposit => 6,
+      _ReturnKind.smallBottleDeposit => 7,
+      _ReturnKind.transporterDeposit => 8,
+      _ReturnKind.other => 9,
+    };
+
 class _SettlementRow extends StatelessWidget {
   const _SettlementRow({
     required this.label,
@@ -3161,7 +3175,7 @@ class _ReturnSection extends StatelessWidget {
             .toList()
           ..sort(
             (left, right) =>
-                _returnKind(left).index.compareTo(_returnKind(right).index),
+                _returnDisplayOrder(left).compareTo(_returnDisplayOrder(right)),
           );
     return _Section(
       title: 'Zwrot opakowań',

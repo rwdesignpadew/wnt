@@ -38,6 +38,73 @@ void main() {
     expect(WntColors.errorSoft, const Color(0xFFFEF3F2));
   });
 
+  testWidgets('zwroty opakowań mają ustaloną kolejność operacyjną', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: WntTheme.light(),
+          home: DriverServiceScreen(
+            document: const {
+              'id': 3001,
+              'status': 'planned',
+              'payment_method': 'transfer',
+              'available_product_ids': [101, 102, 103, 104],
+              'items': [],
+              'client': {
+                'name': 'Klient testowy',
+                'recurring_invoice_enabled': false,
+              },
+            },
+            products: const [
+              {
+                'id': 102,
+                'name': 'Zwrot transportera',
+                'unit': 'szt.',
+                'is_return_container': true,
+              },
+              {
+                'id': 103,
+                'name': 'Zwrot butelek 0,3 l',
+                'unit': 'szt.',
+                'is_return_container': true,
+              },
+              {
+                'id': 101,
+                'name': 'Zwrot butli 18,9 l',
+                'unit': 'szt.',
+                'is_return_container': true,
+              },
+              {
+                'id': 104,
+                'name': 'Zwrot butli CO2',
+                'unit': 'szt.',
+                'is_return_container': true,
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gallon = tester.getTopLeft(find.text('Butle 18,9 l')).dy;
+    final transporter = tester.getTopLeft(find.text('Transportery')).dy;
+    final smallBottle = tester.getTopLeft(find.text('Butelki 0,3 l')).dy;
+    final co2 = tester.getTopLeft(find.text('Butle CO2')).dy;
+
+    expect(gallon, lessThan(transporter));
+    expect(transporter, lessThan(smallBottle));
+    expect(smallBottle, lessThan(co2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'prywatny klient płaci netto, a checkbox faktury przełącza cenę na brutto',
     (tester) async {
