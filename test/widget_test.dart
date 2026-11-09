@@ -816,7 +816,7 @@ void main() {
   });
 
   testWidgets(
-    'formularz klienta pojawia się dopiero po Nowe zamówienie i nie ma overflow',
+    'zamówienia klienta nie pokazują cen nawet gdy API zwróci pola cenowe',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -868,8 +868,8 @@ void main() {
 
       await tester.tap(find.text('ZAM/202608/0001'));
       await tester.pumpAndSettle();
-      expect(find.text('Razem brutto'), findsOneWidget);
-      expect(find.text('662,85 zł'), findsOneWidget);
+      expect(find.text('Razem brutto'), findsNothing);
+      expect(find.text('662,85 zł'), findsNothing);
       expect(find.byIcon(Icons.close), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byIcon(Icons.close));
@@ -890,10 +890,7 @@ void main() {
       expect(quantityField, findsOneWidget);
       await tester.enterText(quantityField, '30');
       await tester.pump();
-      expect(
-        tester.widget<TextField>(quantityField).controller?.text,
-        '30',
-      );
+      expect(tester.widget<TextField>(quantityField).controller?.text, '30');
       expect(tester.takeException(), isNull);
     },
   );
