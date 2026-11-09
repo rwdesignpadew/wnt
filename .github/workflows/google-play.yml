@@ -77,10 +77,20 @@ jobs:
           echo "WNT_ANDROID_MAPS_API_KEY=$MAPS_API_KEY" >> "$GITHUB_ENV"
 
       - name: Build signed Android App Bundle
-        run: >-
-          flutter build appbundle --release
-          --build-name=1.0.8
-          --build-number=${{ inputs.build_number }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if flutter build appbundle --release \
+              --build-name=1.0.8 \
+              --build-number=${{ inputs.build_number }}; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Android App Bundle build failed after $attempt attempts."
+              exit 1
+            fi
+            echo "Build attempt $attempt failed; retrying after 30 seconds."
+            sleep 30
+          done
 
       - name: Store signed App Bundle
         uses: actions/upload-artifact@v4
