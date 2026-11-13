@@ -362,6 +362,19 @@ class AdminRepository {
       if (search.trim().isNotEmpty) 'search': search.trim(),
     },
   );
+  Future<Map<String, dynamic>> createServiceRequest(
+    String token,
+    Map<String, dynamic> body,
+  ) => _api.post('/mobile/admin/service-requests', token: token, body: body);
+  Future<Map<String, dynamic>> assignServiceRequestRoute(
+    String token,
+    int id,
+    int routeId,
+  ) => _api.post(
+    '/mobile/admin/service-requests/$id/route',
+    token: token,
+    body: {'delivery_route_id': routeId},
+  );
   Future<Map<String, dynamic>> chargeServiceToBalance(
     String token,
     int id,
