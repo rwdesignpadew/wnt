@@ -22,7 +22,7 @@ on:
       build_number:
         description: Android versionCode
         required: true
-        default: '20261103'
+        default: '20261113'
         type: string
 
 permissions:
@@ -80,7 +80,7 @@ jobs:
         run: |
           for attempt in 1 2 3 4 5; do
             if flutter build appbundle --release \
-              --build-name=1.0.8 \
+              --build-name=1.0.9 \
               --build-number=${{ inputs.build_number }}; then
               exit 0
             fi
@@ -107,5 +107,5 @@ jobs:
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: ${{ inputs.track }}
           status: ${{ inputs.release_status }}
-          releaseName: 1.0.8 (${{ inputs.build_number }})
+          releaseName: 1.0.9 (${{ inputs.build_number }})
           changesNotSentForReview: false
