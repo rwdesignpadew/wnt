@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
@@ -7,6 +10,7 @@ import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../home/application/home_navigation_provider.dart';
+import '../../documents/presentation/pdf_document_screen.dart';
 import '../application/admin_providers.dart';
 import 'admin_clients_screen.dart';
 import 'admin_administrators_screen.dart';
@@ -33,196 +37,198 @@ class AdminMoreScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-      Text('Więcej', style: Theme.of(context).textTheme.headlineSmall),
-      const SizedBox(height: 16),
-      Card(
-        child: Column(
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.account_balance_wallet_outlined,
-                color: WntColors.brand,
-              ),
-              title: const Text('Salda klientów'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AdminBalancesScreen()),
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(
-                Icons.water_drop_outlined,
-                color: WntColors.brand,
-              ),
-              title: const Text('Dzierżawy'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AdminRentalsScreen()),
-              ),
-            ),
-            const Divider(),
-            if (canSeeService) ...[
+        Text('Więcej', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 16),
+        Card(
+          child: Column(
+            children: [
               ListTile(
                 leading: const Icon(
-                  Icons.build_outlined,
+                  Icons.account_balance_wallet_outlined,
                   color: WntColors.brand,
                 ),
-                title: const Text('Serwis'),
-                subtitle: const Text('Zgłoszenia z WZ i od klientów'),
-                trailing: _notificationTrailing(openServices),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminServiceRequestsScreen(),
-                  ),
-                ),
-              ),
-              const Divider(),
-            ],
-            ListTile(
-              leading: const Icon(
-                Icons.sticky_note_2_outlined,
-                color: WntColors.brand,
-              ),
-              title: const Text('Uwagi do tras'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AdminRouteNotesScreen(),
-                ),
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(
-                Icons.local_shipping_outlined,
-                color: WntColors.brand,
-              ),
-              title: const Text('Przełącz na tryb kierowcy'),
-              trailing: const Icon(Icons.swap_horiz),
-              onTap: () => _selectDriverMode(context, ref),
-            ),
-            const Divider(),
-            if (ref
-                .watch(authControllerProvider)
-                .session!
-                .user
-                .hasAdminPermission('clients')) ...[
-              ListTile(
-                leading: const Icon(
-                  Icons.people_outline,
-                  color: WntColors.brand,
-                ),
-                title: const Text('Klienci'),
+                title: const Text('Salda klientów'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const AdminClientsNestedScreen(),
+                    builder: (_) => const AdminBalancesScreen(),
                   ),
                 ),
               ),
               const Divider(),
-            ],
-            if (ref
-                .watch(authControllerProvider)
-                .session!
-                .user
-                .hasAdminPermission('administrators')) ...[
               ListTile(
                 leading: const Icon(
-                  Icons.admin_panel_settings_outlined,
+                  Icons.water_drop_outlined,
                   color: WntColors.brand,
                 ),
-                title: const Text('Administratorzy i uprawnienia'),
+                title: const Text('Dzierżawy'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminAdministratorsNestedScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const AdminRentalsScreen()),
                 ),
               ),
               const Divider(),
-            ],
-            if (ref
-                .watch(authControllerProvider)
-                .session!
-                .user
-                .hasAdminPermission('drivers')) ...[
-              ListTile(
-                leading: const Icon(
-                  Icons.query_stats_outlined,
-                  color: WntColors.brand,
-                ),
-                title: const Text('Statystyki kierowców'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminDriverStatisticsNestedScreen(),
-                  ),
-                ),
-              ),
-              const Divider(),
-            ],
-            if (ref
-                .watch(authControllerProvider)
-                .session!
-                .user
-                .hasAdminPermission('products')) ...[
-              ListTile(
-                leading: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: WntColors.brand,
-                ),
-                title: const Text('Produkty'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminProductsScreen(),
-                  ),
-                ),
-              ),
-              const Divider(),
-            ],
-            for (final section in const [
-              ('orders', 'Zamówienia', Icons.shopping_cart_outlined),
-              ('drivers', 'Kierowcy', Icons.badge_outlined),
-              ('regions', 'Regiony', Icons.map_outlined),
-              (
-                'sanitizations',
-                'Sanityzacje',
-                Icons.cleaning_services_outlined,
-              ),
-            ])
-              if (ref
-                  .watch(authControllerProvider)
-                  .session!
-                  .user
-                  .hasAdminPermission(section.$1)) ...[
+              if (canSeeService) ...[
                 ListTile(
-                  leading: Icon(section.$3, color: WntColors.brand),
-                  title: Text(section.$2),
-                  trailing: _notificationTrailing(
-                    section.$1 == 'orders' ? newOrders : 0,
+                  leading: const Icon(
+                    Icons.build_outlined,
+                    color: WntColors.brand,
                   ),
+                  title: const Text('Serwis'),
+                  subtitle: const Text('Zgłoszenia z WZ i od klientów'),
+                  trailing: _notificationTrailing(openServices),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => AdminOperationsScreen(
-                        dataKey: section.$1,
-                        title: section.$2,
-                      ),
+                      builder: (_) => const AdminServiceRequestsScreen(),
                     ),
                   ),
                 ),
                 const Divider(),
               ],
-            ListTile(
-              leading: const Icon(Icons.logout_outlined),
-              title: const Text('Wyloguj się'),
-              onTap: () => ref.read(authControllerProvider.notifier).logout(),
-            ),
-          ],
+              ListTile(
+                leading: const Icon(
+                  Icons.sticky_note_2_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Uwagi do tras'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AdminRouteNotesScreen(),
+                  ),
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(
+                  Icons.local_shipping_outlined,
+                  color: WntColors.brand,
+                ),
+                title: const Text('Przełącz na tryb kierowcy'),
+                trailing: const Icon(Icons.swap_horiz),
+                onTap: () => _selectDriverMode(context, ref),
+              ),
+              const Divider(),
+              if (ref
+                  .watch(authControllerProvider)
+                  .session!
+                  .user
+                  .hasAdminPermission('clients')) ...[
+                ListTile(
+                  leading: const Icon(
+                    Icons.people_outline,
+                    color: WntColors.brand,
+                  ),
+                  title: const Text('Klienci'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminClientsNestedScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(),
+              ],
+              if (ref
+                  .watch(authControllerProvider)
+                  .session!
+                  .user
+                  .hasAdminPermission('administrators')) ...[
+                ListTile(
+                  leading: const Icon(
+                    Icons.admin_panel_settings_outlined,
+                    color: WntColors.brand,
+                  ),
+                  title: const Text('Administratorzy i uprawnienia'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminAdministratorsNestedScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(),
+              ],
+              if (ref
+                  .watch(authControllerProvider)
+                  .session!
+                  .user
+                  .hasAdminPermission('drivers')) ...[
+                ListTile(
+                  leading: const Icon(
+                    Icons.query_stats_outlined,
+                    color: WntColors.brand,
+                  ),
+                  title: const Text('Statystyki kierowców'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminDriverStatisticsNestedScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(),
+              ],
+              if (ref
+                  .watch(authControllerProvider)
+                  .session!
+                  .user
+                  .hasAdminPermission('products')) ...[
+                ListTile(
+                  leading: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: WntColors.brand,
+                  ),
+                  title: const Text('Produkty'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminProductsScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(),
+              ],
+              for (final section in const [
+                ('orders', 'Zamówienia', Icons.shopping_cart_outlined),
+                ('drivers', 'Kierowcy', Icons.badge_outlined),
+                ('regions', 'Regiony', Icons.map_outlined),
+                (
+                  'sanitizations',
+                  'Sanityzacje',
+                  Icons.cleaning_services_outlined,
+                ),
+              ])
+                if (ref
+                    .watch(authControllerProvider)
+                    .session!
+                    .user
+                    .hasAdminPermission(section.$1)) ...[
+                  ListTile(
+                    leading: Icon(section.$3, color: WntColors.brand),
+                    title: Text(section.$2),
+                    trailing: _notificationTrailing(
+                      section.$1 == 'orders' ? newOrders : 0,
+                    ),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AdminOperationsScreen(
+                          dataKey: section.$1,
+                          title: section.$2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                ],
+              ListTile(
+                leading: const Icon(Icons.logout_outlined),
+                title: const Text('Wyloguj się'),
+                onTap: () => ref.read(authControllerProvider.notifier).logout(),
+              ),
+            ],
+          ),
         ),
-      ),
       ],
     );
   }
@@ -420,7 +426,18 @@ class AdminOperationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: embedded ? null : _adminNestedHeader(context, ref, title),
     bottomNavigationBar: embedded ? null : _adminNestedNavigation(context, ref),
-    floatingActionButton: embedded
+    floatingActionButton: dataKey == 'orders'
+        ? FloatingActionButton.extended(
+            tooltip: 'Nowe zamówienie',
+            onPressed: () async {
+              final data = await ref.read(adminOperationsProvider.future);
+              if (!context.mounted) return;
+              await _openOrderCreator(context, ref, data);
+            },
+            icon: const Icon(Icons.add_shopping_cart_outlined),
+            label: const Text('Nowe'),
+          )
+        : embedded
         ? null
         : ['drivers', 'regions', 'sanitizations'].contains(dataKey)
         ? FloatingActionButton(
@@ -472,6 +489,14 @@ class AdminOperationsScreen extends ConsumerWidget {
                     _openSanitizationEditor(context, ref, data, item: item),
                 onAction: (item, action) =>
                     _sanitizationAction(context, ref, item, action),
+              );
+            }
+            if (dataKey == 'orders') {
+              return _AdminOrdersContent(
+                data: data,
+                items: items,
+                onRefresh: () async =>
+                    ref.refresh(adminOperationsProvider.future),
               );
             }
             return RefreshIndicator(
@@ -591,6 +616,10 @@ class AdminOperationsScreen extends ConsumerWidget {
                                       useSafeArea: true,
                                       builder: (_) => _OrderSheet(
                                         order: item,
+                                        documents: _maps(
+                                          data['completed_order_documents'],
+                                        ),
+                                        clients: _maps(data['order_clients']),
                                         routes: data['route_options'] is List
                                             ? (data['route_options'] as List)
                                                   .whereType<Map>()
@@ -1233,7 +1262,9 @@ class _AdminSanitizationsContentState
                 decoration: BoxDecoration(
                   color: WntColors.brandSoft,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: WntColors.brand.withValues(alpha: .25)),
+                  border: Border.all(
+                    color: WntColors.brand.withValues(alpha: .25),
+                  ),
                 ),
                 child: Text('Uwagi kierowcy / wykonania:\n$resultNotes'),
               ),
@@ -1287,14 +1318,18 @@ class _AdminSanitizationsContentState
   }
 
   Widget _quickStatusButton(String label, String value) {
-    final selected = _status == value ||
-        (value == 'open' && {'planned', 'overdue', 'in_progress'}.contains(_status));
+    final selected =
+        _status == value ||
+        (value == 'open' &&
+            {'planned', 'overdue', 'in_progress'}.contains(_status));
     return OutlinedButton(
       onPressed: () => setState(() => _status = value),
       style: OutlinedButton.styleFrom(
         foregroundColor: selected ? Colors.white : WntColors.text,
         backgroundColor: selected ? WntColors.brand : Colors.white,
-        side: BorderSide(color: selected ? WntColors.brand : WntColors.inputLine),
+        side: BorderSide(
+          color: selected ? WntColors.brand : WntColors.inputLine,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       ),
       child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -2064,29 +2099,488 @@ class _SanitizationSheetState extends ConsumerState<_SanitizationSheet> {
   );
 }
 
+class _AdminOrdersContent extends StatefulWidget {
+  const _AdminOrdersContent({
+    required this.data,
+    required this.items,
+    required this.onRefresh,
+  });
+
+  final Map<String, dynamic> data;
+  final List<Map<String, dynamic>> items;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_AdminOrdersContent> createState() => _AdminOrdersContentState();
+}
+
+class _AdminOrdersContentState extends State<_AdminOrdersContent> {
+  String status = 'open';
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final orders = widget.items.where((order) {
+      final rawStatus = '${order['status'] ?? ''}';
+      final matchesStatus = switch (status) {
+        'all' => true,
+        'open' => !['completed', 'cancelled'].contains(rawStatus),
+        _ => rawStatus == status,
+      };
+      if (!matchesStatus) return false;
+      if (normalizedQuery.isEmpty) return true;
+      return [
+            order['title'],
+            order['subtitle'],
+            order['location'],
+            order['document_number'],
+          ]
+          .where((value) => value != null)
+          .join(' ')
+          .toLowerCase()
+          .contains(normalizedQuery);
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+        children: [
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Szukaj klienta, zamówienia lub WZ',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (value) => setState(() => query = value),
+          ),
+          const SizedBox(height: 10),
+          WntFilterTabs<String>(
+            value: status,
+            items: const [
+              WntFilterTab(value: 'open', label: 'Otwarte'),
+              WntFilterTab(value: 'new', label: 'Nowe'),
+              WntFilterTab(value: 'processing', label: 'W realizacji'),
+              WntFilterTab(value: 'planned', label: 'Zaplanowane'),
+              WntFilterTab(value: 'completed', label: 'Wykonane'),
+              WntFilterTab(value: 'cancelled', label: 'Anulowane'),
+              WntFilterTab(value: 'all', label: 'Wszystkie'),
+            ],
+            onChanged: (value) => setState(() => status = value),
+          ),
+          const SizedBox(height: 12),
+          if (orders.isEmpty)
+            const EmptyState(
+              icon: Icons.shopping_cart_outlined,
+              title: 'Brak zamówień',
+              message: 'Nie ma zamówień pasujących do wybranych filtrów.',
+            ),
+          for (final order in orders) ...[
+            _OrderCard(
+              order: order,
+              onTap: () async {
+                await showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  useSafeArea: true,
+                  builder: (_) => _OrderSheet(
+                    order: order,
+                    routes: _maps(widget.data['route_options']),
+                    documents: _maps(widget.data['completed_order_documents']),
+                    clients: _maps(widget.data['order_clients']),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({required this.order, required this.onTap});
+  final Map<String, dynamic> order;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayStatus = '${order['display_status'] ?? order['status'] ?? ''}';
+    final colors = _orderStatusColors(displayStatus);
+    return Card(
+      color: colors.$1,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${order['title'] ?? 'Zamówienie'}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  _StatusBadge(status: displayStatus),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${order['subtitle'] ?? ''}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              if ('${order['location'] ?? ''}'.trim().isNotEmpty)
+                Text(
+                  '${order['location']}',
+                  style: const TextStyle(color: WntColors.muted),
+                ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  if ('${order['created_at'] ?? ''}'.isNotEmpty)
+                    _OrderMeta(
+                      Icons.schedule_outlined,
+                      '${order['created_at']}',
+                    ),
+                  if ('${order['route_name'] ?? ''}'.isNotEmpty)
+                    _OrderMeta(Icons.route_outlined, '${order['route_name']}'),
+                  if ('${order['document_number'] ?? ''}'.isNotEmpty)
+                    _OrderMeta(
+                      Icons.description_outlined,
+                      '${order['document_number']}',
+                    ),
+                  _OrderMeta(
+                    Icons.payments_outlined,
+                    'Wartość: ${_money(order['total_gross'])} zł',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderMeta extends StatelessWidget {
+  const _OrderMeta(this.icon, this.text);
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 15, color: WntColors.muted),
+      const SizedBox(width: 4),
+      Text(text, style: const TextStyle(fontSize: 12, color: WntColors.muted)),
+    ],
+  );
+}
+
+List<Map<String, dynamic>> _maps(dynamic raw) => raw is List
+    ? raw.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList()
+    : <Map<String, dynamic>>[];
+
+(Color, Color) _orderStatusColors(String status) => switch (status) {
+  'new' => (WntColors.errorSoft, WntColors.error),
+  'overdue' => (WntColors.warningSoft, WntColors.warning),
+  'completed' => (WntColors.successSoft, WntColors.success),
+  'cancelled' => (WntColors.canvas, WntColors.muted),
+  _ => (WntColors.brandSoft, WntColors.brand),
+};
+
+Future<void> _openOrderCreator(
+  BuildContext context,
+  WidgetRef ref,
+  Map<String, dynamic> operations,
+) async {
+  final token = ref.read(authControllerProvider).session!.token;
+  final options = await ref.read(adminRepositoryProvider).routeOptions(token);
+  if (!context.mounted) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => _OrderCreateSheet(options: options),
+  );
+}
+
+class _OrderCreateSheet extends ConsumerStatefulWidget {
+  const _OrderCreateSheet({required this.options});
+  final Map<String, dynamic> options;
+  @override
+  ConsumerState<_OrderCreateSheet> createState() => _OrderCreateSheetState();
+}
+
+class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
+  int? clientId;
+  int? locationId;
+  final quantities = <int, int>{};
+  final notes = TextEditingController();
+  String search = '';
+  bool saving = false;
+
+  List<Map<String, dynamic>> get clients => _maps(widget.options['clients']);
+  List<Map<String, dynamic>> get products => _maps(widget.options['products']);
+  Map<String, dynamic>? get client => clients
+      .cast<Map<String, dynamic>?>()
+      .firstWhere((item) => _int(item?['id']) == clientId, orElse: () => null);
+  List<Map<String, dynamic>> get locations => _maps(client?['locations']);
+
+  @override
+  void dispose() {
+    notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    if (clientId == null || quantities.values.every((value) => value < 1)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wybierz klienta i dodaj przynajmniej jeden produkt.'),
+        ),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref.read(adminRepositoryProvider).createOrder(
+        token,
+        {
+          'client_id': clientId,
+          if (locationId != null) 'client_location_id': locationId,
+          'quantities': {
+            for (final entry in quantities.entries) '${entry.key}': entry.value,
+          },
+          if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
+        },
+      );
+      ref.invalidate(adminOperationsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${response['message'] ?? 'Zamówienie zostało utworzone.'}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleIds =
+        (locations.firstWhere(
+                  (item) => _int(item['id']) == locationId,
+                  orElse: () => const {},
+                )['visible_product_ids']
+                as List?)
+            ?.map(_int)
+            .where((id) => id > 0)
+            .toSet() ??
+        (client?['visible_product_ids'] as List?)
+            ?.map(_int)
+            .where((id) => id > 0)
+            .toSet() ??
+        <int>{};
+    final shownProducts = products.where((product) {
+      if (visibleIds.isNotEmpty && !visibleIds.contains(_int(product['id']))) {
+        return false;
+      }
+      return '${product['name'] ?? ''}'.toLowerCase().contains(
+        search.toLowerCase(),
+      );
+    }).toList();
+    return FractionallySizedBox(
+      heightFactor: .94,
+      child: Column(
+        children: [
+          ListTile(
+            title: const Text(
+              'Nowe zamówienie',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            trailing: IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: clientId,
+                  decoration: const InputDecoration(labelText: 'Klient'),
+                  items: clients
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: _int(item['id']),
+                          child: Text(
+                            '${item['name']}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    clientId = value;
+                    final defaultLocation = _maps(client?['locations'])
+                        .firstWhere(
+                          (item) => item['is_default'] == true,
+                          orElse: () => const {},
+                        );
+                    locationId = _int(defaultLocation['id']) > 0
+                        ? _int(defaultLocation['id'])
+                        : (locations.isEmpty
+                              ? null
+                              : _int(locations.first['id']));
+                    quantities.clear();
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: locationId,
+                  decoration: const InputDecoration(labelText: 'Lokalizacja'),
+                  items: locations
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: _int(item['id']),
+                          child: Text(
+                            '${item['name']} - ${item['address'] ?? ''}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: clientId == null
+                      ? null
+                      : (value) => setState(() {
+                          locationId = value;
+                          quantities.clear();
+                        }),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Szukaj produktu',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) => setState(() => search = value),
+                ),
+                const SizedBox(height: 8),
+                for (final product in shownProducts)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${product['name']}'),
+                    subtitle: Text('${product['unit'] ?? 'szt.'}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: () => setState(() {
+                            final id = _int(product['id']);
+                            quantities[id] = ((quantities[id] ?? 0) - 1).clamp(
+                              0,
+                              9999,
+                            );
+                          }),
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        Text(
+                          '${quantities[_int(product['id'])] ?? 0}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() {
+                            final id = _int(product['id']);
+                            quantities[id] = (quantities[id] ?? 0) + 1;
+                          }),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notes,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Uwagi'),
+                ),
+              ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: saving ? null : save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Utwórz zamówienie'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrderSheet extends ConsumerStatefulWidget {
-  const _OrderSheet({required this.order, required this.routes});
+  const _OrderSheet({
+    required this.order,
+    required this.routes,
+    required this.documents,
+    required this.clients,
+  });
   final Map<String, dynamic> order;
   final List<Map<String, dynamic>> routes;
+  final List<Map<String, dynamic>> documents;
+  final List<Map<String, dynamic>> clients;
 
   @override
   ConsumerState<_OrderSheet> createState() => _OrderSheetState();
 }
 
 class _OrderSheetState extends ConsumerState<_OrderSheet> {
-  late String status = '${widget.order['status'] ?? 'new'}' == 'overdue'
-      ? 'new'
-      : '${widget.order['status'] ?? 'new'}';
   late int routeId = _int(widget.order['route_id']);
   bool saving = false;
 
-  Future<void> _delete() async {
+  Future<void> _cancel() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Usunąć zamówienie?'),
+        title: const Text('Anulować zamówienie?'),
         content: const Text(
-          'Zamówienie zostanie trwale usunięte. Powiązany punkt dodany przez to zamówienie również zniknie z trasy.',
+          'Zamówienie pozostanie w historii jako anulowane. Planowany WZ i punkt dodany przez to zamówienie zostaną bezpiecznie odpięte.',
         ),
         actions: [
           TextButton(
@@ -2096,8 +2590,8 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
           FilledButton.icon(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: FilledButton.styleFrom(backgroundColor: WntColors.error),
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Usuń'),
+            icon: const Icon(Icons.cancel_outlined),
+            label: const Text('Anuluj zamówienie'),
           ),
         ],
       ),
@@ -2109,10 +2603,169 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
       final token = ref.read(authControllerProvider).session!.token;
       await ref
           .read(adminRepositoryProvider)
-          .deleteOrder(token, _int(widget.order['id']));
+          .cancelOrder(token, _int(widget.order['id']));
       ref.invalidate(adminOperationsProvider);
       ref.invalidate(adminSummaryProvider);
       if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _accept() async {
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .updateOrderStatus(token, _int(widget.order['id']), 'processing');
+      ref.invalidate(adminOperationsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${response['message'] ?? 'Zamówienie przyjęto do realizacji.'}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _candidateDocuments {
+    final clientId = _int(widget.order['client_id']);
+    final orderLocation = _int(widget.order['client_location_id']);
+    final client = widget.clients.firstWhere(
+      (item) => _int(item['id']) == clientId,
+      orElse: () => const {},
+    );
+    final defaultLocation = _int(client['default_location_id']);
+    final effectiveOrderLocation = orderLocation > 0
+        ? orderLocation
+        : defaultLocation;
+    return widget.documents.where((document) {
+      if (_int(document['client_id']) != clientId) return false;
+      final documentLocation = _int(document['client_location_id']);
+      final effectiveDocumentLocation = documentLocation > 0
+          ? documentLocation
+          : defaultLocation;
+      return effectiveDocumentLocation == effectiveOrderLocation;
+    }).toList();
+  }
+
+  Future<void> _complete() async {
+    int? selectedId;
+    final documents = _candidateDocuments;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Zamknij zlecenie i przypisz WZ'),
+          content: documents.isEmpty
+              ? const Text(
+                  'Brak zakończonego WZ dla tego klienta i tej lokalizacji od 1.09.2026.',
+                )
+              : DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: selectedId,
+                  decoration: const InputDecoration(
+                    labelText: 'WZ realizujący zamówienie',
+                  ),
+                  items: documents
+                      .map(
+                        (document) => DropdownMenuItem<int>(
+                          value: _int(document['id']),
+                          child: Text(
+                            '${document['number']} · ${document['date']}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => selectedId = value),
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Wróć'),
+            ),
+            FilledButton(
+              onPressed: selectedId == null
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
+              child: const Text('Przypisz WZ i zamknij'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || selectedId == null || saving) return;
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final response = await ref
+          .read(adminRepositoryProvider)
+          .completeOrder(token, _int(widget.order['id']), selectedId!);
+      ref.invalidate(adminOperationsProvider);
+      ref.invalidate(adminSummaryProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${response['message'] ?? 'Zamówienie zakończono.'}'),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error'), backgroundColor: WntColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _previewDocument() async {
+    final documentId = _int(widget.order['document_id']);
+    if (documentId < 1) return;
+    setState(() => saving = true);
+    try {
+      final token = ref.read(authControllerProvider).session!.token;
+      final pdf = await ref
+          .read(adminRepositoryProvider)
+          .documentPdf(token, documentId);
+      final directory = await getTemporaryDirectory();
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}wz-$documentId.pdf',
+      );
+      await file.writeAsBytes(pdf.bytes, flush: true);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfDocumentScreen(
+            path: file.path,
+            title: '${widget.order['document_number'] ?? 'WZ'}',
+          ),
+        ),
+      );
+      await PdfDocumentScreen.removeTemporary(file.path);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2134,14 +2787,6 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
           token,
           _int(widget.order['id']),
           routeId == 0 ? null : routeId,
-        );
-      }
-      final resultingStatus = routeId > 0 ? 'planned' : status;
-      if (resultingStatus != '${widget.order['status']}') {
-        await repository.updateOrderStatus(
-          token,
-          _int(widget.order['id']),
-          resultingStatus,
         );
       }
       ref.invalidate(adminOperationsProvider);
@@ -2288,46 +2933,13 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() {
-                    routeId = value ?? 0;
-                    if (routeId > 0) {
-                      status = 'planned';
-                    } else if (status == 'planned') {
-                      status = 'new';
-                    }
-                  }),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: status,
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  items: const [
-                    DropdownMenuItem(value: 'new', child: Text('Nowe')),
-                    DropdownMenuItem(
-                      value: 'accepted',
-                      child: Text('Przyjęte'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'planned',
-                      child: Text('Zaplanowane'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'in_delivery',
-                      child: Text('W dostawie'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'completed',
-                      child: Text('Zrealizowane'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'cancelled',
-                      child: Text('Anulowane'),
-                    ),
-                  ],
-                  onChanged: routeId > 0
+                  onChanged:
+                      [
+                        'completed',
+                        'cancelled',
+                      ].contains('${widget.order['status']}')
                       ? null
-                      : (value) => setState(() => status = value ?? 'new'),
+                      : (value) => setState(() => routeId = value ?? 0),
                 ),
               ],
             ),
@@ -2336,27 +2948,56 @@ class _OrderSheetState extends ConsumerState<_OrderSheet> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
                 children: [
-                  IconButton.filledTonal(
-                    tooltip: 'Usuń zamówienie',
-                    onPressed: saving ? null : _delete,
-                    color: WntColors.error,
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
+                  if (![
+                    'completed',
+                    'cancelled',
+                  ].contains('${widget.order['status']}'))
+                    OutlinedButton.icon(
+                      onPressed: saving ? null : _cancel,
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Anuluj'),
+                    ),
+                  if ('${widget.order['status']}' == 'new')
+                    FilledButton.tonalIcon(
+                      onPressed: saving ? null : _accept,
+                      icon: const Icon(Icons.playlist_add_check),
+                      label: const Text('Przyjmij'),
+                    ),
+                  if (![
+                    'completed',
+                    'cancelled',
+                  ].contains('${widget.order['status']}'))
+                    FilledButton.tonalIcon(
+                      onPressed: saving ? null : _complete,
+                      icon: const Icon(Icons.assignment_turned_in_outlined),
+                      label: const Text('Zamknij z WZ'),
+                    ),
+                  if ('${widget.order['status']}' == 'completed' &&
+                      _int(widget.order['document_id']) > 0)
+                    FilledButton.tonalIcon(
+                      onPressed: saving ? null : _previewDocument,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('Podgląd WZ'),
+                    ),
+                  if (![
+                    'completed',
+                    'cancelled',
+                  ].contains('${widget.order['status']}'))
+                    FilledButton.icon(
                       onPressed: saving ? null : _save,
                       icon: saving
                           ? const SizedBox.square(
                               dimension: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.save_outlined),
-                      label: const Text('Zapisz obsługę zamówienia'),
+                          : const Icon(Icons.route_outlined),
+                      label: const Text('Zapisz trasę'),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -2373,11 +3014,13 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overdue = status == 'overdue';
+    final colors = _orderStatusColors(status);
     final label = switch (status) {
       'new' => 'Nowe',
+      'processing' => 'W realizacji',
       'accepted' => 'Przyjęte',
       'planned' => 'Zaplanowane',
+      'in_delivery' => 'W dostawie',
       'completed' => 'Wykonane',
       'overdue' => 'Po terminie',
       'in_progress' => 'Do dokończenia',
@@ -2388,14 +3031,14 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: overdue ? WntColors.errorSoft : WntColors.brandSoft,
+        color: colors.$1,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: overdue ? WntColors.error : WntColors.brand,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: colors.$2),
       ),
     );
   }

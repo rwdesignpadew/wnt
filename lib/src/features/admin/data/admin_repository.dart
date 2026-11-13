@@ -42,6 +42,21 @@ class AdminRepository {
     token: token,
     body: {'delivery_route_id': routeId},
   );
+  Future<Map<String, dynamic>> createOrder(
+    String token,
+    Map<String, dynamic> body,
+  ) => _api.post('/mobile/admin/orders', token: token, body: body);
+  Future<Map<String, dynamic>> completeOrder(
+    String token,
+    int id,
+    int documentId,
+  ) => _api.post(
+    '/mobile/admin/orders/$id/complete',
+    token: token,
+    body: {'delivery_document_id': documentId},
+  );
+  Future<Map<String, dynamic>> cancelOrder(String token, int id) =>
+      _api.post('/mobile/admin/orders/$id/cancel', token: token);
   Future<Map<String, dynamic>> deleteOrder(String token, int id) =>
       _api.delete('/mobile/admin/orders/$id', token: token);
   Future<Map<String, dynamic>> completeSanitization(
