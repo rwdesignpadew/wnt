@@ -42,6 +42,20 @@ void main() {
       ),
     );
 
+    final decorator = tester.widget<InputDecorator>(
+      find.byType(InputDecorator),
+    );
+    expect(
+      decorator.decoration.floatingLabelBehavior,
+      FloatingLabelBehavior.always,
+    );
+    expect(
+      tester
+          .getRect(find.text('Klient'))
+          .overlaps(tester.getRect(find.text('Wyszukaj klienta'))),
+      isFalse,
+    );
+
     await tester.tap(find.text('Wyszukaj klienta'));
     await tester.pumpAndSettle();
     expect(find.text('Alfa'), findsOneWidget);

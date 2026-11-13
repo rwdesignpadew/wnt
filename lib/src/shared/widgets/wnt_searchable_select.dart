@@ -30,6 +30,7 @@ class WntSearchableSelectField extends StatelessWidget {
           isEmpty: !hasValue,
           decoration: InputDecoration(
             labelText: label,
+            floatingLabelBehavior: FloatingLabelBehavior.always,
             suffixIcon: const Icon(Icons.search),
           ),
           child: Text(
