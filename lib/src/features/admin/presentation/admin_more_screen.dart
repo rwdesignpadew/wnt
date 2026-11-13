@@ -2345,6 +2345,61 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
     super.dispose();
   }
 
+  Future<void> pickClient() async {
+    final selected = await showWntSearchPicker<Map<String, dynamic>>(
+      context: context,
+      title: 'Wybierz klienta',
+      searchHint: 'Wpisz nazwę klienta, NIP lub adres',
+      items: clients,
+      selected: client,
+      titleFor: (item) => '${item['name'] ?? ''}',
+      subtitleFor: (item) {
+        final clientLocations = _maps(item['locations']);
+        if (clientLocations.isNotEmpty) {
+          final location = clientLocations.firstWhere(
+            (entry) => entry['is_default'] == true,
+            orElse: () => clientLocations.first,
+          );
+          final locationName = '${location['name'] ?? ''}'.trim();
+          final address = '${location['address'] ?? ''}'.trim();
+          return [
+            locationName,
+            address,
+          ].where((value) => value.isNotEmpty).join(' · ');
+        }
+        return '${item['tax_no'] ?? item['nip'] ?? ''}'.trim();
+      },
+      searchTextFor: (item) {
+        final locationText = _maps(item['locations'])
+            .map(
+              (location) =>
+                  '${location['name'] ?? ''} ${location['address'] ?? ''}',
+            )
+            .join(' ');
+        return '${item['name'] ?? ''} ${item['tax_no'] ?? item['nip'] ?? ''} '
+            '${item['email'] ?? ''} $locationText';
+      },
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      clientId = _int(selected['id']);
+      final clientLocations = _maps(selected['locations']);
+      final defaultLocation = clientLocations.firstWhere(
+        (item) => item['is_default'] == true,
+        orElse: () => const {},
+      );
+      locationId = _int(defaultLocation['id']) > 0
+          ? _int(defaultLocation['id'])
+          : (clientLocations.isEmpty
+                ? null
+                : _int(clientLocations.first['id']));
+      quantities.clear();
+      showAllProducts = false;
+      search = '';
+      productSearch.clear();
+    });
+  }
+
   Future<void> save() async {
     if (clientId == null || quantities.values.every((value) => value < 1)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2449,38 +2504,11 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                DropdownButtonFormField<int>(
-                  isExpanded: true,
-                  initialValue: clientId,
-                  decoration: const InputDecoration(labelText: 'Klient'),
-                  items: clients
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: _int(item['id']),
-                          child: Text(
-                            '${item['name']}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    clientId = value;
-                    final defaultLocation = _maps(client?['locations'])
-                        .firstWhere(
-                          (item) => item['is_default'] == true,
-                          orElse: () => const {},
-                        );
-                    locationId = _int(defaultLocation['id']) > 0
-                        ? _int(defaultLocation['id'])
-                        : (locations.isEmpty
-                              ? null
-                              : _int(locations.first['id']));
-                    quantities.clear();
-                    showAllProducts = false;
-                    search = '';
-                    productSearch.clear();
-                  }),
+                WntSearchableSelectField(
+                  label: 'Klient',
+                  value: client?['name']?.toString(),
+                  hintText: 'Wyszukaj klienta',
+                  onTap: clients.isEmpty ? null : pickClient,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(

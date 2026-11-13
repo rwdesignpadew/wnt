@@ -59,6 +59,20 @@ class _TestAdminRepository extends AdminRepository {
           },
         ],
       },
+      {
+        'id': 102,
+        'name': 'Inny odbiorca',
+        'visible_product_ids': [12],
+        'locations': [
+          {
+            'id': 1002,
+            'name': 'Magazyn',
+            'address': 'Przemysłowa 2',
+            'is_default': true,
+            'visible_product_ids': [12],
+          },
+        ],
+      },
     ],
   };
 }
@@ -98,11 +112,20 @@ void main() {
 
       await tester.tap(find.byTooltip('Nowe zamówienie'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(DropdownButtonFormField<int>, 'Klient'),
-      );
+      await tester.tap(find.text('Wyszukaj klienta'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Klient testowy').last);
+      expect(find.text('Klient testowy'), findsOneWidget);
+      expect(find.text('Inny odbiorca'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Wpisz nazwę klienta, NIP lub adres'),
+        'Testowa 1',
+      );
+      await tester.pump();
+      expect(find.text('Klient testowy'), findsOneWidget);
+      expect(find.text('Inny odbiorca'), findsNothing);
+
+      await tester.tap(find.text('Klient testowy'));
       await tester.pumpAndSettle();
 
       expect(find.text('Produkt przypisany'), findsOneWidget);
