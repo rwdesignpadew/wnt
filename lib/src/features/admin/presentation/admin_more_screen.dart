@@ -2326,8 +2326,10 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
   int? locationId;
   final quantities = <int, int>{};
   final notes = TextEditingController();
+  final productSearch = TextEditingController();
   String search = '';
   bool saving = false;
+  bool showAllProducts = false;
 
   List<Map<String, dynamic>> get clients => _maps(widget.options['clients']);
   List<Map<String, dynamic>> get products => _maps(widget.options['products']);
@@ -2339,6 +2341,7 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
   @override
   void dispose() {
     notes.dispose();
+    productSearch.dispose();
     super.dispose();
   }
 
@@ -2389,28 +2392,44 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleIds =
-        (locations.firstWhere(
-                  (item) => _int(item['id']) == locationId,
-                  orElse: () => const {},
-                )['visible_product_ids']
-                as List?)
+    final selectedLocation = locations.firstWhere(
+      (item) => _int(item['id']) == locationId,
+      orElse: () => const {},
+    );
+    final locationProductIds =
+        (selectedLocation['visible_product_ids'] as List?)
             ?.map(_int)
             .where((id) => id > 0)
             .toSet() ??
+        <int>{};
+    final clientProductIds =
         (client?['visible_product_ids'] as List?)
             ?.map(_int)
             .where((id) => id > 0)
             .toSet() ??
         <int>{};
-    final shownProducts = products.where((product) {
-      if (visibleIds.isNotEmpty && !visibleIds.contains(_int(product['id']))) {
-        return false;
-      }
-      return '${product['name'] ?? ''}'.toLowerCase().contains(
-        search.toLowerCase(),
-      );
-    }).toList();
+    final assignedProductIds = locationProductIds.isNotEmpty
+        ? locationProductIds
+        : clientProductIds;
+    final normalizedSearch = search.trim().toLowerCase();
+    final assignedProducts = products
+        .where((product) => assignedProductIds.contains(_int(product['id'])))
+        .toList();
+    final otherProducts = products
+        .where((product) => !assignedProductIds.contains(_int(product['id'])))
+        .toList();
+    final productPool = showAllProducts
+        ? [...assignedProducts, ...otherProducts]
+        : assignedProducts;
+    final shownProducts = productPool
+        .where(
+          (product) =>
+              normalizedSearch.isEmpty ||
+              '${product['name'] ?? ''}'.toLowerCase().contains(
+                normalizedSearch,
+              ),
+        )
+        .toList();
     return FractionallySizedBox(
       heightFactor: .94,
       child: Column(
@@ -2458,6 +2477,9 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
                               ? null
                               : _int(locations.first['id']));
                     quantities.clear();
+                    showAllProducts = false;
+                    search = '';
+                    productSearch.clear();
                   }),
                 ),
                 const SizedBox(height: 12),
@@ -2481,10 +2503,14 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
                       : (value) => setState(() {
                           locationId = value;
                           quantities.clear();
+                          showAllProducts = false;
+                          search = '';
+                          productSearch.clear();
                         }),
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  controller: productSearch,
                   decoration: const InputDecoration(
                     hintText: 'Szukaj produktu',
                     prefixIcon: Icon(Icons.search),
@@ -2522,6 +2548,22 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
                           icon: const Icon(Icons.add_circle_outline),
                         ),
                       ],
+                    ),
+                  ),
+                if (otherProducts.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setState(() => showAllProducts = !showAllProducts),
+                      icon: Icon(
+                        showAllProducts ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      label: Text(
+                        showAllProducts
+                            ? 'Pokaż mniej produktów'
+                            : 'Pokaż więcej produktów (${otherProducts.length})',
+                      ),
                     ),
                   ),
                 const SizedBox(height: 12),
