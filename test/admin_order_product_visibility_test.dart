@@ -11,6 +11,7 @@ import 'package:woda_na_telefon/src/features/admin/presentation/admin_more_scree
 import 'package:woda_na_telefon/src/features/auth/application/auth_controller.dart';
 import 'package:woda_na_telefon/src/features/auth/data/auth_repository.dart';
 import 'package:woda_na_telefon/src/features/auth/domain/app_session.dart';
+import 'package:woda_na_telefon/src/shared/widgets/quantity_stepper.dart';
 
 class _TestAuthController extends AuthController {
   _TestAuthController()
@@ -131,6 +132,14 @@ void main() {
       expect(find.text('Produkt przypisany'), findsOneWidget);
       expect(find.text('Produkt dodatkowy'), findsNothing);
       expect(find.text('Pokaż więcej produktów (1)'), findsOneWidget);
+      final quantityField = find.descendant(
+        of: find.byType(QuantityStepper),
+        matching: find.byType(TextField),
+      );
+      expect(quantityField, findsOneWidget);
+      await tester.enterText(quantityField, '25');
+      await tester.pump();
+      expect(tester.widget<TextField>(quantityField).controller?.text, '25');
 
       await tester.tap(find.text('Pokaż więcej produktów (1)'));
       await tester.pumpAndSettle();

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/theme/wnt_colors.dart';
 import '../../../shared/widgets/async_state_view.dart';
+import '../../../shared/widgets/quantity_stepper.dart';
 import '../../../shared/widgets/wnt_searchable_select.dart';
 import '../../../shared/widgets/wnt_filter_tabs.dart';
 import '../../auth/application/auth_controller.dart';
@@ -2551,31 +2552,12 @@ class _OrderCreateSheetState extends ConsumerState<_OrderCreateSheet> {
                     contentPadding: EdgeInsets.zero,
                     title: Text('${product['name']}'),
                     subtitle: Text('${product['unit'] ?? 'szt.'}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () => setState(() {
-                            final id = _int(product['id']);
-                            quantities[id] = ((quantities[id] ?? 0) - 1).clamp(
-                              0,
-                              9999,
-                            );
-                          }),
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        Text(
-                          '${quantities[_int(product['id'])] ?? 0}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        IconButton(
-                          onPressed: () => setState(() {
-                            final id = _int(product['id']);
-                            quantities[id] = (quantities[id] ?? 0) + 1;
-                          }),
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                      ],
+                    trailing: QuantityStepper(
+                      value: quantities[_int(product['id'])] ?? 0,
+                      compact: true,
+                      onChanged: (value) => setState(() {
+                        quantities[_int(product['id'])] = value.clamp(0, 9999);
+                      }),
                     ),
                   ),
                 if (otherProducts.isNotEmpty)
